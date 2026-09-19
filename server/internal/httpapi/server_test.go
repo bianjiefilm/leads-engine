@@ -122,11 +122,13 @@ type harness struct {
 	identitySrv   *httptest.Server
 	dbPath        string
 	internalToken string
+	logs          *bytes.Buffer // non-nil only when opts.captureLog is set
 }
 
 type harnessOpts struct {
 	omitIdentityToken   bool // config gate intentionally unsatisfied
 	featureServiceDraft bool // FEATURE_SERVICE_DRAFT=on (mount point registered)
+	captureLog          bool // capture server log lines for redaction assertions
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -155,14 +157,20 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 		}
 		return ""
 	})
-	s, err := Open(cfg, log.New(io.Discard, "", 0))
+	var logBuf *bytes.Buffer
+	logger := log.New(io.Discard, "", 0)
+	if opts.captureLog {
+		logBuf = &bytes.Buffer{}
+		logger = log.New(logBuf, "", 0)
+	}
+	s, err := Open(cfg, logger)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(s.Close)
 	hs := httptest.NewServer(s.Handler())
 	t.Cleanup(hs.Close)
-	return &harness{t: t, srv: hs, cfg: cfg, identitySrv: fake, dbPath: dbPath, internalToken: internalToken}
+	return &harness{t: t, srv: hs, cfg: cfg, identitySrv: fake, dbPath: dbPath, internalToken: internalToken, logs: logBuf}
 }
 
 func newHarness(t *testing.T) *harness { return newHarnessOpts(t, harnessOpts{}) }
@@ -202,6 +210,36 @@ func (h *harness) mustDo(method, path, session, tenant, body string, wantStatus 
 		h.t.Fatalf("%s %s: status %d, want %d (body %v)", method, path, status, wantStatus, out)
 	}
 	return out
+}
+
+// doRaw is the raw-body variant used for non-JSON responses (CSV export).
+func (h *harness) doRaw(method, path, sessionToken, tenant, body string) (int, []byte, http.Header) {
+	h.t.Helper()
+	var rdr io.Reader
+	if body != "" {
+		rdr = bytes.NewReader([]byte(body))
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, h.srv.URL+path, rdr)
+	if err != nil {
+		h.t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-Internal-Token", h.internalToken)
+	if tenant != "" {
+		req.Header.Set("X-Tenant-ID", tenant)
+	}
+	if sessionToken != "" {
+		req.Header.Set("X-Session-Token", sessionToken)
+	}
+	res, err := h.srv.Client().Do(req)
+	if err != nil {
+		h.t.Fatalf("do %s %s: %v", method, path, err)
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		h.t.Fatalf("read body: %v", err)
+	}
+	return res.StatusCode, raw, res.Header
 }
 
 func (h *harness) provision(args ...string) string {

@@ -43,6 +43,10 @@ const (
 	ActionUpdate        Action = "update"
 	ActionManageMembers Action = "manage_members"
 	ActionExport        Action = "export"
+	// ActionDelete is the profile soft delete (HUI-1691). Deleting a customer
+	// profile is a tenant-grade, hard-to-walk-back action and therefore shares
+	// the export privilege level: owner only.
+	ActionDelete Action = "delete"
 )
 
 // Deny reason codes. ReasonNotFoundMask maps to HTTP 404 so a sales cannot
@@ -106,7 +110,7 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExport:
+	case ActionManageMembers, ActionExport, ActionDelete:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

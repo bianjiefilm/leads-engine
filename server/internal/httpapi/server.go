@@ -130,8 +130,18 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("POST /api/v1/contacts", s.requireSession(s.handleContactCreate))
 	mux.Handle("GET /api/v1/contacts", s.requireSession(s.handleContactList))
+	// exact literal segments win over {id} (ServeMux precedence)
+	mux.Handle("GET /api/v1/contacts/export", s.requireSession(s.handleContactExport))
 	mux.Handle("GET /api/v1/contacts/{id}", s.requireSession(s.handleContactGet))
 	mux.Handle("PATCH /api/v1/contacts/{id}", s.requireSession(s.handleContactPatch))
+	mux.Handle("DELETE /api/v1/contacts/{id}", s.requireSession(s.handleContactDelete))
+	// HUI-1691 客户档案:consent(按来源维度、撤销持久)与跟进时间线(只追加)
+	mux.Handle("GET /api/v1/contacts/{id}/consents", s.requireSession(s.handleContactConsentList))
+	mux.Handle("POST /api/v1/contacts/{id}/consents", s.requireSession(s.handleContactConsentUpsert))
+	mux.Handle("POST /api/v1/contacts/{id}/consents/{consentId}/revoke", s.requireSession(s.handleContactConsentRevoke))
+	mux.Handle("POST /api/v1/contacts/{id}/revoke-marketing", s.requireSession(s.handleContactRevokeMarketing))
+	mux.Handle("GET /api/v1/contacts/{id}/followups", s.requireSession(s.handleContactFollowupList))
+	mux.Handle("POST /api/v1/contacts/{id}/followups", s.requireSession(s.handleContactFollowupCreate))
 
 	mux.Handle("POST /api/v1/leads", s.requireSession(s.handleLeadCreate))
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
