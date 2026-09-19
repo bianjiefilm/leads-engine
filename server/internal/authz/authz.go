@@ -19,8 +19,8 @@ func (r Role) Valid() bool { return r == RoleOwner || r == RoleSales || r == Rol
 
 // Member is a tenant membership resolved from the members table.
 type Member struct {
-	ID string // members.id, used for assignment comparisons
-	TenantID string
+	ID           string // members.id, used for assignment comparisons
+	TenantID     string
 	PrincipalRef string
 	Role         Role
 	Enabled      bool
@@ -47,6 +47,10 @@ const (
 	// profile is a tenant-grade, hard-to-walk-back action and therefore shares
 	// the export privilege level: owner only.
 	ActionDelete Action = "delete"
+	// ActionMerge is the contact merge surface (HUI-1683): merging two customer
+	// profiles, the merge-candidate pool and its resolution, dedup stats and
+	// merge undo. 合并客户档案是租户级、影响面最大的动作:owner 专属,绝不静默。
+	ActionMerge Action = "merge"
 )
 
 // Deny reason codes. ReasonNotFoundMask maps to HTTP 404 so a sales cannot
@@ -110,7 +114,7 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExport, ActionDelete:
+	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

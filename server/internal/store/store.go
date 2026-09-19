@@ -209,13 +209,13 @@ func (s *Store) ListAgentGrants(tenantID string) ([]AgentGrant, error) {
 // ---- source refs -----------------------------------------------------------
 
 type SourceRef struct {
-	ID                 string `json:"id"`
-	TenantID           string `json:"tenant_id"`
-	SourceApp          string `json:"source_app"`
-	SourceRef          string `json:"source_ref"`
-	AuthScopeSnapshot  string `json:"auth_scope_snapshot"`
-	CreatedBy          string `json:"created_by"`
-	CreatedAt          string `json:"created_at"`
+	ID                string `json:"id"`
+	TenantID          string `json:"tenant_id"`
+	SourceApp         string `json:"source_app"`
+	SourceRef         string `json:"source_ref"`
+	AuthScopeSnapshot string `json:"auth_scope_snapshot"`
+	CreatedBy         string `json:"created_by"`
+	CreatedAt         string `json:"created_at"`
 }
 
 func (s *Store) CreateSourceRef(tenantID, sourceApp, sourceRef, authScope, createdBy string) (SourceRef, error) {
@@ -225,6 +225,19 @@ func (s *Store) CreateSourceRef(tenantID, sourceApp, sourceRef, authScope, creat
 		`INSERT INTO source_refs(id,tenant_id,source_app,source_ref,auth_scope_snapshot,created_by,created_at) VALUES(?,?,?,?,?,?,?)`,
 		r.ID, r.TenantID, r.SourceApp, r.SourceRef, r.AuthScopeSnapshot, r.CreatedBy, r.CreatedAt)
 	return r, err
+}
+
+// FindSourceRef reuses an identical provenance row within the tenant
+// (HUI-1683: replayed intake events must not accumulate duplicate campaign
+// rows; source_refs acts as a provenance dictionary, not a per-event log).
+func (s *Store) FindSourceRef(tenantID, sourceApp, sourceRef string) (SourceRef, bool) {
+	var r SourceRef
+	err := s.DB.QueryRow(
+		`SELECT id,tenant_id,source_app,source_ref,auth_scope_snapshot,created_by,created_at
+		 FROM source_refs WHERE tenant_id=? AND source_app=? AND source_ref=? ORDER BY created_at LIMIT 1`,
+		tenantID, sourceApp, sourceRef).
+		Scan(&r.ID, &r.TenantID, &r.SourceApp, &r.SourceRef, &r.AuthScopeSnapshot, &r.CreatedBy, &r.CreatedAt)
+	return r, err == nil
 }
 
 func (s *Store) GetSourceRef(id, tenantID string) (SourceRef, error) {
@@ -283,11 +296,21 @@ func (s *Store) CreateContact(c Contact, createdBy, assignTo string) (Contact, e
 	c.CreatedBy = createdBy
 	c.AssignedMemberID = assignTo
 	c.CreatedAt, c.UpdatedAt = now(), now()
-	_, err := s.DB.Exec(
+	if err := insertContactTx(s.DB, c); err != nil {
+		return Contact{}, err
+	}
+	return c, nil
+}
+
+// insertContactTx is the single INSERT for contacts, shared by the direct path
+// and the lead-intake transaction (HUI-1683) so the column list cannot drift.
+// db accepts *sql.DB or *sql.Tx (both satisfy the execer interface below).
+func insertContactTx(db sqlDB, c Contact) error {
+	_, err := db.Exec(
 		`INSERT INTO contacts(`+contactCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		c.ID, c.TenantID, c.Name, c.Phone, c.Email, c.BusinessCategory, c.SourceType, c.ConsentStatus,
 		c.Notes, c.Tags, nil, nullable(c.SourceRefID), nullable(c.AssignedMemberID), c.CreatedBy, c.CreatedAt, c.UpdatedAt)
-	return c, err
+	return err
 }
 
 // GetContact fetches a live (non-deleted) contact within the tenant.
@@ -420,10 +443,18 @@ func (s *Store) CreateLead(l Lead, createdBy, assignTo string) (Lead, error) {
 	l.CreatedBy = createdBy
 	l.AssignedMemberID = assignTo
 	l.CreatedAt, l.UpdatedAt = now(), now()
-	_, err := s.DB.Exec(
+	if err := insertLeadTx(s.DB, l); err != nil {
+		return Lead{}, err
+	}
+	return l, nil
+}
+
+// insertLeadTx is the single INSERT for leads (shared with lead intake).
+func insertLeadTx(db sqlDB, l Lead) error {
+	_, err := db.Exec(
 		`INSERT INTO leads(`+leadCols+`) VALUES(?,?,?,?,?,?,?,?,?)`,
 		l.ID, l.TenantID, l.ContactID, nullable(l.SourceRefID), l.Status, nullable(l.AssignedMemberID), l.CreatedBy, l.CreatedAt, l.UpdatedAt)
-	return l, err
+	return err
 }
 
 func (s *Store) GetLead(id, tenantID string) (Lead, error) {
@@ -456,7 +487,7 @@ func (s *Store) ListLeads(tenantID, assigneeFilter string) ([]Lead, error) {
 }
 
 type LeadPatch struct {
-	Status    *string
+	Status     *string
 	AssignedTo *string
 }
 
@@ -650,7 +681,7 @@ func (s *Store) UpdateOpportunity(id, tenantID string, p OpportunityPatch) (Oppo
 	return cur, err
 }
 
-// OpportunityStageEvent is one audited stage transition. from_stage='' marks
+// OpportunityStageEvent is one audited stage transition. from_stage=” marks
 // the creation row. 关闭(won/closed_lost)与重开是同一种普通转换。
 type OpportunityStageEvent struct {
 	ID            string `json:"id"`
@@ -775,6 +806,11 @@ func (s *Store) OpportunityStats(tenantID, category, assigneeFilter string) (*Op
 }
 
 // ---- helpers ---------------------------------------------------------------
+
+// sqlDB is the handle interface shared by *sql.DB and *sql.Tx for inserts.
+type sqlDB interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
 
 func boolInt(b bool) int {
 	if b {

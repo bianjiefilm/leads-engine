@@ -167,6 +167,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
 	mux.Handle("GET /api/v1/leads/{id}", s.requireSession(s.handleLeadGet))
 	mux.Handle("PATCH /api/v1/leads/{id}", s.requireSession(s.handleLeadPatch))
+	// HUI-1683 线索 intake 去重:三分类领域规则的唯一 HTTP 形态(HUI-1680 的
+	// inbox 与它共用 store.IntakeLeadInTx;本票不做接收渠道本身)。
+	mux.Handle("POST /api/v1/leads/intake", s.requireSession(s.handleLeadIntake))
+	// HUI-1683 联系人合并面:owner 专属(显式合并/可纠错 undo/候选池/统计)。
+	mux.Handle("POST /api/v1/contacts/{id}/merge/{otherId}", s.requireSession(s.handleContactMerge))
+	mux.Handle("GET /api/v1/merges", s.requireSession(s.handleMergeList))
+	mux.Handle("POST /api/v1/merges/{id}/undo", s.requireSession(s.handleMergeUndo))
+	mux.Handle("GET /api/v1/merge-candidates", s.requireSession(s.handleMergeCandidateList))
+	mux.Handle("POST /api/v1/merge-candidates/{id}/dismiss", s.requireSession(s.handleMergeCandidateDismiss))
+	mux.Handle("GET /api/v1/dedup/stats", s.requireSession(s.handleDedupStats))
 
 	mux.Handle("POST /api/v1/opportunities", s.requireSession(s.handleOppCreate))
 	mux.Handle("GET /api/v1/opportunities", s.requireSession(s.handleOppList))

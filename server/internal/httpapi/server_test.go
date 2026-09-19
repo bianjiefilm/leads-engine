@@ -133,6 +133,7 @@ type harnessOpts struct {
 	ecoOn               bool // FEATURE_SERVICE_DRAFT=on + all ECO_HANDOFF_* facts wired to the stub receiver
 	ecoIntakeDead       bool // ecoOn but the intake URL is a dead port (delivery-failure paths)
 	captureLog          bool // capture server log lines for redaction assertions
+	omitDedupPepper     bool // HUI-1683: intake fails closed when the pepper is missing
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -177,6 +178,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return "deploy-scope-a"
 		case "ECO_HANDOFF_PROOF_SALT":
 			return "test-proof-salt"
+		case "LEADS_DEDUP_PEPPER":
+			if opts.omitDedupPepper {
+				return ""
+			}
+			return "test-dedup-pepper"
 		}
 		return ""
 	})
