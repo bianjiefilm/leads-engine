@@ -85,19 +85,3 @@ func (s *Server) handleOppStats(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, st)
 }
-
-// handleServiceDraftIntent is the L1 mount point for 「创建服务需求草稿」.
-// 归 HUI-1749/HUI-1751 唯一承接:本票只保留挂载点,不实现草稿创建。
-//   - FEATURE_SERVICE_DRAFT 默认 off:路由不注册,请求 404(功能不可见,
-//     普通顾客线索/商机不出现转接单动作);
-//   - 显式 on:路由存在但只返回 501 not_implemented 骨架,绝不伪造草稿创建成功。
-func (s *Server) handleServiceDraftIntent(w http.ResponseWriter, r *http.Request) {
-	c := callerFrom(r)
-	rec, ok := s.oppRecord(w, r, c, authz.ActionUpdate)
-	if !ok {
-		return
-	}
-	_ = rec
-	fail(w, http.StatusNotImplemented, "not_implemented",
-		"service draft creation is owned by HUI-1749/HUI-1751; this mount point is disabled by default")
-}

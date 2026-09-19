@@ -6,6 +6,7 @@ node_modules/
 .next/
 out/
 dist/
+*.tsbuildinfo
 
 # databases / local data
 data/

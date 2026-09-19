@@ -302,7 +302,9 @@ func TestOpportunityStagePermissionMatrix(t *testing.T) {
 // ---- L1 挂载点:FEATURE_SERVICE_DRAFT(归 HUI-1749/1751) ----------------------------
 
 func TestServiceDraftIntentMount(t *testing.T) {
-	intent := func(h *harness, oppID string) string { return "/api/v1/opportunities/" + oppID + "/service-draft-intent" }
+	intent := func(h *harness, oppID string) string {
+		return "/api/v1/opportunities/" + oppID + "/service-draft-intent"
+	}
 
 	t.Run("default off: the route does not exist (404, invisible)", func(t *testing.T) {
 		h := newHarness(t)
@@ -312,13 +314,13 @@ func TestServiceDraftIntentMount(t *testing.T) {
 		h.mustDo("POST", intent(h, opp), sessionOwnerA, tenantA, `{}`, http.StatusNotFound)
 	})
 
-	t.Run("explicitly on: skeleton answers 501 not_implemented (owned by HUI-1749/1751)", func(t *testing.T) {
+	t.Run("on without eco deployment facts: 503 config_gate_eco (fail-closed, never fakes delivery)", func(t *testing.T) {
 		h := newHarnessOpts(t, harnessOpts{featureServiceDraft: true})
 		tenantA, _, contactA1 := h.seed()
 		opp := h.createOpp(t, sessionOwnerA, tenantA, contactA1, "挂载点样例", "creative_service", "")
-		out := h.mustDo("POST", intent(h, opp), sessionOwnerA, tenantA, `{}`, http.StatusNotImplemented)
-		if out["error"] != "not_implemented" {
-			t.Fatalf("error = %v, want not_implemented", out["error"])
+		out := h.mustDo("POST", intent(h, opp), sessionOwnerA, tenantA, `{}`, http.StatusServiceUnavailable)
+		if out["error"] != "config_gate_eco" {
+			t.Fatalf("error = %v, want config_gate_eco", out["error"])
 		}
 		// 未认证仍 401:挂载点也不向匿名者泄露存在性。
 		h.mustDo("POST", intent(h, opp), "", tenantA, `{}`, http.StatusUnauthorized)

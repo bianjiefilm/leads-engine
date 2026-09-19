@@ -19,9 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bianjiefilm/leads-engine/server/internal/appregistry"
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
 	"github.com/bianjiefilm/leads-engine/server/internal/config"
 	"github.com/bianjiefilm/leads-engine/server/internal/db"
+	"github.com/bianjiefilm/leads-engine/server/internal/handoffsender"
 	"github.com/bianjiefilm/leads-engine/server/internal/identity"
 	"github.com/bianjiefilm/leads-engine/server/internal/redact"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
@@ -35,6 +37,7 @@ type Server struct {
 	Cfg     config.Config
 	St      *store.Store
 	ID      *identity.Client
+	Eco     *handoffsender.Service
 	Log     *log.Logger
 	closeDB func()
 }
@@ -44,7 +47,24 @@ func New(cfg config.Config, database *sql.DB, idc *identity.Client, logger *log.
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &Server{Cfg: cfg, St: store.New(database), ID: idc, Log: logger}
+	s := &Server{Cfg: cfg, St: store.New(database), ID: idc, Log: logger}
+	// The eco handoff sender is wired ONLY from deployment config + the
+	// embedded app registry (URL/token/app ids never come from requests).
+	// A broken embedded manifest is a build defect: log it and leave Eco
+	// nil — every service-draft endpoint then fails closed with
+	// config_gate_eco.
+	if reg, err := appregistry.Embedded(); err != nil {
+		logger.Printf("appregistry: embedded manifest invalid: %v", err)
+	} else {
+		s.Eco = handoffsender.NewService(s.St, reg.WithSelf(cfg.AppID), handoffsender.Config{
+			TargetAppID: cfg.EcoHandoff.TargetAppID,
+			TenantScope: cfg.EcoHandoff.TenantScope,
+			IntakeURL:   cfg.EcoHandoff.IntakeURL,
+			Token:       cfg.EcoHandoff.Token,
+			ProofSalt:   cfg.EcoHandoff.ProofSalt,
+		})
+	}
+	return s
 }
 
 // Open opens the database and returns a ready Server.
@@ -156,10 +176,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/opportunities/{id}", s.requireSession(s.handleOppPatch))
 	mux.Handle("POST /api/v1/opportunities/{id}/stage", s.requireSession(s.handleOppStage))
 	mux.Handle("GET /api/v1/opportunities/{id}/stage-history", s.requireSession(s.handleOppStageHistory))
-	// L1 挂载点(归 HUI-1749/1751):仅 FEATURE_SERVICE_DRAFT=on 时注册;
-	// 默认 off -> 路由不存在 -> 404,功能不可见。
+	// 服务需求草稿交接面(HUI-1749):仅 FEATURE_SERVICE_DRAFT=on 时注册;
+	// 默认 off -> 路由不存在 -> 404,动作对不适用商机不可见。
 	if s.Cfg.FeatureServiceDraft {
 		mux.Handle("POST /api/v1/opportunities/{id}/service-draft-intent", s.requireSession(s.handleServiceDraftIntent))
+		mux.Handle("GET /api/v1/opportunities/{id}/service-draft", s.requireSession(s.handleServiceDraftGet))
+		mux.Handle("POST /api/v1/opportunities/{id}/service-draft/refresh", s.requireSession(s.handleServiceDraftRefresh))
+		mux.Handle("POST /api/v1/opportunities/{id}/service-draft/retry", s.requireSession(s.handleServiceDraftRetry))
+		mux.Handle("POST /api/v1/opportunities/{id}/service-draft/revoke", s.requireSession(s.handleServiceDraftRevoke))
 	}
 
 	mux.Handle("GET /api/v1/admin/members", s.requireSession(s.handleMemberList))
