@@ -125,7 +125,8 @@ type harness struct {
 }
 
 type harnessOpts struct {
-	omitIdentityToken bool // config gate intentionally unsatisfied
+	omitIdentityToken   bool // config gate intentionally unsatisfied
+	featureServiceDraft bool // FEATURE_SERVICE_DRAFT=on (mount point registered)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -146,6 +147,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 				return "" // gate problem on purpose
 			}
 			return "test-identity-token"
+		case "FEATURE_SERVICE_DRAFT":
+			if opts.featureServiceDraft {
+				return "true"
+			}
+			return ""
 		}
 		return ""
 	})

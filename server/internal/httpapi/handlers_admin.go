@@ -215,16 +215,27 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "export failed")
 		return
 	}
-	opps, err := s.St.ListOpportunities(c.Member.TenantID, "")
+	// Export dumps raw records per business category (two separate arrays);
+	// this is a record export, not a cross-category aggregate: 成交额/漏斗
+	// 统计仍只在按类别的 stats 端点提供。
+	merchantOpps, err := s.St.ListOpportunities(c.Member.TenantID, "merchant_customer", "")
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "export failed")
+		return
+	}
+	creativeOpps, err := s.St.ListOpportunities(c.Member.TenantID, "creative_service", "")
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "export failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tenant_id":     c.Member.TenantID,
-		"contacts":      contacts,
-		"leads":         leads,
-		"opportunities": opps,
+		"tenant_id": c.Member.TenantID,
+		"contacts":  contacts,
+		"leads":     leads,
+		"opportunities": map[string]any{
+			"merchant_customer": merchantOpps,
+			"creative_service":  creativeOpps,
+		},
 	})
 }
 

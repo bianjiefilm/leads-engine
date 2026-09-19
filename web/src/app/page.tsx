@@ -59,8 +59,9 @@ export default function Home() {
         <h2>L0 底座范围</h2>
         <p className="muted">
           本应用是独立商家 CRM:不内嵌接单数据库、不做平台全局客户库。
-          平台登录经 platform-identity;联系人字段与去重、线索接收、跟进、
-          商机详情由后续 FEAT 票实施。当前仅提供领域根与服务端权限控制。
+          平台登录经 platform-identity;联系人字段与去重、线索接收、跟进由后续 FEAT 票实施。
+          商机管理(HUI-1693)已就绪:
+          <a href="/opportunities">进入商机管理(按 商家经营销售 / 创意服务 类别隔离)</a>。
         </p>
       </div>
     </main>
