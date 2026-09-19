@@ -1,0 +1,27 @@
+# reports / evidence (local only)
+_reports/
+
+# dependencies / build artifacts
+node_modules/
+.next/
+out/
+dist/
+
+# databases / local data
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# secrets / local env
+.env
+.env.*
+*.local
+
+# logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
