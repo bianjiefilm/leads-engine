@@ -51,6 +51,10 @@ const (
 	// profiles, the merge-candidate pool and its resolution, dedup stats and
 	// merge undo. 合并客户档案是租户级、影响面最大的动作:owner 专属,绝不静默。
 	ActionMerge Action = "merge"
+	// ActionManageForms is the versioned lead-form management surface
+	// (HUI-1679 / FEAT-0180): draft/publish/disable forms and the schema
+	// contract export. 表单领域配置与语义归获客,owner 专属。
+	ActionManageForms Action = "manage_forms"
 )
 
 // Deny reason codes. ReasonNotFoundMask maps to HTTP 404 so a sales cannot
@@ -114,7 +118,7 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge:
+	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

@@ -17,6 +17,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/appregistry"
@@ -40,6 +41,14 @@ type Server struct {
 	Eco     *handoffsender.Service
 	Log     *log.Logger
 	closeDB func()
+
+	// FormRatePerMinute / FormResubmitWindow tune the public form surface
+	// (HUI-1679); zero selects the production defaults. Tests may inject.
+	FormRatePerMinute int
+	FormResubmitWindow time.Duration
+
+	formLimitOnce sync.Once
+	formLimit     *formRateLimiter
 }
 
 // New builds a Server over an opened database.
@@ -205,6 +214,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/admin/agent-grants/{id}", s.requireSession(s.handleGrantDelete))
 
 	mux.Handle("GET /api/v1/admin/export", s.requireSession(s.handleExport))
+
+	// HUI-1679 / FEAT-0180 版本化留资表单:管理面(owner)与公共提交面(无会话)。
+	// 公共端点只挂 requireInternal:接收租户恒为表单归属,与会话/租户头无关。
+	mux.Handle("POST /api/v1/forms", s.requireSession(s.handleFormCreate))
+	mux.Handle("GET /api/v1/forms", s.requireSession(s.handleFormList))
+	mux.Handle("GET /api/v1/forms/{id}", s.requireSession(s.handleFormGet))
+	mux.Handle("PATCH /api/v1/forms/{id}", s.requireSession(s.handleFormPatch))
+	mux.Handle("POST /api/v1/forms/{id}/publish", s.requireSession(s.handleFormPublish))
+	mux.Handle("POST /api/v1/forms/{id}/disable", s.requireSession(s.handleFormDisable))
+	mux.Handle("GET /api/v1/forms/{id}/schema", s.requireSession(s.handleFormSchema))
+	mux.Handle("GET /api/v1/public/forms/{id}", s.requireInternal(s.handlePublicFormGet))
+	mux.Handle("POST /api/v1/public/forms/{id}/submissions", s.requireInternal(s.handlePublicFormSubmit))
 
 	return s.withRequestLog(mux)
 }
