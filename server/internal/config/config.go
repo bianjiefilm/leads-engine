@@ -13,11 +13,24 @@ import (
 
 // Feature flag environment keys (default: off).
 const (
-	EnvFeatureNotify      = "FEATURE_NOTIFY"
-	EnvFeatureUpload      = "FEATURE_UPLOAD"
-	// EnvFeatureServiceDraft gates the L1 mount point POST /opportunities/{id}/service-draft-intent
-	// (owned by HUI-1749/1751). Default off: the route is not even registered.
+	EnvFeatureNotify = "FEATURE_NOTIFY"
+	EnvFeatureUpload = "FEATURE_UPLOAD"
+	// EnvFeatureServiceDraft gates the L1 service-draft handoff surface
+	// (HUI-1749). Default off: none of the routes are even registered.
+	// On: the REAL implementation (preview/confirm/projection/retry/revoke);
+	// missing ECO_HANDOFF_* facts fail those endpoints closed (503).
 	EnvFeatureServiceDraft = "FEATURE_SERVICE_DRAFT"
+)
+
+// Eco handoff deployment keys (HUI-1749; required only when
+// FEATURE_SERVICE_DRAFT=on). 交接接收端 URL/令牌/租户域全部由部署注入,
+// 绝不硬编码、绝不由客户端传入。
+const (
+	EnvEcoHandoffTargetApp   = "ECO_HANDOFF_TARGET_APP"
+	EnvEcoHandoffIntakeURL   = "ECO_HANDOFF_INTAKE_URL"
+	EnvEcoHandoffToken       = "ECO_HANDOFF_TOKEN"
+	EnvEcoHandoffTenantScope = "ECO_HANDOFF_TENANT_SCOPE"
+	EnvEcoHandoffProofSalt   = "ECO_HANDOFF_PROOF_SALT"
 )
 
 // Config is the resolved server configuration.
@@ -49,8 +62,51 @@ type Config struct {
 	FeatureNotify bool
 	FeatureUpload bool
 
-	// FeatureServiceDraft: L1 mount point only (HUI-1749/1751). Default off.
+	// FeatureServiceDraft: L1 service-draft handoff surface (HUI-1749).
+	// Default off (routes not registered).
 	FeatureServiceDraft bool
+
+	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
+	// TargetAppID defaults to "orders" (the receiver's registered app id).
+	EcoHandoff EcoHandoffConfig
+}
+
+// EcoHandoffConfig is the constrained handoff delivery configuration
+// (HUI-1749). All values are deployment-injected; no secrets live in code.
+type EcoHandoffConfig struct {
+	// TargetAppID is the receiver app id (resolved against the registry).
+	TargetAppID string
+	// IntakeURL is the receiver's handoff POST endpoint (https, or loopback
+	// http for co-located deployments).
+	IntakeURL string
+	// Token is the receiver internal token (service-to-service).
+	Token string
+	// TenantScope is the exact tenant_scope value the receiver expects
+	// (empty = fail-closed: no handoff ever ships).
+	TenantScope string
+	// ProofSalt optionally salts the PROVISIONAL binding proof digest.
+	ProofSalt string
+}
+
+// EcoGate problems: FEATURE_SERVICE_DRAFT=on requires every core fact.
+func (c Config) EcoGate() []string {
+	if !c.FeatureServiceDraft {
+		return nil
+	}
+	var problems []string
+	if strings.TrimSpace(c.EcoHandoff.TargetAppID) == "" {
+		problems = append(problems, EnvEcoHandoffTargetApp+" is required when FEATURE_SERVICE_DRAFT=on")
+	}
+	if strings.TrimSpace(c.EcoHandoff.IntakeURL) == "" {
+		problems = append(problems, EnvEcoHandoffIntakeURL+" is required when FEATURE_SERVICE_DRAFT=on")
+	}
+	if strings.TrimSpace(c.EcoHandoff.Token) == "" {
+		problems = append(problems, EnvEcoHandoffToken+" is required when FEATURE_SERVICE_DRAFT=on")
+	}
+	if strings.TrimSpace(c.EcoHandoff.TenantScope) == "" {
+		problems = append(problems, EnvEcoHandoffTenantScope+" is required when FEATURE_SERVICE_DRAFT=on (fail-closed: empty scope never ships)")
+	}
+	return problems
 }
 
 // FromEnv reads configuration from the process environment.
@@ -66,22 +122,29 @@ func Load(get func(string) string) Config {
 
 func fromEnv(get func(string) string) Config {
 	return Config{
-		HTTPAddr:        firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
-		DBPath:          firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
-		Env:             firstNonEmpty(get("LEADS_ENV"), "development"),
-		AppID:           firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
-		InternalToken:   get("LEADS_INTERNAL_TOKEN"),
-		SessionCookie:   firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
-		IdentityBaseURL: get("PLATFORM_IDENTITY_BASE_URL"),
-		IdentityToken:   get("PLATFORM_IDENTITY_TOKEN"),
-		IdentityAppHost: get("PLATFORM_IDENTITY_APP_HOST"),
-		NotifyBaseURL:   get("PLATFORM_NOTIFY_BASE_URL"),
-		NotifyToken:     get("PLATFORM_NOTIFY_TOKEN"),
-		UploadBaseURL:   get("PLATFORM_UPLOAD_BASE_URL"),
-		UploadToken:     get("PLATFORM_UPLOAD_TOKEN"),
+		HTTPAddr:            firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
+		DBPath:              firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
+		Env:                 firstNonEmpty(get("LEADS_ENV"), "development"),
+		AppID:               firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
+		InternalToken:       get("LEADS_INTERNAL_TOKEN"),
+		SessionCookie:       firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
+		IdentityBaseURL:     get("PLATFORM_IDENTITY_BASE_URL"),
+		IdentityToken:       get("PLATFORM_IDENTITY_TOKEN"),
+		IdentityAppHost:     get("PLATFORM_IDENTITY_APP_HOST"),
+		NotifyBaseURL:       get("PLATFORM_NOTIFY_BASE_URL"),
+		NotifyToken:         get("PLATFORM_NOTIFY_TOKEN"),
+		UploadBaseURL:       get("PLATFORM_UPLOAD_BASE_URL"),
+		UploadToken:         get("PLATFORM_UPLOAD_TOKEN"),
 		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
 		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
 		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
+		EcoHandoff: EcoHandoffConfig{
+			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
+			IntakeURL:   get(EnvEcoHandoffIntakeURL),
+			Token:       get(EnvEcoHandoffToken),
+			TenantScope: get(EnvEcoHandoffTenantScope),
+			ProofSalt:   get(EnvEcoHandoffProofSalt),
+		},
 	}
 }
 

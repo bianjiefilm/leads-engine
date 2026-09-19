@@ -1,0 +1,85 @@
+{
+  "kind": "order-handoff-source-profile-vectors",
+  "note": [
+    "HUI-1724 共享向量：非订单来源 source_profile 扩展（profile_version=source-profile/v1）。",
+    "本文件不改 docs/contracts/order-handoff/v1/ 冻结 schema：扩展文档按是否含 source_profile 键二分，",
+    "旧 ParseHandoffV1 对一切扩展文档必须显式拒绝（unknown field），对纯 v1 文档必须原样接受。",
+    "示例 app_id/capability/tenant_scope 等值均为 PROVISIONAL；actor.app_id=source_app 是冻结语义。"
+  ],
+  "cases": [
+    {
+      "name": "order-plain-v1-accepted",
+      "vector_kind": "handoff",
+      "document": "{\"schema_version\":\"order-handoff/v1\",\"handoff_id\":\"handoff-order-img-1\",\"source_app\":\"orders\",\"target_app\":\"product-image\",\"principal_id\":\"principal-a\",\"order_ref\":\"opaque-order-a\",\"stage_ref\":\"opaque-stage-a\",\"brief_version\":\"brief-1\",\"source_project_ref\":\"order-project-a\",\"source_revision\":\"rev-1\",\"actor\":{\"issuer\":\"https://identity.example.invalid\",\"app_id\":\"orders\",\"subject\":\"subject-a\"},\"binding\":{\"binding_ref\":\"binding-order-1\",\"proof_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"},\"gating\":{\"policy_version\":\"order-gating/v1\",\"open_gates\":[]},\"assets\":[{\"asset_ref\":\"asset-a\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"size_bytes\":10,\"media_type\":\"image/png\"}],\"delivery_spec\":{\"media_type\":\"image/png\",\"description\":\"Product image from order stage\"},\"scopes\":[\"project.resume\",\"asset.import\"],\"issued_at\":\"2026-09-12T10:00:00Z\",\"expires_at\":\"2026-09-12T10:15:00Z\"}",
+      "profiled_accepted": true,
+      "old_v1_accepted": true,
+      "expect_error": ""
+    },
+    {
+      "name": "campaign-image-accepted",
+      "vector_kind": "handoff",
+      "document": "{\"schema_version\":\"order-handoff/v1\",\"handoff_id\":\"handoff-campaign-img-1\",\"source_app\":\"campaign-tool\",\"target_app\":\"product-image\",\"principal_id\":\"principal-a\",\"brief_version\":\"brief-1\",\"source_project_ref\":\"order-project-a\",\"source_revision\":\"rev-1\",\"actor\":{\"issuer\":\"https://identity.example.invalid\",\"app_id\":\"campaign-tool\",\"subject\":\"subject-a\"},\"binding\":{\"binding_ref\":\"binding-handoff-campaign-img-1\",\"proof_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"gating\":{\"policy_version\":\"order-gating/v1\",\"open_gates\":[]},\"assets\":[{\"asset_ref\":\"asset-a\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"size_bytes\":10,\"media_type\":\"image/png\"}],\"delivery_spec\":{\"media_type\":\"image/png\",\"description\":\"Non-order source handoff\"},\"scopes\":[\"project.resume\",\"asset.import\"],\"issued_at\":\"2026-09-12T10:00:00Z\",\"expires_at\":\"2026-09-12T10:15:00Z\",\"source_profile\":{\"profile_version\":\"source-profile/v1\",\"source_kind\":\"campaign\",\"tenant_scope\":\"tenant-77\",\"capabilities\":[\"image.generate\"],\"constraints\":[\"max_assets:8\"],\"return_target_id\":\"ti-campaign-web\",\"campaign_ref\":\"camp-2026-091\"}}",
+      "profiled_accepted": true,
+      "old_v1_accepted": false,
+      "expect_error": ""
+    },
+    {
+      "name": "standalone-accepted",
+      "vector_kind": "handoff",
+      "document": "{\"schema_version\":\"order-handoff/v1\",\"handoff_id\":\"handoff-standalone-img-1\",\"source_app\":\"product-image\",\"target_app\":\"video-tool\",\"principal_id\":\"principal-a\",\"brief_version\":\"brief-1\",\"source_project_ref\":\"order-project-a\",\"source_revision\":\"rev-1\",\"actor\":{\"issuer\":\"https://identity.example.invalid\",\"app_id\":\"product-image\",\"subject\":\"subject-a\"},\"binding\":{\"binding_ref\":\"binding-handoff-standalone-img-1\",\"proof_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"gating\":{\"policy_version\":\"order-gating/v1\",\"open_gates\":[]},\"assets\":[{\"asset_ref\":\"asset-a\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"size_bytes\":10,\"media_type\":\"image/png\"}],\"delivery_spec\":{\"media_type\":\"image/png\",\"description\":\"Non-order source handoff\"},\"scopes\":[\"project.resume\",\"asset.import\"],\"issued_at\":\"2026-09-12T10:00:00Z\",\"expires_at\":\"2026-09-12T10:15:00Z\",\"source_profile\":{\"profile_version\":\"source-profile/v1\",\"source_kind\":\"standalone\",\"tenant_scope\":\"tenant-77\",\"capabilities\":[\"video.render\"],\"constraints\":[\"max_assets:8\"],\"return_target_id\":\"ti-video-web\"}}",
+      "profiled_accepted": true,
+      "old_v1_accepted": false,
+      "expect_error": ""
+    },
+    {
+      "name": "unsupported-profile-v2-rejected",
+      "vector_kind": "handoff",
+      "document": "{\"schema_version\":\"order-handoff/v1\",\"handoff_id\":\"handoff-profile-v2-1\",\"source_app\":\"product-image\",\"target_app\":\"video-tool\",\"principal_id\":\"principal-a\",\"brief_version\":\"brief-1\",\"source_project_ref\":\"order-project-a\",\"source_revision\":\"rev-1\",\"actor\":{\"issuer\":\"https://identity.example.invalid\",\"app_id\":\"product-image\",\"subject\":\"subject-a\"},\"binding\":{\"binding_ref\":\"binding-handoff-profile-v2-1\",\"proof_digest\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"},\"gating\":{\"policy_version\":\"order-gating/v1\",\"open_gates\":[]},\"assets\":[{\"asset_ref\":\"asset-a\",\"sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"size_bytes\":10,\"media_type\":\"image/png\"}],\"delivery_spec\":{\"media_type\":\"image/png\",\"description\":\"Non-order source handoff\"},\"scopes\":[\"project.resume\",\"asset.import\"],\"issued_at\":\"2026-09-12T10:00:00Z\",\"expires_at\":\"2026-09-12T10:15:00Z\",\"source_profile\":{\"profile_version\":\"source-profile/v2\",\"source_kind\":\"standalone\",\"tenant_scope\":\"tenant-77\",\"capabilities\":[\"video.render\"],\"constraints\":[\"max_assets:8\"],\"return_target_id\":\"ti-video-web\"}}",
+      "profiled_accepted": false,
+      "old_v1_accepted": false,
+      "expect_error": "unsupported_profile"
+    },
+    {
+      "name": "expired-handoff-denied",
+      "vector_kind": "clock",
+      "now": "2026-09-12T10:15:00Z",
+      "expires_at": "2026-09-12T10:15:00Z",
+      "expect_expired": true
+    },
+    {
+      "name": "live-handoff-not-expired",
+      "vector_kind": "clock",
+      "now": "2026-09-12T10:14:59Z",
+      "expires_at": "2026-09-12T10:15:00Z",
+      "expect_expired": false
+    },
+    {
+      "name": "garbage-expires-at-fails-closed",
+      "vector_kind": "clock",
+      "now": "2026-09-12T10:00:00Z",
+      "expires_at": "not-a-timestamp",
+      "expect_expired": true
+    },
+    {
+      "name": "tenant-scope-match",
+      "vector_kind": "tenant",
+      "declared": "tenant-77",
+      "expected": "tenant-77",
+      "expect_match": true
+    },
+    {
+      "name": "tenant-scope-mismatch-denied",
+      "vector_kind": "tenant",
+      "declared": "tenant-77",
+      "expected": "tenant-88",
+      "expect_match": false
+    },
+    {
+      "name": "tenant-scope-empty-expected-fails-closed",
+      "vector_kind": "tenant",
+      "declared": "tenant-77",
+      "expected": "",
+      "expect_match": false
+    }
+  ]
+}

@@ -118,8 +118,10 @@ func fakeIdentity(t *testing.T) *httptest.Server {
 type harness struct {
 	t             *testing.T
 	srv           *httptest.Server
+	api           *Server // the raw server (tests reach into Eco wiring)
 	cfg           config.Config
 	identitySrv   *httptest.Server
+	eco           *ecoStub // non-nil when opts.ecoOn
 	dbPath        string
 	internalToken string
 	logs          *bytes.Buffer // non-nil only when opts.captureLog is set
@@ -128,6 +130,8 @@ type harness struct {
 type harnessOpts struct {
 	omitIdentityToken   bool // config gate intentionally unsatisfied
 	featureServiceDraft bool // FEATURE_SERVICE_DRAFT=on (mount point registered)
+	ecoOn               bool // FEATURE_SERVICE_DRAFT=on + all ECO_HANDOFF_* facts wired to the stub receiver
+	ecoIntakeDead       bool // ecoOn but the intake URL is a dead port (delivery-failure paths)
 	captureLog          bool // capture server log lines for redaction assertions
 }
 
@@ -136,6 +140,15 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 	fake := fakeIdentity(t)
 	dbPath := filepath.Join(t.TempDir(), "leads.db")
 	internalToken := "test-internal-token"
+	ecoURL := ""
+	var eco *ecoStub
+	if opts.ecoOn {
+		eco, ecoURL = newEcoStub(t)
+		if opts.ecoIntakeDead {
+			// 死端口:投递必然传输失败(快照保留路径)。
+			ecoURL = "http://127.0.0.1:1/api/v1/internal/eco/leads/handoffs"
+		}
+	}
 	cfg := config.Load(func(k string) string {
 		switch k {
 		case "LEADS_DB_PATH":
@@ -150,10 +163,20 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			}
 			return "test-identity-token"
 		case "FEATURE_SERVICE_DRAFT":
-			if opts.featureServiceDraft {
+			if opts.featureServiceDraft || opts.ecoOn {
 				return "true"
 			}
 			return ""
+		case "ECO_HANDOFF_TARGET_APP":
+			return "orders"
+		case "ECO_HANDOFF_INTAKE_URL":
+			return ecoURL
+		case "ECO_HANDOFF_TOKEN":
+			return "test-eco-token"
+		case "ECO_HANDOFF_TENANT_SCOPE":
+			return "deploy-scope-a"
+		case "ECO_HANDOFF_PROOF_SALT":
+			return "test-proof-salt"
 		}
 		return ""
 	})
@@ -170,7 +193,7 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 	t.Cleanup(s.Close)
 	hs := httptest.NewServer(s.Handler())
 	t.Cleanup(hs.Close)
-	return &harness{t: t, srv: hs, cfg: cfg, identitySrv: fake, dbPath: dbPath, internalToken: internalToken, logs: logBuf}
+	return &harness{t: t, srv: hs, api: s, cfg: cfg, identitySrv: fake, eco: eco, dbPath: dbPath, internalToken: internalToken, logs: logBuf}
 }
 
 func newHarness(t *testing.T) *harness { return newHarnessOpts(t, harnessOpts{}) }

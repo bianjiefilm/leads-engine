@@ -1,0 +1,33 @@
+{
+  "manifest_version": "app-registry/v1",
+  "apps": [
+    {
+      "app_id": "leads-engine",
+      "display_name": "获客引擎(本应用,生态登记条目 PROVISIONAL)",
+      "enabled": true,
+      "supported_source_kinds": ["standalone"],
+      "capabilities": [
+        {"name": "leads.handoff", "menu_visible": false, "requires_billing": false}
+      ],
+      "launch_targets": [
+        {"target_id": "ti-leads-engine-web", "kind": "launch", "url": "http://127.0.0.1:18330/launch"}
+      ],
+      "receipt_targets": [
+        {"target_id": "rc-leads-engine-main", "kind": "receipt", "url": "http://127.0.0.1:18230/api/v1/notify/events"}
+      ]
+    },
+    {
+      "app_id": "orders",
+      "display_name": "接单(guanlan-order 接收端;app_id 对齐其自我标识)",
+      "enabled": true,
+      "supported_source_kinds": ["standalone"],
+      "capabilities": [
+        {"name": "service.draft", "menu_visible": true, "requires_billing": false}
+      ],
+      "launch_targets": [
+        {"target_id": "ti-orders-web", "kind": "launch", "url": "http://127.0.0.1:18141/launch"}
+      ],
+      "receipt_targets": []
+    }
+  ]
+}
