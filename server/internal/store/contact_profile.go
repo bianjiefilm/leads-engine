@@ -88,6 +88,22 @@ func (s *Store) UpsertContactConsent(tenantID, contactID string, in ConsentUpser
 		return ContactConsent{}, "", err
 	}
 	defer tx.Rollback()
+	c, state, err := upsertConsentTx(tx, tenantID, contactID, in)
+	if err != nil {
+		return ContactConsent{}, "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return ContactConsent{}, "", err
+	}
+	return c, state, nil
+}
+
+// upsertConsentTx is the consent upsert inside a caller-owned transaction
+// (lead intake HUI-1683 records the event's consent in the SAME tx as the
+// lead). Rules identical to UpsertContactConsent, incl. the persistent
+// revocation marker: a replayed event on a revoked key returns the current
+// row with state=replay_unchanged and never touches revoked_at.
+func upsertConsentTx(tx *sql.Tx, tenantID, contactID string, in ConsentUpsert) (ContactConsent, string, error) {
 	row := tx.QueryRow(
 		`SELECT `+consentCols+` FROM contact_consents
 		 WHERE tenant_id=? AND contact_id=? AND source_submission_ref=? AND source_channel=?`,
@@ -126,9 +142,6 @@ func (s *Store) UpsertContactConsent(tenantID, contactID string, in ConsentUpser
 		`INSERT INTO contact_consents(`+consentCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
 		c.ID, c.TenantID, c.ContactID, c.TenantScope, c.SourceSubmissionRef, c.SourceChannel,
 		c.NoticeVersion, c.Purpose, boolInt(c.MarketingAllowed), nil, "", c.CreatedAt); err != nil {
-		return ContactConsent{}, "", err
-	}
-	if err := tx.Commit(); err != nil {
 		return ContactConsent{}, "", err
 	}
 	return c, ConsentCreated, nil

@@ -33,6 +33,12 @@ const (
 	EnvEcoHandoffProofSalt   = "ECO_HANDOFF_PROOF_SALT"
 )
 
+// EnvDedupPepper is the deployment-injected HMAC pepper for the lead-intake
+// phone fingerprint (HUI-1683). 手机号指纹的 pepper 由部署注入,绝不硬编码、
+// 绝不由请求传入;未配置时 intake 端点 fail-closed(503 config_gate_dedup)。
+// 有意不复用 ECO_HANDOFF_PROOF_SALT:不同用途绝不共享同一盐。
+const EnvDedupPepper = "LEADS_DEDUP_PEPPER"
+
 // Config is the resolved server configuration.
 type Config struct {
 	// HTTPAddr is the loopback listen address, e.g. 127.0.0.1:18230.
@@ -69,6 +75,10 @@ type Config struct {
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
 	EcoHandoff EcoHandoffConfig
+
+	// DedupPepper is the HMAC pepper for intake phone fingerprints (HUI-1683).
+	// Deployment-injected; the intake endpoint fails closed when empty.
+	DedupPepper string
 }
 
 // EcoHandoffConfig is the constrained handoff delivery configuration
@@ -145,6 +155,7 @@ func fromEnv(get func(string) string) Config {
 			TenantScope: get(EnvEcoHandoffTenantScope),
 			ProofSalt:   get(EnvEcoHandoffProofSalt),
 		},
+		DedupPepper: get(EnvDedupPepper),
 	}
 }
 

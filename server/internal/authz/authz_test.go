@@ -42,12 +42,14 @@ func TestPermissionMatrix(t *testing.T) {
 		{"owner update others", owner("m_owner"), nil, ActionUpdate, recAUnassigned, true, "", false},
 		{"owner manage members", owner("m_owner"), nil, ActionManageMembers, recA, true, "", false},
 		{"owner export", owner("m_owner"), nil, ActionExport, recA, true, "", false},
+		{"owner merge", owner("m_owner"), nil, ActionMerge, recA, true, "", false},
 
 		// sales on own assigned record
 		{"sales create", salesAssigned("m_sales"), nil, ActionCreate, recA, true, "", false},
 		{"sales read own", salesAssigned("m_sales"), nil, ActionReadRecord, recA, true, "", false},
 		{"sales update own", salesAssigned("m_sales"), nil, ActionUpdate, recA, true, "", false},
 		{"sales list", salesAssigned("m_sales"), nil, ActionReadList, recA, true, "", false},
+		{"sales merge denied", salesAssigned("m_sales"), nil, ActionMerge, recA, false, "forbidden", false},
 
 		// sales restricted: unassigned / others' records masked as 404
 		{"sales read unassigned", salesAssigned("m_sales"), nil, ActionReadRecord, recAUnassigned, false, ReasonNotFoundMask, true},

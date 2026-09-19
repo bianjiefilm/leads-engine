@@ -17,7 +17,7 @@ func TestMigrationsCreateDomainRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TableNames: %v", err)
 	}
-	want := []string{"agent_grants", "contact_consents", "contact_followups", "contacts", "leads", "members", "opportunities", "schema_migrations", "source_refs", "tenants"}
+	want := []string{"agent_grants", "contact_consents", "contact_followups", "contact_merges", "contacts", "leads", "lead_intake_events", "members", "merge_candidates", "opportunities", "schema_migrations", "source_refs", "tenants"}
 	have := map[string]bool{}
 	for _, tb := range tables {
 		have[tb] = true
