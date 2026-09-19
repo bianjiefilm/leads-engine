@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"time"
 )
 
@@ -430,29 +431,50 @@ func (s *Store) UpdateLead(id, tenantID string, p LeadPatch) (Lead, error) {
 	return cur, err
 }
 
+// Opportunity is 获客原生域的商机记录(HUI-1693 / FEAT-0194)。
+// 语义红线:
+//   - AmountCents 为 nil 表示金额未知(NULL),统计进「未知」桶,绝不当 0;
+//   - AmountSource 记录金额来源(manual=人工录入,unknown=无金额);
+//   - Stage=won 仅表示「人工标记成交」,绝不表示已支付/已收款;
+//   - 商机阶段/金额/销售判断不从公共 Task 或接单状态派生。
 type Opportunity struct {
-	ID               string `json:"id"`
-	TenantID         string `json:"tenant_id"`
-	ContactID        string `json:"contact_id"`
-	Title            string `json:"title"`
-	Stage            string `json:"stage"`
-	BusinessCategory string `json:"business_category"`
-	AssignedMemberID string `json:"assigned_member_id,omitempty"`
-	CreatedBy        string `json:"created_by"`
-	CreatedAt        string `json:"created_at"`
-	UpdatedAt        string `json:"updated_at"`
+	ID               string  `json:"id"`
+	TenantID         string  `json:"tenant_id"`
+	ContactID        string  `json:"contact_id"`
+	Title            string  `json:"title"`
+	Stage            string  `json:"stage"`
+	BusinessCategory string  `json:"business_category"`
+	AmountCents      *int64  `json:"amount_cents"`
+	AmountSource     string  `json:"amount_source"`
+	Probability      int     `json:"probability"`
+	ExpectedCloseAt  *string `json:"expected_close_at"`
+	AssignedMemberID string  `json:"assigned_member_id,omitempty"`
+	CreatedBy        string  `json:"created_by"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
-const oppCols = `id,tenant_id,contact_id,title,stage,business_category,assigned_member_id,created_by,created_at,updated_at`
+const oppCols = `id,tenant_id,contact_id,title,stage,business_category,amount_cents,amount_source,probability,expected_close_at,assigned_member_id,created_by,created_at,updated_at`
 
 func scanOpp(sc interface{ Scan(...any) error }) (Opportunity, error) {
 	var o Opportunity
-	var asn sql.NullString
-	err := sc.Scan(&o.ID, &o.TenantID, &o.ContactID, &o.Title, &o.Stage, &o.BusinessCategory, &asn, &o.CreatedBy, &o.CreatedAt, &o.UpdatedAt)
+	var asn, closeAt sql.NullString
+	var amount sql.NullInt64
+	err := sc.Scan(&o.ID, &o.TenantID, &o.ContactID, &o.Title, &o.Stage, &o.BusinessCategory,
+		&amount, &o.AmountSource, &o.Probability, &closeAt, &asn,
+		&o.CreatedBy, &o.CreatedAt, &o.UpdatedAt)
 	if err != nil {
 		return Opportunity{}, err
 	}
 	o.AssignedMemberID = asn.String
+	if amount.Valid {
+		v := amount.Int64
+		o.AmountCents = &v
+	}
+	if closeAt.Valid {
+		v := closeAt.String
+		o.ExpectedCloseAt = &v
+	}
 	return o, nil
 }
 
@@ -460,11 +482,40 @@ func (s *Store) CreateOpportunity(o Opportunity, createdBy, assignTo string) (Op
 	o.ID = newID("opp_")
 	o.CreatedBy = createdBy
 	o.AssignedMemberID = assignTo
+	// 金额来源由服务端派生:有人工金额=manual,否则 unknown。客户端不可自报。
+	if o.AmountCents != nil {
+		o.AmountSource = "manual"
+	} else {
+		o.AmountSource = "unknown"
+	}
+	if o.Probability < 0 || o.Probability > 100 {
+		return Opportunity{}, fmt.Errorf("probability must be 0..100")
+	}
 	o.CreatedAt, o.UpdatedAt = now(), now()
-	_, err := s.DB.Exec(
-		`INSERT INTO opportunities(`+oppCols+`) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		o.ID, o.TenantID, o.ContactID, o.Title, o.Stage, o.BusinessCategory, nullable(o.AssignedMemberID), o.CreatedBy, o.CreatedAt, o.UpdatedAt)
-	return o, err
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return Opportunity{}, err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(
+		`INSERT INTO opportunities(`+oppCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		o.ID, o.TenantID, o.ContactID, o.Title, o.Stage, o.BusinessCategory,
+		nullableInt64(o.AmountCents), o.AmountSource, o.Probability, nullableStr(o.ExpectedCloseAt),
+		nullable(o.AssignedMemberID), o.CreatedBy, o.CreatedAt, o.UpdatedAt)
+	if err != nil {
+		return Opportunity{}, err
+	}
+	// 审计链起始行:from_stage='' 表示创建,时间线完整可回查。
+	if _, err := tx.Exec(
+		`INSERT INTO opportunity_stage_history(id,tenant_id,opportunity_id,from_stage,to_stage,changed_by,changed_at,note)
+		 VALUES(?,?,?,?,?,?,?,?)`,
+		newID("ohs_"), o.TenantID, o.ID, "", o.Stage, createdBy, o.CreatedAt, "created"); err != nil {
+		return Opportunity{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Opportunity{}, err
+	}
+	return o, nil
 }
 
 func (s *Store) GetOpportunity(id, tenantID string) (Opportunity, error) {
@@ -472,9 +523,11 @@ func (s *Store) GetOpportunity(id, tenantID string) (Opportunity, error) {
 	return scanOpp(row)
 }
 
-func (s *Store) ListOpportunities(tenantID, assigneeFilter string) ([]Opportunity, error) {
-	q := `SELECT ` + oppCols + ` FROM opportunities WHERE tenant_id=?`
-	args := []any{tenantID}
+// ListOpportunities lists one business_category within the tenant. Category is
+// mandatory at the HTTP layer: 商家经营销售与创意服务从列表层就隔离,无跨类别视图。
+func (s *Store) ListOpportunities(tenantID, category, assigneeFilter string) ([]Opportunity, error) {
+	q := `SELECT ` + oppCols + ` FROM opportunities WHERE tenant_id=? AND business_category=?`
+	args := []any{tenantID, category}
 	if assigneeFilter != "" {
 		q += ` AND assigned_member_id=?`
 		args = append(args, assigneeFilter)
@@ -498,8 +551,16 @@ func (s *Store) ListOpportunities(tenantID, assigneeFilter string) ([]Opportunit
 
 type OpportunityPatch struct {
 	Title      *string
-	Stage      *string
 	AssignedTo *string
+	// AmountCents + AmountSet: Set=false 不变;Set=true 且 nil = 清空(unknown);
+	// Set=true 且非 nil = 写入(manual)。来源永远由服务端派生。
+	AmountCents *int64
+	AmountSet   bool
+	// Probability nil 不变。
+	Probability *int
+	// ExpectedCloseAt + ExpectedCloseSet 同金额语义(nil 值 = 清空)。
+	ExpectedCloseAt  *string
+	ExpectedCloseSet bool
 }
 
 func (s *Store) UpdateOpportunity(id, tenantID string, p OpportunityPatch) (Opportunity, error) {
@@ -510,16 +571,161 @@ func (s *Store) UpdateOpportunity(id, tenantID string, p OpportunityPatch) (Oppo
 	if p.Title != nil {
 		cur.Title = *p.Title
 	}
-	if p.Stage != nil {
-		cur.Stage = *p.Stage
+	if p.Probability != nil {
+		if *p.Probability < 0 || *p.Probability > 100 {
+			return Opportunity{}, fmt.Errorf("probability must be 0..100")
+		}
+		cur.Probability = *p.Probability
+	}
+	if p.AmountSet {
+		cur.AmountCents = p.AmountCents
+		if p.AmountCents != nil {
+			cur.AmountSource = "manual"
+		} else {
+			cur.AmountSource = "unknown"
+		}
+	}
+	if p.ExpectedCloseSet {
+		if p.ExpectedCloseAt != nil && *p.ExpectedCloseAt == "" {
+			cur.ExpectedCloseAt = nil
+		} else {
+			cur.ExpectedCloseAt = p.ExpectedCloseAt
+		}
 	}
 	if p.AssignedTo != nil {
 		cur.AssignedMemberID = *p.AssignedTo
 	}
 	cur.UpdatedAt = now()
-	_, err = s.DB.Exec(`UPDATE opportunities SET title=?,stage=?,assigned_member_id=?,updated_at=? WHERE id=? AND tenant_id=?`,
-		cur.Title, cur.Stage, nullable(cur.AssignedMemberID), cur.UpdatedAt, id, tenantID)
+	_, err = s.DB.Exec(
+		`UPDATE opportunities SET title=?,amount_cents=?,amount_source=?,probability=?,expected_close_at=?,assigned_member_id=?,updated_at=?
+		 WHERE id=? AND tenant_id=?`,
+		cur.Title, nullableInt64(cur.AmountCents), cur.AmountSource, cur.Probability, nullableStr(cur.ExpectedCloseAt),
+		nullable(cur.AssignedMemberID), cur.UpdatedAt, id, tenantID)
 	return cur, err
+}
+
+// OpportunityStageEvent is one audited stage transition. from_stage='' marks
+// the creation row. 关闭(won/closed_lost)与重开是同一种普通转换。
+type OpportunityStageEvent struct {
+	ID            string `json:"id"`
+	TenantID      string `json:"tenant_id"`
+	OpportunityID string `json:"opportunity_id"`
+	FromStage     string `json:"from_stage"`
+	ToStage       string `json:"to_stage"`
+	ChangedBy     string `json:"changed_by"`
+	ChangedAt     string `json:"changed_at"`
+	Note          string `json:"note"`
+}
+
+// TransitionOpportunityStage moves the stage and appends an audit row inside
+// one transaction. Repeating the current stage is idempotent: the record is
+// returned unchanged with changed=false and NO new history row.
+func (s *Store) TransitionOpportunityStage(id, tenantID, toStage, changedBy, note string) (Opportunity, bool, error) {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return Opportunity{}, false, err
+	}
+	defer tx.Rollback()
+	row := tx.QueryRow(`SELECT `+oppCols+` FROM opportunities WHERE id=? AND tenant_id=?`, id, tenantID)
+	cur, err := scanOpp(row)
+	if err != nil {
+		return Opportunity{}, false, err
+	}
+	if cur.Stage == toStage {
+		return cur, false, nil
+	}
+	ts := now()
+	if _, err := tx.Exec(`UPDATE opportunities SET stage=?,updated_at=? WHERE id=? AND tenant_id=?`,
+		toStage, ts, id, tenantID); err != nil {
+		return Opportunity{}, false, err
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO opportunity_stage_history(id,tenant_id,opportunity_id,from_stage,to_stage,changed_by,changed_at,note)
+		 VALUES(?,?,?,?,?,?,?,?)`,
+		newID("ohs_"), tenantID, id, cur.Stage, toStage, changedBy, ts, note); err != nil {
+		return Opportunity{}, false, err
+	}
+	cur.Stage = toStage
+	cur.UpdatedAt = ts
+	if err := tx.Commit(); err != nil {
+		return Opportunity{}, false, err
+	}
+	return cur, true, nil
+}
+
+func (s *Store) ListOpportunityStageEvents(opportunityID, tenantID string) ([]OpportunityStageEvent, error) {
+	rows, err := s.DB.Query(
+		`SELECT id,tenant_id,opportunity_id,from_stage,to_stage,changed_by,changed_at,note
+		 FROM opportunity_stage_history WHERE opportunity_id=? AND tenant_id=? ORDER BY changed_at, id`,
+		opportunityID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []OpportunityStageEvent
+	for rows.Next() {
+		var e OpportunityStageEvent
+		if err := rows.Scan(&e.ID, &e.TenantID, &e.OpportunityID, &e.FromStage, &e.ToStage,
+			&e.ChangedBy, &e.ChangedAt, &e.Note); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// OpportunityStats is the per-category funnel. 无跨类别合计:统计必须且只能
+// 针对一个 business_category;NULL 金额计入 UnknownCount(「未知」桶),绝不当 0。
+type OpportunityStats struct {
+	BusinessCategory string         `json:"business_category"`
+	Total            int            `json:"total"`
+	Funnel           map[string]int `json:"funnel"`
+	Amounts          struct {
+		KnownTotalCents int64 `json:"known_total_cents"`
+		KnownCount      int   `json:"known_count"`
+		UnknownCount    int   `json:"unknown_count"`
+	} `json:"amounts"`
+}
+
+// OpportunityStages is the canonical minimal stage set.
+var OpportunityStages = []string{"open", "qualified", "proposal", "negotiation", "won", "closed_lost"}
+
+func (s *Store) OpportunityStats(tenantID, category, assigneeFilter string) (*OpportunityStats, error) {
+	q := `SELECT stage, COUNT(1), COALESCE(SUM(amount_cents),0), COUNT(amount_cents)
+	      FROM opportunities WHERE tenant_id=? AND business_category=?`
+	args := []any{tenantID, category}
+	if assigneeFilter != "" {
+		q += ` AND assigned_member_id=?`
+		args = append(args, assigneeFilter)
+	}
+	q += ` GROUP BY stage`
+	rows, err := s.DB.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	st := &OpportunityStats{BusinessCategory: category, Funnel: map[string]int{}}
+	for _, stg := range OpportunityStages {
+		st.Funnel[stg] = 0
+	}
+	for rows.Next() {
+		var stage string
+		var n int
+		var knownTotal int64
+		var knownN int
+		if err := rows.Scan(&stage, &n, &knownTotal, &knownN); err != nil {
+			return nil, err
+		}
+		st.Funnel[stage] = n
+		st.Total += n
+		st.Amounts.KnownTotalCents += knownTotal
+		st.Amounts.KnownCount += knownN
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	st.Amounts.UnknownCount = st.Total - st.Amounts.KnownCount
+	return st, nil
 }
 
 // ---- helpers ---------------------------------------------------------------
@@ -536,4 +742,20 @@ func nullable(s string) any {
 		return nil
 	}
 	return s
+}
+
+// nullableStr maps an optional string (present-or-nil) to a SQL value.
+func nullableStr(s *string) any {
+	if s == nil {
+		return nil
+	}
+	return *s
+}
+
+// nullableInt64 maps an optional amount to a SQL value; nil stays NULL (= 未知).
+func nullableInt64(v *int64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
 }

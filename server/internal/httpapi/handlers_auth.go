@@ -71,9 +71,12 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		"principal_ref": c.Principal.ID,
 		"email":         maskOrEmpty(c.Principal.Email),
 		"tenant_id":     c.Member.TenantID,
-		"role":          c.Member.Role,
-		"enabled":       c.Member.Enabled,
-		"agent_grant":   c.Grant != nil,
+		// member_id lets the web tier hide stage actions for non-assignees
+		// (UI concern only; the server re-validates every action).
+		"member_id":   c.Member.ID,
+		"role":        c.Member.Role,
+		"enabled":     c.Member.Enabled,
+		"agent_grant": c.Grant != nil,
 	})
 }
 

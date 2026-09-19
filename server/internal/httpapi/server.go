@@ -140,8 +140,17 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("POST /api/v1/opportunities", s.requireSession(s.handleOppCreate))
 	mux.Handle("GET /api/v1/opportunities", s.requireSession(s.handleOppList))
+	// exact literal segments win over {id} (ServeMux precedence)
+	mux.Handle("GET /api/v1/opportunities/stats", s.requireSession(s.handleOppStats))
 	mux.Handle("GET /api/v1/opportunities/{id}", s.requireSession(s.handleOppGet))
 	mux.Handle("PATCH /api/v1/opportunities/{id}", s.requireSession(s.handleOppPatch))
+	mux.Handle("POST /api/v1/opportunities/{id}/stage", s.requireSession(s.handleOppStage))
+	mux.Handle("GET /api/v1/opportunities/{id}/stage-history", s.requireSession(s.handleOppStageHistory))
+	// L1 挂载点(归 HUI-1749/1751):仅 FEATURE_SERVICE_DRAFT=on 时注册;
+	// 默认 off -> 路由不存在 -> 404,功能不可见。
+	if s.Cfg.FeatureServiceDraft {
+		mux.Handle("POST /api/v1/opportunities/{id}/service-draft-intent", s.requireSession(s.handleServiceDraftIntent))
+	}
 
 	mux.Handle("GET /api/v1/admin/members", s.requireSession(s.handleMemberList))
 	mux.Handle("POST /api/v1/admin/members", s.requireSession(s.handleMemberCreate))

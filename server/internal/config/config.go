@@ -13,8 +13,11 @@ import (
 
 // Feature flag environment keys (default: off).
 const (
-	EnvFeatureNotify = "FEATURE_NOTIFY"
-	EnvFeatureUpload = "FEATURE_UPLOAD"
+	EnvFeatureNotify      = "FEATURE_NOTIFY"
+	EnvFeatureUpload      = "FEATURE_UPLOAD"
+	// EnvFeatureServiceDraft gates the L1 mount point POST /opportunities/{id}/service-draft-intent
+	// (owned by HUI-1749/1751). Default off: the route is not even registered.
+	EnvFeatureServiceDraft = "FEATURE_SERVICE_DRAFT"
 )
 
 // Config is the resolved server configuration.
@@ -45,6 +48,9 @@ type Config struct {
 
 	FeatureNotify bool
 	FeatureUpload bool
+
+	// FeatureServiceDraft: L1 mount point only (HUI-1749/1751). Default off.
+	FeatureServiceDraft bool
 }
 
 // FromEnv reads configuration from the process environment.
@@ -73,8 +79,9 @@ func fromEnv(get func(string) string) Config {
 		NotifyToken:     get("PLATFORM_NOTIFY_TOKEN"),
 		UploadBaseURL:   get("PLATFORM_UPLOAD_BASE_URL"),
 		UploadToken:     get("PLATFORM_UPLOAD_TOKEN"),
-		FeatureNotify:   isTruthy(get(EnvFeatureNotify)),
-		FeatureUpload:   isTruthy(get(EnvFeatureUpload)),
+		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
+		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
+		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
 	}
 }
 
@@ -114,16 +121,25 @@ func (c Config) Gate() []string {
 func (c Config) Production() bool { return strings.EqualFold(strings.TrimSpace(c.Env), "production") }
 
 func (c Config) Describe() string {
-	flags := "off/off"
-	switch {
-	case c.FeatureNotify && c.FeatureUpload:
-		flags = "on/on"
-	case c.FeatureNotify:
-		flags = "on/off"
-	case c.FeatureUpload:
-		flags = "off/on"
+	flags := ""
+	for _, f := range []struct {
+		name string
+		on   bool
+	}{
+		{"notify", c.FeatureNotify},
+		{"upload", c.FeatureUpload},
+		{"service_draft", c.FeatureServiceDraft},
+	} {
+		v := "off"
+		if f.on {
+			v = "on"
+		}
+		if flags != "" {
+			flags += ","
+		}
+		flags += f.name + "=" + v
 	}
-	return fmt.Sprintf("env=%s app_id=%s addr=%s db=%s features(notify/upload)=%s",
+	return fmt.Sprintf("env=%s app_id=%s addr=%s db=%s features(%s)",
 		c.Env, c.AppID, c.HTTPAddr, c.DBPath, flags)
 }
 
