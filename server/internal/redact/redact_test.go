@@ -50,3 +50,27 @@ func TestPersonNeverLeaksPlaintextPII(t *testing.T) {
 		t.Fatalf("log line missing masked identifiers: %s", line)
 	}
 }
+
+// HUI-1691: 跟进/备注等自由文本只允许以长度摘要入日志,内容零泄漏。
+func TestNoteNeverLeaksContent(t *testing.T) {
+	marker := "客户说密码是 SECRET-7391"
+	line := Note("  " + marker + "  ")
+	if strings.Contains(line, "SECRET") || strings.Contains(line, marker) {
+		t.Fatalf("Note leaked content: %s", line)
+	}
+	if line != "note=redacted(len=18)" {
+		t.Fatalf("Note = %q, want length digest", line)
+	}
+	if Note("") != "note=empty" || Note("   ") != "note=empty" {
+		t.Fatalf("empty note digest wrong")
+	}
+}
+
+func TestTagSummaryCountsOnly(t *testing.T) {
+	if got := TagSummary("vip,重点客户,华东"); got != "tags=3" {
+		t.Fatalf("TagSummary = %q", got)
+	}
+	if got := TagSummary("  "); got != "tags=0" {
+		t.Fatalf("TagSummary empty = %q", got)
+	}
+}

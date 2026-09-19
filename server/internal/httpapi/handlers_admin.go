@@ -205,7 +205,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionExport, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
-	contacts, err := s.St.ListContacts(c.Member.TenantID, "")
+	contacts, err := s.St.ListContacts(c.Member.TenantID, "", store.ContactFilter{})
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "export failed")
 		return

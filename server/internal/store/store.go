@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -237,6 +238,9 @@ func (s *Store) GetSourceRef(id, tenantID string) (SourceRef, error) {
 
 // ---- contacts / leads / opportunities --------------------------------------
 
+// Contact is the customer profile row (HUI-1691 extended: notes/tags, soft
+// delete). Phone/email are stored server-side and must never appear in logs,
+// URLs or shared context unmasked.
 type Contact struct {
 	ID               string `json:"id"`
 	TenantID         string `json:"tenant_id"`
@@ -246,6 +250,12 @@ type Contact struct {
 	BusinessCategory string `json:"business_category"`
 	SourceType       string `json:"source_type"`
 	ConsentStatus    string `json:"consent_status"`
+	Notes            string `json:"notes"`
+	Tags             string `json:"tags"`
+	// DeletedAt is non-empty for soft-deleted (masked tombstone) rows; such
+	// rows never come back from the store and only their consents/followups
+	// rows are retained as minimal audit.
+	DeletedAt        string `json:"deleted_at,omitempty"`
 	SourceRefID      string `json:"source_ref_id,omitempty"`
 	AssignedMemberID string `json:"assigned_member_id,omitempty"`
 	CreatedBy        string `json:"created_by"`
@@ -253,16 +263,17 @@ type Contact struct {
 	UpdatedAt        string `json:"updated_at"`
 }
 
-const contactCols = `id,tenant_id,name,phone,email,business_category,source_type,consent_status,source_ref_id,assigned_member_id,created_by,created_at,updated_at`
+const contactCols = `id,tenant_id,name,phone,email,business_category,source_type,consent_status,notes,tags,deleted_at,source_ref_id,assigned_member_id,created_by,created_at,updated_at`
 
 func scanContact(sc interface{ Scan(...any) error }) (Contact, error) {
 	var c Contact
-	var src, asn sql.NullString
+	var src, asn, deleted sql.NullString
 	err := sc.Scan(&c.ID, &c.TenantID, &c.Name, &c.Phone, &c.Email, &c.BusinessCategory, &c.SourceType,
-		&c.ConsentStatus, &src, &asn, &c.CreatedBy, &c.CreatedAt, &c.UpdatedAt)
+		&c.ConsentStatus, &c.Notes, &c.Tags, &deleted, &src, &asn, &c.CreatedBy, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return Contact{}, err
 	}
+	c.DeletedAt = deleted.String
 	c.SourceRefID, c.AssignedMemberID = src.String, asn.String
 	return c, nil
 }
@@ -273,23 +284,48 @@ func (s *Store) CreateContact(c Contact, createdBy, assignTo string) (Contact, e
 	c.AssignedMemberID = assignTo
 	c.CreatedAt, c.UpdatedAt = now(), now()
 	_, err := s.DB.Exec(
-		`INSERT INTO contacts(`+contactCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		`INSERT INTO contacts(`+contactCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		c.ID, c.TenantID, c.Name, c.Phone, c.Email, c.BusinessCategory, c.SourceType, c.ConsentStatus,
-		nullable(c.SourceRefID), nullable(c.AssignedMemberID), c.CreatedBy, c.CreatedAt, c.UpdatedAt)
+		c.Notes, c.Tags, nil, nullable(c.SourceRefID), nullable(c.AssignedMemberID), c.CreatedBy, c.CreatedAt, c.UpdatedAt)
 	return c, err
 }
 
+// GetContact fetches a live (non-deleted) contact within the tenant.
+// Soft-deleted tombstones answer sql.ErrNoRows so the HTTP layer 404s them
+// for every role, while their consents/followups rows stay for minimal audit.
 func (s *Store) GetContact(id, tenantID string) (Contact, error) {
-	row := s.DB.QueryRow(`SELECT `+contactCols+` FROM contacts WHERE id=? AND tenant_id=?`, id, tenantID)
+	row := s.DB.QueryRow(`SELECT `+contactCols+` FROM contacts WHERE id=? AND tenant_id=? AND deleted_at IS NULL`, id, tenantID)
 	return scanContact(row)
 }
 
-func (s *Store) ListContacts(tenantID, assigneeFilter string) ([]Contact, error) {
-	q := `SELECT ` + contactCols + ` FROM contacts WHERE tenant_id=?`
+// escapeLike escapes LIKE wildcards in user input; callers must use ESCAPE '\'.
+func escapeLike(v string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(v)
+}
+
+// ContactFilter narrows list queries. Name is a substring match on the profile
+// name, Tag an exact single-tag match. Phone search is deliberately absent:
+// URL 查询参数不承载手机号(HUI-1691 红线),HTTP 层另行拒绝。
+type ContactFilter struct {
+	NameSubstring string
+	Tag           string
+}
+
+func (s *Store) ListContacts(tenantID, assigneeFilter string, f ContactFilter) ([]Contact, error) {
+	q := `SELECT ` + contactCols + ` FROM contacts WHERE tenant_id=? AND deleted_at IS NULL`
 	args := []any{tenantID}
 	if assigneeFilter != "" {
 		q += ` AND assigned_member_id=?`
 		args = append(args, assigneeFilter)
+	}
+	if f.NameSubstring != "" {
+		q += ` AND name LIKE '%'||?||'%' ESCAPE '\'`
+		args = append(args, escapeLike(f.NameSubstring))
+	}
+	if f.Tag != "" {
+		q += ` AND (','||tags||',') LIKE '%,'||?||',%' ESCAPE '\'`
+		args = append(args, escapeLike(f.Tag))
 	}
 	q += ` ORDER BY created_at DESC`
 	rows, err := s.DB.Query(q, args...)
@@ -315,6 +351,10 @@ type ContactPatch struct {
 	Email         *string
 	ConsentStatus *string
 	AssignedTo    *string
+	Notes         *string
+	// Tags is the already-normalized comma-joined list (normalization happens
+	// at the HTTP layer so the store stays a dumb, parameterized pipe).
+	Tags *string
 }
 
 func (s *Store) UpdateContact(id, tenantID string, p ContactPatch) (Contact, error) {
@@ -334,13 +374,19 @@ func (s *Store) UpdateContact(id, tenantID string, p ContactPatch) (Contact, err
 	if p.ConsentStatus != nil {
 		cur.ConsentStatus = *p.ConsentStatus
 	}
+	if p.Notes != nil {
+		cur.Notes = *p.Notes
+	}
+	if p.Tags != nil {
+		cur.Tags = *p.Tags
+	}
 	if p.AssignedTo != nil {
 		cur.AssignedMemberID = *p.AssignedTo
 	}
 	cur.UpdatedAt = now()
 	_, err = s.DB.Exec(
-		`UPDATE contacts SET name=?,phone=?,email=?,consent_status=?,assigned_member_id=?,updated_at=? WHERE id=? AND tenant_id=?`,
-		cur.Name, cur.Phone, cur.Email, cur.ConsentStatus, nullable(cur.AssignedMemberID), cur.UpdatedAt, id, tenantID)
+		`UPDATE contacts SET name=?,phone=?,email=?,consent_status=?,notes=?,tags=?,assigned_member_id=?,updated_at=? WHERE id=? AND tenant_id=? AND deleted_at IS NULL`,
+		cur.Name, cur.Phone, cur.Email, cur.ConsentStatus, cur.Notes, cur.Tags, nullable(cur.AssignedMemberID), cur.UpdatedAt, id, tenantID)
 	return cur, err
 }
 

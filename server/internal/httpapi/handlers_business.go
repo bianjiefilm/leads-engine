@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
@@ -37,6 +38,51 @@ func derefInt(p *int) int {
 func validRFC3339(s string) bool {
 	_, err := time.Parse(time.RFC3339, s)
 	return err == nil
+}
+
+// runeLen counts runes; input caps are defined in runes so CJK text is not
+// penalized against byte limits.
+func runeLen(s string) int { return len([]rune(s)) }
+
+// isPhoneLike reports whether a free-text search value carries 7+ consecutive
+// digits. URL 查询参数不承载手机号(HUI-1691 红线):这类输入一律拒绝,
+// 联系人只能按 id 精确取用。
+func isPhoneLike(v string) bool {
+	run := 0
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			run++
+			if run >= 7 {
+				return true
+			}
+		} else {
+			run = 0
+		}
+	}
+	return false
+}
+
+// normalizeTags splits a raw tag string on ASCII/full-width commas, trims,
+// drops empties, dedupes (order preserved) and enforces the shape caps.
+func normalizeTags(raw string) (string, string) {
+	const maxTags, maxTagRunes = 10, 30
+	seen := map[string]bool{}
+	var out []string
+	for _, part := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == '，' }) {
+		t := strings.TrimSpace(part)
+		if t == "" || seen[t] {
+			continue
+		}
+		if runeLen(t) > maxTagRunes {
+			return "", "single tag must be at most 30 characters"
+		}
+		seen[t] = true
+		out = append(out, t)
+		if len(out) > maxTags {
+			return "", "at most 10 tags per contact"
+		}
+	}
+	return strings.Join(out, ","), ""
 }
 
 type sourceInput struct {
@@ -104,13 +150,15 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name             string      `json:"name"`
-		Phone            string      `json:"phone"`
-		Email            string      `json:"email"`
-		BusinessCategory string      `json:"business_category"`
-		SourceType       string      `json:"source_type"`
-		ConsentStatus    string      `json:"consent_status"`
-		AssignedMemberID string      `json:"assigned_member_id"`
+		Name             string       `json:"name"`
+		Phone            string       `json:"phone"`
+		Email            string       `json:"email"`
+		BusinessCategory string       `json:"business_category"`
+		SourceType       string       `json:"source_type"`
+		ConsentStatus    string       `json:"consent_status"`
+		Notes            string       `json:"notes"`
+		Tags             string       `json:"tags"`
+		AssignedMemberID string       `json:"assigned_member_id"`
 		Source           *sourceInput `json:"source"`
 	}
 	if !decodeBody(w, r, &in) {
@@ -118,6 +166,15 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Name == "" {
 		fail(w, http.StatusBadRequest, "bad_request", "name is required")
+		return
+	}
+	if runeLen(in.Notes) > 2000 {
+		fail(w, http.StatusBadRequest, "bad_request", "notes must be at most 2000 characters")
+		return
+	}
+	tags, tagErr := normalizeTags(in.Tags)
+	if tagErr != "" {
+		fail(w, http.StatusBadRequest, "bad_request", tagErr)
 		return
 	}
 	if in.SourceType == "" {
@@ -154,14 +211,38 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		BusinessCategory: in.BusinessCategory,
 		SourceType:       in.SourceType,
 		ConsentStatus:    in.ConsentStatus,
+		Notes:            in.Notes,
+		Tags:             tags,
 		SourceRefID:      sourceRefID,
 	}, c.Member.ID, assignee)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "contact create failed")
 		return
 	}
-	s.Log.Printf("contact created id=%s %s", created.ID, redact.Person(created.Name, created.Phone, created.Email))
+	// 日志只带掩码形态与标签个数;手机号/邮箱明文、备注与标签内容一律不入日志。
+	s.Log.Printf("contact created id=%s %s %s", created.ID,
+		redact.Person(created.Name, created.Phone, created.Email), redact.TagSummary(created.Tags))
 	writeJSON(w, http.StatusCreated, created)
+}
+
+// rejectPhoneSearch enforces the URL discipline: no phone numbers in query
+// parameters (use the contact id instead). A dedicated phone param or a
+// phone-like name/tag value is a hard 400.
+func rejectPhoneSearch(w http.ResponseWriter, r *http.Request) bool {
+	q := r.URL.Query()
+	if q.Get("phone") != "" {
+		fail(w, http.StatusBadRequest, "phone_not_searchable",
+			"contact lookup is by id only; phone numbers are never accepted as a URL search parameter")
+		return true
+	}
+	for _, key := range []string{"name", "tag"} {
+		if isPhoneLike(q.Get(key)) {
+			fail(w, http.StatusBadRequest, "phone_not_searchable",
+				"search values must not contain phone numbers; look contacts up by id instead")
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) handleContactList(w http.ResponseWriter, r *http.Request) {
@@ -169,11 +250,17 @@ func (s *Server) handleContactList(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionReadList, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
+	if rejectPhoneSearch(w, r) {
+		return
+	}
 	filter := ""
 	if authz.Role(c.Member.Role) != authz.RoleOwner {
 		filter = c.Member.ID // sales/agent only ever see their own records
 	}
-	items, err := s.St.ListContacts(c.Member.TenantID, filter)
+	items, err := s.St.ListContacts(c.Member.TenantID, filter, store.ContactFilter{
+		NameSubstring: strings.TrimSpace(r.URL.Query().Get("name")),
+		Tag:           strings.TrimSpace(r.URL.Query().Get("tag")),
+	})
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "contact list failed")
 		return
@@ -224,6 +311,8 @@ func (s *Server) handleContactPatch(w http.ResponseWriter, r *http.Request) {
 		Phone            *string `json:"phone"`
 		Email            *string `json:"email"`
 		ConsentStatus    *string `json:"consent_status"`
+		Notes            *string `json:"notes"`
+		Tags             *string `json:"tags"`
 		AssignedMemberID *string `json:"assigned_member_id"`
 	}
 	if !decodeBody(w, r, &in) {
@@ -231,6 +320,10 @@ func (s *Server) handleContactPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.ConsentStatus != nil && !validConsent[*in.ConsentStatus] {
 		fail(w, http.StatusBadRequest, "bad_request", "consent_status must be pending, granted or denied")
+		return
+	}
+	if in.Notes != nil && runeLen(*in.Notes) > 2000 {
+		fail(w, http.StatusBadRequest, "bad_request", "notes must be at most 2000 characters")
 		return
 	}
 	var patch store.ContactPatch
@@ -245,6 +338,17 @@ func (s *Server) handleContactPatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.ConsentStatus != nil {
 		patch.ConsentStatus = in.ConsentStatus
+	}
+	if in.Notes != nil {
+		patch.Notes = in.Notes
+	}
+	if in.Tags != nil {
+		tags, tagErr := normalizeTags(*in.Tags)
+		if tagErr != "" {
+			fail(w, http.StatusBadRequest, "bad_request", tagErr)
+			return
+		}
+		patch.Tags = &tags
 	}
 	if in.AssignedMemberID != nil {
 		// reassignment is an owner-only action even on your own record

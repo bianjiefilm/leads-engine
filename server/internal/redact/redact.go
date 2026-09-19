@@ -1,8 +1,12 @@
 // Package redact masks personal identifiers before anything reaches logs.
-// 安全基线:联系人手机号/邮箱只允许以掩码形态出现在日志与错误消息里。
+// 安全基线:联系人手机号/邮箱只允许以掩码形态出现在日志与错误消息里;
+// 跟进/备注等自由文本(HUI-1691)永不入日志,只允许以长度摘要出现。
 package redact
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // MaskPhone keeps the first 3 and last 4 digits of an 11-digit CN mobile
 // number; a leading +86 country code is ignored. Anything else non-empty gets
@@ -40,6 +44,26 @@ func MaskEmail(email string) string {
 	local, domain := e[:at], e[at+1:]
 	keep := string(local[0])
 	return keep + "***@" + domain
+}
+
+// Note renders a log-safe reference for free text (follow-up / contact notes,
+// HUI-1691): the content itself NEVER reaches the log, only its rune length.
+func Note(content string) string {
+	n := len([]rune(strings.TrimSpace(content)))
+	if n == 0 {
+		return "note=empty"
+	}
+	return fmt.Sprintf("note=redacted(len=%d)", n)
+}
+
+// TagSummary renders the number of tags only; tag values may carry customer
+// wording and are therefore kept out of logs entirely.
+func TagSummary(tags string) string {
+	if strings.TrimSpace(tags) == "" {
+		return "tags=0"
+	}
+	n := strings.Count(tags, ",") + 1
+	return fmt.Sprintf("tags=%d", n)
 }
 
 // Person renders a log-safe person label from name/phone/email.
