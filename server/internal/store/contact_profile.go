@@ -100,9 +100,10 @@ func (s *Store) UpsertContactConsent(tenantID, contactID string, in ConsentUpser
 
 // upsertConsentTx is the consent upsert inside a caller-owned transaction
 // (lead intake HUI-1683 records the event's consent in the SAME tx as the
-// lead). Rules identical to UpsertContactConsent, incl. the persistent
-// revocation marker: a replayed event on a revoked key returns the current
-// row with state=replay_unchanged and never touches revoked_at.
+// lead). It commits nothing: the caller owns Begin/Commit, so every exit here
+// leaves the transaction open. Rules identical to UpsertContactConsent, incl.
+// the persistent revocation marker: a replayed event on a revoked key returns
+// the current row with state=replay_unchanged and never touches revoked_at.
 func upsertConsentTx(tx *sql.Tx, tenantID, contactID string, in ConsentUpsert) (ContactConsent, string, error) {
 	row := tx.QueryRow(
 		`SELECT `+consentCols+` FROM contact_consents
@@ -122,9 +123,9 @@ func upsertConsentTx(tx *sql.Tx, tenantID, contactID string, in ConsentUpsert) (
 			cur.NoticeVersion, cur.Purpose, boolInt(cur.MarketingAllowed), cur.ID, tenantID); err != nil {
 			return ContactConsent{}, "", err
 		}
-		if err := tx.Commit(); err != nil {
-			return ContactConsent{}, "", err
-		}
+		// HUI-1748 / D-L1:事务归调用方所有(见 lead_intake.go 的 "It commits
+		// nothing" 契约)。此处绝不 Commit —— 此前的提前提交曾令 intake 外层
+		// 二次 Commit 失败(500 intake commit failed)且部分写入提前可见。
 		return cur, ConsentUpdated, nil
 	}
 	if err != sql.ErrNoRows {
