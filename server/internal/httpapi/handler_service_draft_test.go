@@ -52,7 +52,7 @@ func newEcoStub(t *testing.T) (*ecoStub, string) {
 		if down {
 			panic(http.ErrAbortHandler) // no response → transport failure
 		}
-		if r.Header.Get("X-Internal-Token") != ecoToken {
+		if r.Header.Get("Authorization") != "Bearer "+ecoToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -102,7 +102,7 @@ func newEcoStub(t *testing.T) (*ecoStub, string) {
 		if st.down {
 			panic(http.ErrAbortHandler)
 		}
-		if r.Header.Get("X-Internal-Token") != ecoToken {
+		if r.Header.Get("Authorization") != "Bearer "+ecoToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}

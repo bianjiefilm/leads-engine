@@ -18,7 +18,10 @@ import (
 	"time"
 )
 
-const intakeTokenHeader = "X-Internal-Token"
+// 内部通道认证头(D-B1,跨仓共测缺陷修复):O2 接收端 requireInternalToken
+// 只认标准 `Authorization: Bearer <token>`;旧 X-Internal-Token 头在真实
+// 部署直投 401。令牌值来源不变,仍为部署配置 ECO_HANDOFF_TOKEN。
+const authorizationHeader = "Authorization"
 
 // DeliveryResult is the restricted status projection the receiver returns.
 // 投递成功 ≠ 成交/已支付:这只是「接单侧建了草稿」的事实投影。
@@ -84,7 +87,7 @@ func (d *Deliverer) Deliver(ctx context.Context, doc []byte) (*DeliveryResult, e
 		return nil, fmt.Errorf("%w: %v", ErrTransport, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(intakeTokenHeader, d.Token)
+	req.Header.Set(authorizationHeader, "Bearer "+d.Token)
 	res, err := d.httpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTransport, err)
@@ -144,7 +147,7 @@ func (d *Deliverer) FetchProjection(ctx context.Context, handoffID string) (*Tar
 		return nil, fmt.Errorf("%w: %v", ErrTransport, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(intakeTokenHeader, d.Token)
+	req.Header.Set(authorizationHeader, "Bearer "+d.Token)
 	res, err := d.httpClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTransport, err)
