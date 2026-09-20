@@ -221,6 +221,25 @@ func (s *Server) Handler() http.Handler {
 	if s.Cfg.FeatureChannelAnalytics {
 		mux.Handle("GET /api/v1/funnel/channels", s.requireSession(s.handleFunnelChannels))
 	}
+	// HUI-1690 / FEAT-0191 客户画像标签体系:FEATURE_CONTACT_TAGS 闸控,默认
+	// off -> 路由族整体不注册(404 不可见);on ->
+	//   人工标签定义 CRUD(owner 专属 manage_contact_tags)+ 联系人打标/去标
+	//   (既有记录级作用域,幂等首戳留痕)+ 派生标签(纯只读按需重算不落库,
+	//   定义披露沿 FEAT-0195 范式)+ 分群组合查询(组间 AND 组内 OR,结果零 PII);
+	// 「千人千面」v1 只做分群查询,不碰推送/广告/外呼。
+	if s.Cfg.FeatureContactTags {
+		// exact literal segments win over {id} (ServeMux precedence)
+		mux.Handle("GET /api/v1/contact-tags", s.requireSession(s.handleContactTagList))
+		mux.Handle("POST /api/v1/contact-tags", s.requireSession(s.handleContactTagCreate))
+		mux.Handle("GET /api/v1/contact-tags/derived", s.requireSession(s.handleDerivedTagCatalog))
+		mux.Handle("GET /api/v1/contact-tags/segment", s.requireSession(s.handleContactSegment))
+		mux.Handle("PATCH /api/v1/contact-tags/{id}", s.requireSession(s.handleContactTagPatch))
+		mux.Handle("DELETE /api/v1/contact-tags/{id}", s.requireSession(s.handleContactTagDelete))
+		mux.Handle("GET /api/v1/contacts/{id}/tags", s.requireSession(s.handleContactTagsList))
+		mux.Handle("POST /api/v1/contacts/{id}/tags", s.requireSession(s.handleContactTagApply))
+		mux.Handle("DELETE /api/v1/contacts/{id}/tags/{tagId}", s.requireSession(s.handleContactUntag))
+		mux.Handle("GET /api/v1/contacts/{id}/derived-tags", s.requireSession(s.handleContactDerivedTags))
+	}
 	// HUI-1683 线索 intake 去重:三分类领域规则的唯一 HTTP 形态(HUI-1680 的
 	// inbox 与它共用 store.IntakeLeadInTx;本票不做接收渠道本身)。
 	mux.Handle("POST /api/v1/leads/intake", s.requireSession(s.handleLeadIntake))

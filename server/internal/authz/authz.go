@@ -60,6 +60,13 @@ const (
 	// leads, with what weight and region/industry tags. 池配置是租户级销售
 	// 运营决策,直接决定线索流向:owner 专属,绝不静默。
 	ActionManageAssignPool Action = "manage_assign_pool"
+	// ActionManageContactTags is the tenant contact-tag definition surface
+	// (HUI-1690 / FEAT-0191): the tenant-authored tag directory (create /
+	// rename / recolor / delete). The tag directory defines the semantic
+	// boundary of every manual segment (「千人千面」), 租户级运营配置:
+	// owner 专属,与 manage_forms / manage_assign_pool 同类。打标/去标与分群
+	// 查询不在此动作内 —— 它们走既有业务动作(update / read_list + 记录级作用域)。
+	ActionManageContactTags Action = "manage_contact_tags"
 )
 
 // Deny reason codes. ReasonNotFoundMask maps to HTTP 404 so a sales cannot
@@ -123,7 +130,8 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms, ActionManageAssignPool:
+	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms,
+		ActionManageAssignPool, ActionManageContactTags:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

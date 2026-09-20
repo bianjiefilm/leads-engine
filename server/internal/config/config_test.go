@@ -66,6 +66,25 @@ func TestFeatureChannelAnalyticsCoupleToConfig(t *testing.T) {
 	}
 }
 
+// HUI-1690 / FEAT-0191: 客户画像标签面由 FEATURE_CONTACT_TAGS 闸控;默认 off
+// (登记制开关,路由不注册、404 不可见),与其他 FEATURE_* 同款语义。
+func TestFeatureContactTagsCoupleToConfig(t *testing.T) {
+	env := map[string]string{"FEATURE_CONTACT_TAGS": "true"}
+	cfg := Load(func(k string) string { return env[k] })
+	if !cfg.FeatureContactTags {
+		t.Fatal("FEATURE_CONTACT_TAGS=true must enable the contact-tags flag")
+	}
+	off := Load(func(string) string { return "" })
+	if off.FeatureContactTags {
+		t.Fatal("FEATURE_CONTACT_TAGS must default to off")
+	}
+	if !strings.Contains(cfg.Describe(), "contact_tags=on") ||
+		!strings.Contains(off.Describe(), "contact_tags=off") {
+		t.Fatalf("Describe must report contact_tags state: on=%s off=%s",
+			cfg.Describe(), off.Describe())
+	}
+}
+
 func TestGateFailClosed(t *testing.T) {
 	cfg := Load(func(string) string { return "" })
 	problems := cfg.Gate()
