@@ -134,6 +134,7 @@ type harnessOpts struct {
 	ecoIntakeDead       bool // ecoOn but the intake URL is a dead port (delivery-failure paths)
 	captureLog          bool // capture server log lines for redaction assertions
 	omitDedupPepper     bool // HUI-1683: intake fails closed when the pepper is missing
+	featureLeadsFilter  bool // FEATURE_LEADS_FILTER=on (HUI-1686 无效线索过滤)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -165,6 +166,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return "test-identity-token"
 		case "FEATURE_SERVICE_DRAFT":
 			if opts.featureServiceDraft || opts.ecoOn {
+				return "true"
+			}
+			return ""
+		case "FEATURE_LEADS_FILTER":
+			if opts.featureLeadsFilter {
 				return "true"
 			}
 			return ""

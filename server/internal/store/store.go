@@ -419,18 +419,23 @@ type Lead struct {
 	ContactID        string `json:"contact_id"`
 	SourceRefID      string `json:"source_ref_id,omitempty"`
 	Status           string `json:"status"`
+	// FilterReason carries the machine reason code when the deterministic
+	// intake filter marked this lead filtered (HUI-1686 / FEAT-0187, e.g.
+	// invalid_phone). Machine codes only — never a contact fact. Empty for
+	// every lead created before/without the filter.
+	FilterReason     string `json:"filter_reason,omitempty"`
 	AssignedMemberID string `json:"assigned_member_id,omitempty"`
 	CreatedBy        string `json:"created_by"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }
 
-const leadCols = `id,tenant_id,contact_id,source_ref_id,status,assigned_member_id,created_by,created_at,updated_at`
+const leadCols = `id,tenant_id,contact_id,source_ref_id,status,filter_reason,assigned_member_id,created_by,created_at,updated_at`
 
 func scanLead(sc interface{ Scan(...any) error }) (Lead, error) {
 	var l Lead
 	var src, asn sql.NullString
-	err := sc.Scan(&l.ID, &l.TenantID, &l.ContactID, &src, &l.Status, &asn, &l.CreatedBy, &l.CreatedAt, &l.UpdatedAt)
+	err := sc.Scan(&l.ID, &l.TenantID, &l.ContactID, &src, &l.Status, &l.FilterReason, &asn, &l.CreatedBy, &l.CreatedAt, &l.UpdatedAt)
 	if err != nil {
 		return Lead{}, err
 	}
@@ -450,10 +455,12 @@ func (s *Store) CreateLead(l Lead, createdBy, assignTo string) (Lead, error) {
 }
 
 // insertLeadTx is the single INSERT for leads (shared with lead intake).
+// filter_reason is machine-assigned at intake time (HUI-1686) and is never
+// written by the human update path.
 func insertLeadTx(db sqlDB, l Lead) error {
 	_, err := db.Exec(
-		`INSERT INTO leads(`+leadCols+`) VALUES(?,?,?,?,?,?,?,?,?)`,
-		l.ID, l.TenantID, l.ContactID, nullable(l.SourceRefID), l.Status, nullable(l.AssignedMemberID), l.CreatedBy, l.CreatedAt, l.UpdatedAt)
+		`INSERT INTO leads(`+leadCols+`) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		l.ID, l.TenantID, l.ContactID, nullable(l.SourceRefID), l.Status, l.FilterReason, nullable(l.AssignedMemberID), l.CreatedBy, l.CreatedAt, l.UpdatedAt)
 	return err
 }
 

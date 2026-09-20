@@ -332,6 +332,7 @@ func (s *Server) handlePublicFormSubmit(w http.ResponseWriter, r *http.Request) 
 		Content:        canonicalRequestBytes(payload),
 		Pepper:         s.Cfg.DedupPepper,
 		ResubmitWindow: window,
+		FilterEnabled:  s.Cfg.FeatureLeadsFilter,
 	})
 	if errors.Is(err, store.ErrEventContentConflict) {
 		fail(w, http.StatusConflict, "event_content_conflict",
@@ -352,16 +353,24 @@ func (s *Server) handlePublicFormSubmit(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 日志:无手机号/姓名明文可免则免 —— 姓名走 redact.Person,手机号只记指纹前缀。
-	s.Log.Printf("form submit tenant=%s form=%s v=%d source=%s ref=%s submission=%s contact=%s lead=%s class=%s dup=%s marketing=%t phone_fpr=%s",
-		f.TenantID, f.ID, f.Version, payload.Source, payload.SourceRef,
-		res.SubmissionID, res.ContactID, res.LeadID, res.Class, duplicateKind(res),
-		res.MarketingAllowed, shortFPR(s.Cfg.DedupPepper, payload.Phone))
+	// 过滤开着时追加机器原因码(HUI-1686),off 时日志格式与既往逐字一致。
+	if res.FilterReason != "" {
+		s.Log.Printf("form submit tenant=%s form=%s v=%d source=%s ref=%s submission=%s contact=%s lead=%s class=%s dup=%s marketing=%t phone_fpr=%s filter=%s",
+			f.TenantID, f.ID, f.Version, payload.Source, payload.SourceRef,
+			res.SubmissionID, res.ContactID, res.LeadID, res.Class, duplicateKind(res),
+			res.MarketingAllowed, shortFPR(s.Cfg.DedupPepper, payload.Phone), res.FilterReason)
+	} else {
+		s.Log.Printf("form submit tenant=%s form=%s v=%d source=%s ref=%s submission=%s contact=%s lead=%s class=%s dup=%s marketing=%t phone_fpr=%s",
+			f.TenantID, f.ID, f.Version, payload.Source, payload.SourceRef,
+			res.SubmissionID, res.ContactID, res.LeadID, res.Class, duplicateKind(res),
+			res.MarketingAllowed, shortFPR(s.Cfg.DedupPepper, payload.Phone))
+	}
 
 	status := http.StatusCreated
 	if res.Duplicate {
 		status = http.StatusOK
 	}
-	writeJSON(w, status, map[string]any{
+	out := map[string]any{
 		"submission_id":     res.SubmissionID,
 		"contact_id":        res.ContactID,
 		"lead_id":           res.LeadID,
@@ -372,7 +381,12 @@ func (s *Server) handlePublicFormSubmit(w http.ResponseWriter, r *http.Request) 
 		"marketing_allowed": res.MarketingAllowed,
 		"notice_version":    f.NoticeVersion,
 		"revoke_hint":       formRevokeHint,
-	})
+	}
+	// filter_reason 只在首投判定命中时出现(机器码,零联系方式原文)。
+	if res.FilterReason != "" {
+		out["filter_reason"] = res.FilterReason
+	}
+	writeJSON(w, status, out)
 }
 
 func duplicateKind(res store.SubmitFormResult) string {
