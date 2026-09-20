@@ -1,8 +1,8 @@
 // HUI-1694 / FEAT-0195 全漏斗分析 HTTP E2E(登记制开关 FEATURE_FUNNEL):
 //   - off(默认):路由不注册,GET /api/v1/funnel 一律 404(不可见);
 //   - on:窗口参数必填且 RFC3339;owner 租户全量 / sales 只看自己人群;
-//     UNKNOWN 触点阶段 available=false + 中文 reason;同窗口重算幂等;
-//     跨租户零串行; granularities。
+//     曝光 UNKNOWN(available=false + 中文 reason),留资=form_submissions
+//     真实计算(指挥者裁决);同窗口重算幂等;跨租户零串行; granularities。
 package httpapi
 
 import (
@@ -40,6 +40,30 @@ func funnelSeedFollowUp(t *testing.T, h *harness, tenant, id, contactID, created
 		 VALUES(?,?,?,NULL,'跟进','',NULL,?,?,?)`,
 		id, tenant, contactID, h.memberID(tenant, principalOwnerA), createdAt, createdAt); err != nil {
 		t.Fatalf("seed follow-up %s: %v", id, err)
+	}
+}
+
+// funnelSeedFormSubmission 写入 form_submissions 账本行(与 SubmitFormInTx 的
+// 落库形状一致:form_id/lead_id 外键齐备,时间显式确定;每租户惰性补一个
+// 已发布 forms 行作 form_id 外键主体)。
+func funnelSeedFormSubmission(t *testing.T, h *harness, tenant, id, contactID, createdAt string) {
+	t.Helper()
+	if _, err := h.api.St.DB.Exec(
+		`INSERT OR IGNORE INTO forms(id,tenant_id,version,status,created_at,updated_at)
+		 VALUES(?,?,1,'published','2025-12-01T00:00:00Z','2025-12-01T00:00:00Z')`,
+		"frm_"+tenant, tenant); err != nil {
+		t.Fatalf("seed form: %v", err)
+	}
+	if _, err := h.api.St.DB.Exec(
+		`INSERT INTO leads(id,tenant_id,contact_id,status,created_by,created_at,updated_at)
+		 VALUES(?,?,?,'new','test',?,?)`, "lead_"+id, tenant, contactID, createdAt, createdAt); err != nil {
+		t.Fatalf("seed form lead %s: %v", id, err)
+	}
+	if _, err := h.api.St.DB.Exec(
+		`INSERT INTO form_submissions(id,form_id,form_version,tenant_id,contact_id,lead_id,source,source_ref,created_at)
+		 VALUES(?,?,1,?,?,?,?,?,?)`, id, "frm_"+tenant, tenant, contactID, "lead_"+id,
+		"form", "ref-"+id, createdAt); err != nil {
+		t.Fatalf("seed form submission %s: %v", id, err)
 	}
 }
 
@@ -153,6 +177,12 @@ func TestFunnelFlagOnE2E(t *testing.T) {
 		`UPDATE contacts SET deleted_at='2026-01-13T00:00:00Z', phone='' WHERE id='fc4'`); err != nil {
 		t.Fatal(err)
 	}
+	//   留资 = 2:fc1(01-09/01-19 两次提交计 1)+ fc3(01-10;档案在窗口前)
+	funnelSeedFormSubmission(t, h, tenantA, "fs1", "fc1", "2026-01-09T09:00:00Z")
+	funnelSeedFormSubmission(t, h, tenantA, "fs2", "fc1", "2026-01-19T09:00:00Z") // 同联系人多次只计 1
+	funnelSeedFormSubmission(t, h, tenantA, "fs3", "fc3", "2026-01-10T09:00:00Z")
+	funnelSeedFormSubmission(t, h, tenantA, "fs4", "fc2", "2025-12-25T09:00:00Z") // 窗口前:排除
+	funnelSeedFormSubmission(t, h, tenantA, "fs5", "fc4", "2026-01-11T09:00:00Z") // 墓碑:排除
 	//   跟进 = 2:c1(01-15,同联系人第二条不重复计)+ fc3(01-16,档案在窗口前)
 	funnelSeedFollowUp(t, h, tenantA, "ff1", "fc1", "2026-01-15T09:00:00Z")
 	funnelSeedFollowUp(t, h, tenantA, "ff2", "fc1", "2026-01-20T09:00:00Z")
@@ -165,7 +195,12 @@ func TestFunnelFlagOnE2E(t *testing.T) {
 	funnelSeedWon(t, h, tenantA, "fh1", "fo1", "2026-01-25T09:00:00Z")
 
 	// 独立 SQL 复算 vs API 输出。
-	var wantFollow, wantWon int
+	var wantForms, wantFollow, wantWon int
+	if err := h.api.St.DB.QueryRow(
+		`SELECT COUNT(DISTINCT s.contact_id) FROM form_submissions s JOIN contacts c ON c.id=s.contact_id AND c.deleted_at IS NULL
+		 WHERE s.tenant_id=? AND s.created_at>='2026-01-01' AND s.created_at<'2026-02-01'`, tenantA).Scan(&wantForms); err != nil {
+		t.Fatal(err)
+	}
 	if err := h.api.St.DB.QueryRow(
 		`SELECT COUNT(DISTINCT f.contact_id) FROM follow_ups f JOIN contacts c ON c.id=f.contact_id AND c.deleted_at IS NULL
 		 WHERE f.tenant_id=? AND f.created_at>='2026-01-01T00:00:00+00:00'`, tenantA).Scan(&wantFollow); err != nil {
@@ -184,23 +219,32 @@ func TestFunnelFlagOnE2E(t *testing.T) {
 	}
 	stages := funnelStages(t, out)
 
-	// UNKNOWN 触点阶段:available=false + 中文 reason,无 count 键值(null)。
-	for key, cite := range map[string]string{"exposure": "HUI-1677", "lead_form": "HUI-1680"} {
-		st := stages[key]
-		if st["available"] != false {
-			t.Fatalf("stage %s must be available=false", key)
-		}
-		if _, present := st["count"]; !present || st["count"] != nil {
-			t.Fatalf("stage %s count must be JSON null(绝不置 0), got %v", key, st["count"])
-		}
-		reason, _ := st["reason"].(string)
-		if !strings.Contains(reason, cite) {
-			t.Fatalf("stage %s reason must cite %s: %s", key, cite, reason)
-		}
+	// UNKNOWN 触点阶段(仅曝光):available=false + 中文 reason,无 count 键值(null)。
+	expSt := stages["exposure"]
+	if expSt["available"] != false {
+		t.Fatal("stage exposure must be available=false")
+	}
+	if _, present := expSt["count"]; !present || expSt["count"] != nil {
+		t.Fatalf("stage exposure count must be JSON null(绝不置 0), got %v", expSt["count"])
+	}
+	expReason, _ := expSt["reason"].(string)
+	if !strings.Contains(expReason, "HUI-1677") {
+		t.Fatalf("exposure reason must cite HUI-1677: %s", expReason)
+	}
+	// 留资翻转(指挥者裁决):本仓 form_submissions 可信 -> 真实计算。
+	if stages["lead_form"]["available"] != true {
+		t.Fatalf("lead_form must be computed (available=true), got %v", stages["lead_form"]["available"])
+	}
+	if got := stageCount(t, stages["lead_form"]); got != float64(wantForms) || wantForms != 2 {
+		t.Fatalf("lead_form = %v, SQL recompute = %d, want 2(同联系人多次只计 1/窗外/墓碑排除)", got, wantForms)
 	}
 
 	if got := stageCount(t, stages["profile_created"]); got != 2 {
 		t.Fatalf("profile_created = %v, want 2(同号孪生去重 + 无号独立)", got)
+	}
+	if rate, ok := stages["profile_created"]["rate_from_previous"].(float64); !ok || rate != 1 {
+		t.Fatalf("profile_created rate = %v, want 1(2/2,留资为首可用阶段)",
+			stages["profile_created"]["rate_from_previous"])
 	}
 	if got := stageCount(t, stages["followed_up"]); got != float64(wantFollow) || wantFollow != 2 {
 		t.Fatalf("followed_up = %v, SQL recompute = %d, want 2", got, wantFollow)
@@ -256,6 +300,9 @@ func TestFunnelSalesScope(t *testing.T) {
 	funnelSeedContact(t, h, tenantA, "sc1", "13900000004", "form", sales1, "2026-01-05T00:00:00Z")
 	funnelSeedContact(t, h, tenantA, "sc2", "13900000005", "form", sales2, "2026-01-06T00:00:00Z")
 	funnelSeedOpp(t, h, tenantA, "so1", "sc1", sales1, "2026-01-07T00:00:00Z")
+	// 提交的 lead 未指派 -> COALESCE 落到联系人指派(与跟进同款单点推导)。
+	funnelSeedFormSubmission(t, h, tenantA, "sfs1", "sc1", "2026-01-06T12:00:00Z")
+	funnelSeedFormSubmission(t, h, tenantA, "sfs2", "sc2", "2026-01-06T12:00:00Z")
 
 	path := "/api/v1/funnel?window_start=2026-01-01T00:00:00Z&window_end=2026-02-01T00:00:00Z"
 	out := h.mustDo("GET", path, sessionSalesA1, tenantA, "", http.StatusOK)
@@ -263,6 +310,9 @@ func TestFunnelSalesScope(t *testing.T) {
 		t.Fatalf("sales scope = %v, want assigned_to_me", out["scope"])
 	}
 	stages := funnelStages(t, out)
+	if got := stageCount(t, stages["lead_form"]); got != 1 {
+		t.Fatalf("sales1 lead_form = %v, want 1(只含自己人群)", got)
+	}
 	if got := stageCount(t, stages["profile_created"]); got != 1 {
 		t.Fatalf("sales1 profile_created = %v, want 1(只含自己人群)", got)
 	}

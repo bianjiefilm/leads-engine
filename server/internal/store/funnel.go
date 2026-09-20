@@ -1,6 +1,9 @@
 // HUI-1694 / FEAT-0195 全漏斗分析存储层(纯只读计算,零迁移、零状态):
 //
-//	v1 漏斗 = leads 域可信事实链,四阶段:
+//	v1 漏斗 = leads 域可信事实链,五阶段(响应顺序):
+//	  留资   lead_form           窗口内提交过表单的唯一联系人(form_submissions
+//	                           提交账本,HUI-1679/FEAT-0180 自管表单;渠道留资
+//	                           表单的原生事实在 touch 域 HUI-1680,不在本口径)
 //	  建档   profile_created     窗口内首次建档的唯一联系人身份
 //	                           (去重键 = NormalizePhone 归一化手机号,与 intake
 //	                           查重同域;无手机号档案各自独立身份;同号多档案
@@ -14,9 +17,9 @@
 //	                           won 后重开不回溯改写窗口结果;leads 的
 //	                           converted 状态无事件时间字段——leads 无阶段
 //	                           审计链——v1 不以 updated_at 推断,不计入)
-//	另有两个触点阶段(曝光/留资)只有 touch 域原生事实(HUI-1677/HUI-1680),
-//	本仓没有可信本地事实:按 UNKNOWN 诚实降级输出 available=false + 中文
-//	reason,count 恒为 null —— 绝不推算、绝不置 0。
+//	另有一个触点阶段(曝光)的原生事实只在 touch 域(HUI-1677),本仓没有
+//	可信本地事实:按 UNKNOWN 诚实降级输出 available=false + 中文 reason,
+//	count 恒为 null —— 绝不推算、绝不置 0。
 //
 // 窗口语义:[window_start, window_end) 半开区间,按各阶段事件时间字段
 // (UTC RFC3339)过滤。纯函数:同窗口重算结果恒一致(无任何游标/状态)。
@@ -31,7 +34,7 @@
 // 自己被指派人群(联系人 assigned_member_id;跟进取挂靠 lead 优先/contact
 // 的 COALESCE 单点作用域,与到期面同款;商机 assigned_member_id)。
 // 下钻:source_type(contacts 既有来源域 manual/form/touch_campaign)作用于
-// 人群,四阶段随人群一致收窄;source_app/source_ns 只存在于 intake 事件接缝,
+// 人群,五阶段随人群一致收窄;source_app/source_ns 只存在于 intake 事件接缝,
 // 不贯穿 followups/opportunities,故不发明跨阶段新维度。
 package store
 
@@ -128,15 +131,15 @@ type FunnelReport struct {
 const funnelRateRule = "rate_from_previous = 本阶段 count ÷ 上一可用阶段 count;" +
 	"无上一可用阶段或其 count=0 时为 null;available=false 的触点阶段不参与推导"
 
-// UNKNOWN 诚实降级:touch 触点原生事实不在本仓(HUI-1677 曝光 / HUI-1680
-// 收件箱留资),输出不可用与原因,绝不推算、绝不置 0。
-const (
-	funnelExposureReason = "曝光(触点展示)的原生事实在 touch 域(HUI-1677)," +
-		"本仓没有任何可信本地事实;按 UNKNOWN 诚实降级输出不可用,绝不推算、绝不置 0。"
-	funnelLeadFormReason = "渠道留资表单的原生事实在 touch 域(HUI-1680 收件箱侧)," +
-		"本仓没有该触点的可信全量事实;按 UNKNOWN 诚实降级输出不可用,绝不推算、绝不置 0。" +
-		"(注:本仓 HUI-1679/FEAT-0180 表单域只有自管表单的提交流水,v1 不以局部事实冒充渠道触点全量。)"
-)
+// 两个触点不同处置的原因(UNKNOWN 诚实降级的两面),以仓内真实事实为准:
+//   - 曝光(HUI-1677):原生事实只在 touch 域,本仓没有任何可信本地事实
+//     -> available=false + 中文 reason,count 恒为 null,绝不推算、绝不置 0;
+//   - 留资(HUI-1679/FEAT-0180):本仓 form_submissions 提交账本即是可信本地
+//     事实(有 tenant_id/contact_id/created_at 与租户索引)-> 必须真实计算,
+//     有事实不得谎称不可知;渠道留资表单(touch 域 HUI-1680)不在本口径,
+//     口径的局部性如实写入该阶段的定义披露。
+const funnelExposureReason = "曝光(触点展示)的原生事实在 touch 域(HUI-1677)," +
+	"本仓没有任何可信本地事实;按 UNKNOWN 诚实降级输出不可用,绝不推算、绝不置 0。"
 
 // FunnelAnalysis computes the read-only funnel for one query. It is a pure
 // function of (current facts, window): no cursors, no state, no writes.
@@ -170,13 +173,18 @@ func (s *Store) FunnelAnalysis(q FunnelQuery) (*FunnelReport, error) {
 
 	defs := funnelDefinitions(r.WindowStart, r.WindowEnd)
 
-	// ---- UNKNOWN touchpoint stages (no trusted local facts) ---------------
+	// ---- UNKNOWN touchpoint stage (no trusted local facts: exposure) ------
 	r.Stages = append(r.Stages,
-		FunnelStage{Key: FunnelStageExposure, Label: "曝光", Reason: funnelExposureReason},
-		FunnelStage{Key: FunnelStageLeadForm, Label: "留资", Reason: funnelLeadFormReason},
-	)
+		FunnelStage{Key: FunnelStageExposure, Label: "曝光", Reason: funnelExposureReason})
 
 	// ---- the leads-domain trusted fact chain ------------------------------
+	leadForms, err := s.funnelFormSubmissions(q)
+	if err != nil {
+		return nil, err
+	}
+	r.Stages = append(r.Stages, funnelCountStage(FunnelStageLeadForm, "留资",
+		"unique_contact", leadForms, defs[FunnelStageLeadForm], q.WithSeries))
+
 	profiles, err := s.funnelProfiles(q)
 	if err != nil {
 		return nil, err
@@ -249,6 +257,15 @@ func funnelCountStage(key, label, unit string, firstEvent map[string]time.Time,
 func funnelDefinitions(start, end string) map[string]FunnelDefinition {
 	window := "[" + start + ", " + end + ") 半开区间,按事件时间(UTC)过滤"
 	return map[string]FunnelDefinition{
+		FunnelStageLeadForm: {
+			EventSource: "form_submissions(HUI-1679/FEAT-0180 表单域提交账本;JOIN 在册 " +
+				"contacts,墓碑档案排除)。渠道留资表单的原生事实在 touch 域 HUI-1680," +
+				"不在本口径——本阶段只计本仓表单域收录的提交",
+			DedupKey:       "form_submissions.contact_id(唯一联系人;同联系人多次提交只计 1)",
+			Denominator:    "窗口内提交过至少一次表单的唯一联系人",
+			EventTimeField: "form_submissions.created_at",
+			Window:         window,
+		},
 		FunnelStageProfileCreated: {
 			EventSource: "contacts(本租户在册档案,deleted_at IS NULL;来源含 intake 建档" +
 				"——touch 触达/public_form 表单——与人工建档路径)",
@@ -338,6 +355,32 @@ func funnelIdentityKey(phone, id string) string {
 		return "p:" + norm
 	}
 	return "id:" + id
+}
+
+// funnelFormSubmissions counts unique live contacts with at least one
+// form_submissions ledger row inside the window (HUI-1679/FEAT-0180; record
+// scope = the same COALESCE lead/contact assignment derivation as follow-ups).
+func (s *Store) funnelFormSubmissions(q FunnelQuery) (map[string]time.Time, error) {
+	query := `SELECT s.contact_id, s.created_at
+		FROM form_submissions s
+		JOIN contacts c ON c.id = s.contact_id AND c.deleted_at IS NULL
+		LEFT JOIN leads l ON l.id = s.lead_id
+		WHERE s.tenant_id=?`
+	args := []any{q.TenantID}
+	if q.AssigneeMemberID != "" {
+		query += ` AND COALESCE(l.assigned_member_id, c.assigned_member_id, '')=?`
+		args = append(args, q.AssigneeMemberID)
+	}
+	if q.SourceType != "" {
+		query += ` AND c.source_type=?`
+		args = append(args, q.SourceType)
+	}
+	rows, err := s.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectFirstInWindow(rows, q.WindowStart, q.WindowEnd)
 }
 
 // funnelFollowUps counts unique live contacts with at least one follow_ups

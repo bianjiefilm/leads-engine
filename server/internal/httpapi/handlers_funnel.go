@@ -6,8 +6,10 @@
 //   - 权限:租户级聚合走 ActionReadList(与商机统计同款先例);owner 租户全量,
 //     sales/agent 只见自己被指派人群(复用既有记录级作用域推导,不发明新模型);
 //     跨租户无成员行一律 403(中间件 fail-closed);
-//   - UNKNOWN 诚实降级:曝光/留资触点在响应中 available=false + 中文 reason,
-//     count 为 null —— 绝不推算、绝不置 0;
+//   - UNKNOWN 诚实降级(两面,以仓内真实事实为准):曝光(HUI-1677)原生事实
+//     只在 touch 域 -> available=false + 中文 reason,count 为 null,绝不推算、
+//     绝不置 0;留资(HUI-1679/FEAT-0180)本仓 form_submissions 即可信事实 ->
+//     真实计算,有事实不得谎称不可知;
 //   - PII 纪律:响应只含聚合计数与定义披露,零联系方式、零档案原文,可进日志。
 package httpapi
 

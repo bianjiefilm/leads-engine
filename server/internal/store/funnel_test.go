@@ -1,9 +1,10 @@
 // HUI-1694 / FEAT-0195 全漏斗分析 store 层单测:
 // 已知事实集直接 SQL 播种 -> 手工独立复算 vs FunnelAnalysis 输出逐项一致。
 // 覆盖:唯一联系人去重(同号孪生合并/窗口前已建档不计/无手机号独立身份)、
+// 留资真实计算(form_submissions,同联系人多次提交只计 1/窗外/墓碑排除)、
 // 窗口边界(start 含/end 不含)、跟进/商机/成交各阶段分母、won 重开再 won 的
 // 确定语义、同窗口重算幂等、晚到事件按事件时间计入、来源/成员作用域下钻、
-// 跨租户零串行、UNKNOWN 触点阶段(count=null + 中文 reason)、空租户全零。
+// 跨租户零串行、曝光 UNKNOWN(count=null + 中文 reason)、空租户全零。
 package store
 
 import (
@@ -47,6 +48,13 @@ func funnelTestDB(t *testing.T) *sql.DB {
 			"mem_fx_"+tn, tn, tn); err != nil {
 			t.Fatalf("seed member: %v", err)
 		}
+		// 留资阶段(form_submissions)的 form_id 外键主体:每租户一个已发布表单。
+		if _, err := d.Exec(
+			`INSERT INTO forms(id,tenant_id,version,status,created_at,updated_at)
+			 VALUES(?,?,1,'published','2025-12-01T00:00:00Z','2025-12-01T00:00:00Z')`,
+			"frm_"+tn, tn); err != nil {
+			t.Fatalf("seed form: %v", err)
+		}
 	}
 	return d
 }
@@ -87,6 +95,24 @@ func funnelSeedFollowUp(t *testing.T, d *sql.DB, tenant, id, contactID, createdA
 		 VALUES(?,?,?,NULL,'跟进','',NULL,?,?,?)`, id, tenant, contactID,
 		funnelActorID(t, d, tenant), createdAt, createdAt); err != nil {
 		t.Fatalf("seed follow-up %s: %v", id, err)
+	}
+}
+
+// funnelSeedFormSubmission inserts a form_submissions ledger row with the same
+// shape SubmitFormInTx writes(直接 SQL 等价于 form_domain 的播种路径,时间
+// 显式确定):form_submissions.lead_id NOT NULL -> 每次提交自带一条最小 leads 行。
+func funnelSeedFormSubmission(t *testing.T, d *sql.DB, tenant, id, contactID, createdAt string) {
+	t.Helper()
+	if _, err := d.Exec(
+		`INSERT INTO leads(id,tenant_id,contact_id,status,created_by,created_at,updated_at)
+		 VALUES(?,?,?,'new','test',?,?)`, "lead_"+id, tenant, contactID, createdAt, createdAt); err != nil {
+		t.Fatalf("seed form lead %s: %v", id, err)
+	}
+	if _, err := d.Exec(
+		`INSERT INTO form_submissions(id,form_id,form_version,tenant_id,contact_id,lead_id,source,source_ref,created_at)
+		 VALUES(?,?,1,?,?,?,?,?,?)`, id, "frm_"+tenant, tenant, contactID, "lead_"+id,
+		"form", "ref-"+id, createdAt); err != nil {
+		t.Fatalf("seed form submission %s: %v", id, err)
 	}
 }
 
@@ -176,6 +202,9 @@ func wantNilRate(t *testing.T, r *FunnelReport, key string) {
 // knownFactSet seeds the full deterministic scenario for tnt_1:
 //
 //	窗口 [2026-01-01, 2026-02-01)
+//	留资 = 3:A(01-12/01-18 两次提交计 1)+ B(01-14)+ E(01-11;档案建在窗口外
+//	         但提交在窗口内,阶段独立计数)
+//	排除:cC(唯一提交在窗口前 2025-12-25)、cF(墓碑档案 JOIN 掉)
 //	建档 = 3:cA(01-05,同号孪生 cA2 01-06 合并计 1)+ cC(01-08,无手机号独立身份)
 //	         + cD(01-09,"+86 139-0000-0003" 与 cD2 "13900000003" 归一化同身份)
 //	排除:cB(窗口前 2025-12-20 已建档)、cE(02-05 窗口后)、cF(墓碑)
@@ -204,6 +233,13 @@ func knownFactSet(t *testing.T, d *sql.DB) {
 	funnelSeedFollowUp(t, d, "tnt_1", "f4", "cE", "2026-01-17T09:00:00Z")
 	funnelSeedFollowUp(t, d, "tnt_1", "f5", "cC", "2025-12-31T09:00:00Z")
 	funnelSeedFollowUp(t, d, "tnt_1", "f6", "cF", "2026-01-18T09:00:00Z")
+
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs1", "cA", "2026-01-12T09:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs2", "cA", "2026-01-18T09:00:00Z") // 同联系人第二条只计 1
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs3", "cB", "2026-01-14T09:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs4", "cE", "2026-01-11T09:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs5", "cC", "2025-12-25T09:00:00Z") // 窗口前:排除
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs6", "cF", "2026-01-13T09:00:00Z") // 墓碑:排除
 
 	funnelSeedOpp(t, d, "tnt_1", "o7", "cA", "open", "", "2026-01-01T00:00:00Z") // 恰在 start:含
 	funnelSeedOpp(t, d, "tnt_1", "o1", "cA", "open", "", "2026-01-18T09:00:00Z")
@@ -246,38 +282,38 @@ func TestFunnelKnownFactSet(t *testing.T) {
 		t.Fatalf("sanity: live in-window contact rows = %d, want 6", liveRows)
 	}
 
-	// UNKNOWN 触点阶段:available=false、count=null、中文 reason 引用票号。
-	for _, key := range []string{"exposure", "lead_form"} {
-		st := stageOf(t, r, key)
-		if st.Available {
-			t.Fatalf("stage %s must be unavailable (touch 域原生事实不在本仓)", key)
-		}
-		if st.Count != nil {
-			t.Fatalf("stage %s count = %d, want null(绝不置 0)", key, *st.Count)
-		}
-		if st.Reason == "" {
-			t.Fatalf("stage %s must carry a non-empty reason", key)
-		}
+	// UNKNOWN 触点阶段(仅曝光):available=false、count=null、中文 reason 引票号。
+	exp := stageOf(t, r, "exposure")
+	if exp.Available {
+		t.Fatal("stage exposure must be unavailable (touch 域原生事实不在本仓)")
 	}
-	if want := "HUI-1677"; !strings.Contains(stageOf(t, r, "exposure").Reason, want) {
-		t.Fatalf("exposure reason must cite %s: %s", want, stageOf(t, r, "exposure").Reason)
+	if exp.Count != nil {
+		t.Fatalf("stage exposure count = %d, want null(绝不置 0)", *exp.Count)
 	}
-	if want := "HUI-1680"; !strings.Contains(stageOf(t, r, "lead_form").Reason, want) {
-		t.Fatalf("lead_form reason must cite %s: %s", want, stageOf(t, r, "lead_form").Reason)
+	if want := "HUI-1677"; !strings.Contains(exp.Reason, want) {
+		t.Fatalf("exposure reason must cite %s: %s", want, exp.Reason)
+	}
+	// 留资翻转(指挥者裁决):本仓 form_submissions 是可信事实 -> 真实计算,
+	// 有事实不得谎称不可知。
+	if lf := stageOf(t, r, "lead_form"); !lf.Available || lf.Count == nil {
+		t.Fatalf("lead_form must be computed (available=true + count), got %+v", lf)
 	}
 
+	wantCount(t, r, "lead_form", 3) // A 两次提交计 1 + B + E(C 窗前、F 墓碑排除)
 	wantCount(t, r, "profile_created", 3)
 	wantCount(t, r, "followed_up", 3)
 	wantCount(t, r, "opportunity_created", 4)
 	wantCount(t, r, "won", 2)
 
-	wantNilRate(t, r, "profile_created") // 链首无上一可用阶段
+	wantNilRate(t, r, "lead_form") // 链首无上一可用阶段(曝光不可用不参与推导)
+	wantRate(t, r, "profile_created", 1.0)
 	wantRate(t, r, "followed_up", 1.0)
 	wantRate(t, r, "opportunity_created", 4.0/3.0)
 	wantRate(t, r, "won", 2.0/4.0)
 
 	// 日粒度序列:每阶段首次事件日期分布,series 求和 == count。
 	wantSeries := map[string]map[string]int{
+		"lead_form":           {"2026-01-11": 1, "2026-01-12": 1, "2026-01-14": 1},
 		"profile_created":     {"2026-01-05": 1, "2026-01-08": 1, "2026-01-09": 1},
 		"followed_up":         {"2026-01-15": 1, "2026-01-16": 1, "2026-01-17": 1},
 		"opportunity_created": {"2026-01-01": 1, "2026-01-18": 1, "2026-01-19": 1, "2026-01-23": 1},
@@ -301,7 +337,7 @@ func TestFunnelKnownFactSet(t *testing.T) {
 	}
 
 	// 每个可用阶段都有完整定义披露(事件来源/去重键/分母/事件时间字段/窗口)。
-	for _, key := range []string{"profile_created", "followed_up", "opportunity_created", "won"} {
+	for _, key := range []string{"lead_form", "profile_created", "followed_up", "opportunity_created", "won"} {
 		def := stageOf(t, r, key).Definition
 		if def == nil || def.EventSource == "" || def.DedupKey == "" || def.Denominator == "" ||
 			def.EventTimeField == "" || def.Window == "" {
@@ -317,7 +353,7 @@ func TestFunnelEmptyTenant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("funnel: %v", err)
 	}
-	for _, key := range []string{"profile_created", "followed_up", "opportunity_created", "won"} {
+	for _, key := range []string{"lead_form", "profile_created", "followed_up", "opportunity_created", "won"} {
 		wantCount(t, r, key, 0)
 		wantNilRate(t, r, key) // 上一可用阶段为 0 -> rate=null(链式传导)
 		if st := stageOf(t, r, key); len(st.Series) != 0 {
@@ -355,15 +391,19 @@ func TestFunnelLateArrivingEvent(t *testing.T) {
 		t.Fatalf("funnel before: %v", err)
 	}
 	wantCount(t, before, "followed_up", 3)
+	wantCount(t, before, "lead_form", 3)
 
-	// 晚到入库:事件时间落在窗口内(2026-01-10),入库发生在"现在"。
+	// 晚到入库:事件时间落在窗口内(跟进 2026-01-10、提交 2026-01-13),
+	// 入库发生在"现在"。
 	funnelSeedFollowUp(t, d, "tnt_1", "f-late", "cC", "2026-01-10T09:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs-late", "cD", "2026-01-13T09:00:00Z")
 
 	after, err := s.FunnelAnalysis(funnelQuery("tnt_1"))
 	if err != nil {
 		t.Fatalf("funnel after: %v", err)
 	}
 	wantCount(t, after, "followed_up", 4) // cC 因晚到跟进入窗
+	wantCount(t, after, "lead_form", 4)   // cD 因晚到提交入窗
 	again, err := s.FunnelAnalysis(funnelQuery("tnt_1"))
 	if err != nil {
 		t.Fatalf("funnel again: %v", err)
@@ -398,7 +438,7 @@ func TestFunnelWonDedupAndReopen(t *testing.T) {
 	}
 }
 
-// 来源下钻:source_type 过滤作用在联系人人群上,四阶段随人群一致收窄;
+// 来源下钻:source_type 过滤作用在联系人人群上,五阶段随人群一致收窄;
 // 非法来源由 HTTP 层拒绝,store 层空串表示不过滤。
 func TestFunnelSourceTypeDrillDown(t *testing.T) {
 	d := funnelTestDB(t)
@@ -406,6 +446,8 @@ func TestFunnelSourceTypeDrillDown(t *testing.T) {
 	funnelSeedContact(t, d, "tnt_1", "cM", "13900000008", "manual", "", "2026-01-06T00:00:00Z", false)
 	funnelSeedFollowUp(t, d, "tnt_1", "fT", "cT", "2026-01-08T00:00:00Z")
 	funnelSeedFollowUp(t, d, "tnt_1", "fM", "cM", "2026-01-08T00:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fsT", "cT", "2026-01-07T00:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fsM", "cM", "2026-01-07T00:00:00Z")
 	funnelSeedOpp(t, d, "tnt_1", "oT", "cT", "open", "", "2026-01-09T00:00:00Z")
 	funnelSeedOpp(t, d, "tnt_1", "oM", "cM", "open", "", "2026-01-09T00:00:00Z")
 	funnelSeedStageEvent(t, d, "tnt_1", "hT", "oT", "open", "won", "2026-01-10T00:00:00Z")
@@ -416,6 +458,7 @@ func TestFunnelSourceTypeDrillDown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("funnel: %v", err)
 	}
+	wantCount(t, r, "lead_form", 1)
 	wantCount(t, r, "profile_created", 1)
 	wantCount(t, r, "followed_up", 1)
 	wantCount(t, r, "opportunity_created", 1)
@@ -433,6 +476,9 @@ func TestFunnelAssigneeScope(t *testing.T) {
 	funnelSeedContact(t, d, "tnt_1", "c2", "13900000010", "form", m2, "2026-01-06T00:00:00Z", false)
 	funnelSeedOpp(t, d, "tnt_1", "o1", "c1", "open", m1, "2026-01-07T00:00:00Z")
 	funnelSeedOpp(t, d, "tnt_1", "o2", "c2", "open", m2, "2026-01-07T00:00:00Z")
+	// 提交的 lead 未指派 -> COALESCE 落到联系人指派(与跟进同款单点推导)。
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs1", "c1", "2026-01-06T12:00:00Z")
+	funnelSeedFormSubmission(t, d, "tnt_1", "fs2", "c2", "2026-01-06T12:00:00Z")
 
 	q := funnelQuery("tnt_1")
 	q.AssigneeMemberID = m1
@@ -440,6 +486,7 @@ func TestFunnelAssigneeScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("funnel: %v", err)
 	}
+	wantCount(t, r, "lead_form", 1)
 	wantCount(t, r, "profile_created", 1)
 	wantCount(t, r, "opportunity_created", 1)
 	if r.Scope != "assigned_to_me" {
@@ -453,6 +500,7 @@ func TestFunnelAssigneeScope(t *testing.T) {
 		t.Fatalf("funnel owner: %v", err)
 	}
 	wantCount(t, all, "profile_created", 2)
+	wantCount(t, all, "lead_form", 2)
 	if all.Scope != "tenant" {
 		t.Fatalf("owner scope = %q, want tenant", all.Scope)
 	}
@@ -463,17 +511,20 @@ func TestFunnelCrossTenantIsolation(t *testing.T) {
 	d := funnelTestDB(t)
 	knownFactSet(t, d) // tnt_1 全量事实
 	funnelSeedContact(t, d, "tnt_2", "z1", "13900000011", "form", "", "2026-01-05T00:00:00Z", false)
+	funnelSeedFormSubmission(t, d, "tnt_2", "zs1", "z1", "2026-01-06T00:00:00Z")
 
 	r1, err := New(d).FunnelAnalysis(funnelQuery("tnt_1"))
 	if err != nil {
 		t.Fatalf("funnel t1: %v", err)
 	}
+	wantCount(t, r1, "lead_form", 3)       // tnt_2 的 zs1 不串入
 	wantCount(t, r1, "profile_created", 3) // tnt_2 的 z1 不串入
 
 	r2, err := New(d).FunnelAnalysis(funnelQuery("tnt_2"))
 	if err != nil {
 		t.Fatalf("funnel t2: %v", err)
 	}
+	wantCount(t, r2, "lead_form", 1)       // 只有本租户的 zs1
 	wantCount(t, r2, "profile_created", 1) // 只有本租户的 z1
 	wantCount(t, r2, "followed_up", 0)     // tnt_1 的跟进事实零串行
 	wantCount(t, r2, "won", 0)
@@ -489,6 +540,7 @@ func TestFunnelNoSeriesGranularity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("funnel: %v", err)
 	}
+	wantCount(t, r, "lead_form", 3)
 	wantCount(t, r, "profile_created", 3)
 	if st := stageOf(t, r, "profile_created"); st.Series != nil {
 		t.Fatalf("series must be omitted with granularity=none, got %v", st.Series)
