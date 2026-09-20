@@ -20,6 +20,12 @@ const (
 	// On: the REAL implementation (preview/confirm/projection/retry/revoke);
 	// missing ECO_HANDOFF_* facts fail those endpoints closed (503).
 	EnvFeatureServiceDraft = "FEATURE_SERVICE_DRAFT"
+	// EnvFeatureLeadsFilter gates deterministic invalid-lead filtering at the
+	// intake seam (HUI-1686 / FEAT-0187). Default off = byte-identical legacy
+	// behavior. On: intake classifies obviously-invalid contact facts
+	// (deterministic rules only) and ledger marks the lead filtered instead of
+	// new, so it never enters the marketing pool. 纯服务端判定,无外部能力。
+	EnvFeatureLeadsFilter = "FEATURE_LEADS_FILTER"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -71,6 +77,10 @@ type Config struct {
 	// FeatureServiceDraft: L1 service-draft handoff surface (HUI-1749).
 	// Default off (routes not registered).
 	FeatureServiceDraft bool
+
+	// FeatureLeadsFilter: deterministic invalid-lead filtering at intake
+	// (HUI-1686 / FEAT-0187). Default off = exactly the pre-flag behavior.
+	FeatureLeadsFilter bool
 
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
@@ -148,6 +158,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
 		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
 		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
+		FeatureLeadsFilter:  isTruthy(get(EnvFeatureLeadsFilter)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -203,6 +214,7 @@ func (c Config) Describe() string {
 		{"notify", c.FeatureNotify},
 		{"upload", c.FeatureUpload},
 		{"service_draft", c.FeatureServiceDraft},
+		{"leads_filter", c.FeatureLeadsFilter},
 	} {
 		v := "off"
 		if f.on {

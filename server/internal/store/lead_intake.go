@@ -42,6 +42,20 @@ const (
 	IntakeClassAmbiguous      = "ambiguous"
 )
 
+// Lead filter values (HUI-1686 / FEAT-0187, leads.status='filtered' +
+// leads.filter_reason). 纯确定性规则的服务端单点判定,绝不外接运营商实号/
+// 短信验证等外部能力;原因码是机器码,绝不携带联系方式原文。
+const (
+	// LeadStatusFiltered marks a ledgered-but-not-pooled lead: 台账留痕,
+	// 不进入营销池(与 consent 语义正交 —— 无营销许可本就不入池,过滤再加一道)。
+	LeadStatusFiltered = "filtered"
+	// FilterReasonInvalidPhone: provided phone fails the deterministic CN
+	// mobile rules (wrong shape / repeated-digit garbage / over-long).
+	FilterReasonInvalidPhone = "invalid_phone"
+	// FilterReasonInvalidEmail: provided email fails the basic-format check.
+	FilterReasonInvalidEmail = "invalid_email"
+)
+
 // IntakeInput is one arriving lead event. Content is the raw payload bytes as
 // received; its SHA-256 is the content identity of the idempotency key.
 type IntakeInput struct {
@@ -71,6 +85,12 @@ type IntakeInput struct {
 	Consent *ConsentUpsert
 	// Pepper is the deployment-injected HMAC pepper for the phone fingerprint.
 	Pepper string
+	// FilterEnabled turns on deterministic invalid-contact filtering
+	// (HUI-1686, FEATURE_LEADS_FILTER). Off (zero value) = byte-identical
+	// legacy behavior. On: obviously-invalid provided contact facts mark the
+	// created lead filtered (+ machine reason) instead of new; the dedup
+	// three-way classification is NOT changed by it.
+	FilterEnabled bool
 }
 
 // IntakeResult reports the dedup classification and the lead/contact the event
@@ -81,6 +101,10 @@ type IntakeResult struct {
 	ContactID string `json:"contact_id"`
 	// Duplicate is true iff the event key already existed (idempotent replay).
 	Duplicate bool `json:"duplicate"`
+	// FilterReason is the machine reason code when THIS delivery's contact
+	// facts were classified invalid ("" otherwise; replays carry "" — the
+	// filter verdict belongs to the first delivery).
+	FilterReason string `json:"filter_reason,omitempty"`
 }
 
 // intakeEventCols mirrors lead_intake_events (HUI-1683 migration).
@@ -120,6 +144,84 @@ func PhoneFingerprint(pepper, phone string) string {
 	mac := hmac.New(sha256.New, []byte(pepper))
 	mac.Write([]byte(norm))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// LeadFilterReason evaluates the deterministic invalid-contact rules
+// (HUI-1686 / FEAT-0187) and returns a machine reason code, or "" when the
+// provided contact facts pass. 手机号/邮箱都只在「提供了」时才判:未提供手机号
+// 不在此过滤(intake 域本就允许无手机号建档),未提供邮箱同理。
+//
+// 规则(绝不外接运营商实号/短信验证等外部能力,全部本地确定性):
+//   - 手机号:NormalizePhone 后必须匹配 ^1[3-9]\d{9}$(容忍 +86/86 前缀与
+//     分隔符);另拒「1 + 同一数字重复到底」等明显无效模式(如 13333333333)。
+//   - 邮箱:基本格式(恰好一个 @,local 与 domain 非空,domain 含点且首尾
+//     不是点、无连续点,整体无空白)。
+//   - 两者都无效时报手机号原因码(一次一个,电话优先)。
+func LeadFilterReason(phone, email string) string {
+	if reason := phoneFilterReason(phone); reason != "" {
+		return reason
+	}
+	return emailFilterReason(email)
+}
+
+func phoneFilterReason(phone string) string {
+	norm := NormalizePhone(phone)
+	if norm == "" {
+		return ""
+	}
+	if repeatedTailDigits(norm) || !cnMobileShape(norm) {
+		return FilterReasonInvalidPhone
+	}
+	return ""
+}
+
+// repeatedTailDigits reports the "全同数字等明显无效模式": after the leading
+// network digit, every remaining digit is the same (e.g. 13333333333,
+// 19999999999) — classic garbage that would otherwise pass the shape rule.
+func repeatedTailDigits(norm string) bool {
+	if len(norm) < 3 {
+		return false
+	}
+	first := norm[1]
+	for i := 2; i < len(norm); i++ {
+		if norm[i] != first {
+			return false
+		}
+	}
+	return true
+}
+
+// cnMobileShape reports whether the normalized value is an 11-digit CN mobile
+// (^1[3-9]\d{9}$); separators and +86/86 were already handled by NormalizePhone.
+func cnMobileShape(norm string) bool {
+	if len(norm) != 11 || norm[0] != '1' || norm[1] < '3' || norm[1] > '9' {
+		return false
+	}
+	for i := 2; i < len(norm); i++ {
+		if norm[i] < '0' || norm[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func emailFilterReason(email string) string {
+	e := strings.TrimSpace(email)
+	if e == "" {
+		return ""
+	}
+	if strings.ContainsAny(e, " \t\r\n\v\f　") || strings.Count(e, "@") != 1 {
+		return FilterReasonInvalidEmail
+	}
+	at := strings.Index(e, "@")
+	local, domain := e[:at], e[at+1:]
+	if local == "" || domain == "" ||
+		!strings.Contains(domain, ".") ||
+		strings.HasPrefix(domain, ".") || strings.HasSuffix(domain, ".") ||
+		strings.Contains(domain, "..") {
+		return FilterReasonInvalidEmail
+	}
+	return ""
 }
 
 // validKeyToken reports whether an idempotency-key component is URL/log-safe:
@@ -172,7 +274,8 @@ func IntakeLeadInTx(tx *sql.Tx, in IntakeInput) (IntakeResult, error) {
 	if runeLen64(in.ContactName) > 100 || runeLen64(in.Email) > 200 {
 		return IntakeResult{}, errors.New("intake: name/email exceed length caps (100/200)")
 	}
-	if norm := NormalizePhone(in.Phone); norm != "" && runeLen64(norm) > 32 {
+	if norm := NormalizePhone(in.Phone); norm != "" && runeLen64(norm) > 32 && !in.FilterEnabled {
+		// 过滤关:沿用既有硬拒;过滤开后交给确定性规则分类为 filtered(HUI-1686)。
 		return IntakeResult{}, errors.New("intake: phone too long")
 	}
 	if in.SourceRefID != "" {
@@ -196,6 +299,13 @@ func IntakeLeadInTx(tx *sql.Tx, in IntakeInput) (IntakeResult, error) {
 	// ---- 2. classify by phone within THIS tenant --------------------------
 	fpr := PhoneFingerprint(in.Pepper, in.Phone)
 	norm := NormalizePhone(in.Phone)
+	// 过滤分类(HUI-1686):规范化之后、去重分类之前;只决定 lead 的
+	// filtered 状态与原因码,绝不改变三分类与去重行为。replay(同键重放)
+	// 在第 1 步就已返回,不会走到这里 —— 过滤判定属于首投。
+	filterReason := ""
+	if in.FilterEnabled {
+		filterReason = LeadFilterReason(in.Phone, in.Email)
+	}
 	candidates, err := tenantContactsByPhone(tx, in.TenantID, norm)
 	if err != nil {
 		return IntakeResult{}, err
@@ -233,10 +343,15 @@ func IntakeLeadInTx(tx *sql.Tx, in IntakeInput) (IntakeResult, error) {
 	}
 
 	lead := Lead{
-		TenantID:    in.TenantID,
-		ContactID:   contactID,
-		SourceRefID: in.SourceRefID,
-		Status:      "new",
+		TenantID:     in.TenantID,
+		ContactID:    contactID,
+		SourceRefID:  in.SourceRefID,
+		Status:       "new",
+		FilterReason: filterReason,
+	}
+	// 过滤开且命中确定性规则:台账照写,但 status=filtered —— 不进入营销池。
+	if filterReason != "" {
+		lead.Status = LeadStatusFiltered
 	}
 	lead.ID = newID("lead_")
 	lead.CreatedBy = "intake:" + in.SourceApp
@@ -270,7 +385,7 @@ func IntakeLeadInTx(tx *sql.Tx, in IntakeInput) (IntakeResult, error) {
 		}
 	}
 
-	return IntakeResult{Class: class, LeadID: lead.ID, ContactID: contactID}, nil
+	return IntakeResult{Class: class, LeadID: lead.ID, ContactID: contactID, FilterReason: filterReason}, nil
 }
 
 // errIntakeKeyUnknown marks "idempotency key not seen before".

@@ -558,6 +558,9 @@ type SubmitFormInput struct {
 	Pepper string
 	// ResubmitWindow is the same contact+form duplicate-suppression window.
 	ResubmitWindow time.Duration
+	// FilterEnabled turns on deterministic invalid-lead filtering (HUI-1686,
+	// FEATURE_LEADS_FILTER); it is passed straight through to the intake seam.
+	FilterEnabled bool
 	// Now overrides the clock in tests; zero = time.Now.
 	Now func() time.Time
 }
@@ -573,6 +576,9 @@ type SubmitFormResult struct {
 	// Duplicate is true when an existing submission answered (idempotent key or
 	// recent-window suppression); nothing new was written in that case.
 	Duplicate bool `json:"duplicate"`
+	// FilterReason is the machine reason code when the deterministic intake
+	// filter marked the created lead filtered (HUI-1686); "" otherwise.
+	FilterReason string `json:"filter_reason,omitempty"`
 	// DuplicateKind: "" (fresh), "idempotent" (same form+source+source_ref),
 	// "recent_window" (same contact+form within the window, different ref).
 	DuplicateKind string `json:"-"`
@@ -702,6 +708,7 @@ func SubmitFormInTx(tx *sql.Tx, in SubmitFormInput) (SubmitFormResult, error) {
 		SourceRefID:      sourceRefID,
 		Consent:          nil, // consent is written below under the submission id key
 		Pepper:           in.Pepper,
+		FilterEnabled:    in.FilterEnabled,
 	})
 	if err != nil {
 		return SubmitFormResult{}, err
@@ -746,6 +753,7 @@ func SubmitFormInTx(tx *sql.Tx, in SubmitFormInput) (SubmitFormResult, error) {
 		LeadID:           res.LeadID,
 		ConsentID:        consent.ID,
 		Class:            res.Class,
+		FilterReason:     res.FilterReason,
 		MarketingAllowed: in.Payload.MarketingAllowed,
 		FormVersion:      f.Version,
 		NoticeVersion:    f.NoticeVersion,

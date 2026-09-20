@@ -136,6 +136,7 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		SourceRefID:      sourceRefID,
 		Consent:          consent,
 		Pepper:           s.Cfg.DedupPepper,
+		FilterEnabled:    s.Cfg.FeatureLeadsFilter,
 	})
 	if errors.Is(err, store.ErrEventContentConflict) {
 		// 同键不同内容:显式冲突,绝不静默覆盖。
@@ -155,20 +156,33 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "intake commit failed")
 		return
 	}
-	// 日志只记分类/幂等键/引用与指纹前缀;手机号明文零出现。
-	s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t",
-		c.Member.TenantID, in.SourceApp, in.SourceNS, in.EventID, res.Class,
-		res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate)
+	// 日志只记分类/幂等键/引用与指纹前缀;手机号明文零出现。过滤开着时追加
+	// 机器原因码(HUI-1686),off 时日志格式与既往逐字一致。
+	if res.FilterReason != "" {
+		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t filter=%s",
+			c.Member.TenantID, in.SourceApp, in.SourceNS, in.EventID, res.Class,
+			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate, res.FilterReason)
+	} else {
+		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t",
+			c.Member.TenantID, in.SourceApp, in.SourceNS, in.EventID, res.Class,
+			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate)
+	}
 	status := http.StatusCreated
 	if res.Duplicate {
 		status = http.StatusOK
 	}
-	writeJSON(w, status, map[string]any{
+	out := map[string]any{
 		"class":      res.Class,
 		"lead_id":    res.LeadID,
 		"contact_id": res.ContactID,
 		"duplicate":  res.Duplicate,
-	})
+	}
+	// filter_reason 只在首投判定命中时出现(机器码,零联系方式原文);
+	// off 模式下响应键与既往完全一致。
+	if res.FilterReason != "" {
+		out["filter_reason"] = res.FilterReason
+	}
+	writeJSON(w, status, out)
 }
 
 type contactFacts struct {
