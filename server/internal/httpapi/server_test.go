@@ -137,6 +137,7 @@ type harnessOpts struct {
 	featureLeadsFilter  bool // FEATURE_LEADS_FILTER=on (HUI-1686 无效线索过滤)
 	featureFollowups    bool // FEATURE_FOLLOWUPS=on (HUI-1692 / FEAT-0193 跟进记录)
 	featureLeadsAssign  bool // FEATURE_LEADS_ASSIGN=on (HUI-1685 / FEAT-0186 线索自动分配)
+	featureFunnel       bool // FEATURE_FUNNEL=on (HUI-1694 / FEAT-0195 全漏斗分析)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -183,6 +184,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return ""
 		case "FEATURE_LEADS_ASSIGN":
 			if opts.featureLeadsAssign {
+				return "true"
+			}
+			return ""
+		case "FEATURE_FUNNEL":
+			if opts.featureFunnel {
 				return "true"
 			}
 			return ""

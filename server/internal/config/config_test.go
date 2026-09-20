@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaults(t *testing.T) {
 	cfg := Load(func(string) string { return "" })
@@ -15,6 +18,27 @@ func TestDefaults(t *testing.T) {
 	}
 	if cfg.FeatureNotify || cfg.FeatureUpload {
 		t.Errorf("feature flags must default to off")
+	}
+	if cfg.FeatureFunnel {
+		t.Errorf("FEATURE_FUNNEL must default to off (routes not registered)")
+	}
+}
+
+// HUI-1694 / FEAT-0195: the full-funnel analysis surface is gated by
+// FEATURE_FUNNEL; default off (登记制开关,与其他 FEATURE_* 同款语义)。
+func TestFeatureFunnelCoupleToConfig(t *testing.T) {
+	env := map[string]string{"FEATURE_FUNNEL": "true"}
+	cfg := Load(func(k string) string { return env[k] })
+	if !cfg.FeatureFunnel {
+		t.Fatal("FEATURE_FUNNEL=true must enable the funnel analysis flag")
+	}
+	off := Load(func(string) string { return "" })
+	if off.FeatureFunnel {
+		t.Fatal("FEATURE_FUNNEL must default to off")
+	}
+	// Describe() carries the flag so operators can see the register state.
+	if off.Describe() == "" || !strings.Contains(cfg.Describe(), "funnel=on") {
+		t.Fatalf("Describe must report funnel=on when enabled: %s", cfg.Describe())
 	}
 }
 
