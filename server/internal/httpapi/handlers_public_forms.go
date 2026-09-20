@@ -333,6 +333,7 @@ func (s *Server) handlePublicFormSubmit(w http.ResponseWriter, r *http.Request) 
 		Pepper:         s.Cfg.DedupPepper,
 		ResubmitWindow: window,
 		FilterEnabled:  s.Cfg.FeatureLeadsFilter,
+		AssignEnabled:  s.Cfg.FeatureLeadsAssign,
 	})
 	if errors.Is(err, store.ErrEventContentConflict) {
 		fail(w, http.StatusConflict, "event_content_conflict",

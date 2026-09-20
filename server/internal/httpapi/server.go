@@ -192,6 +192,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
 	mux.Handle("GET /api/v1/leads/{id}", s.requireSession(s.handleLeadGet))
 	mux.Handle("PATCH /api/v1/leads/{id}", s.requireSession(s.handleLeadPatch))
+	// HUI-1685 / FEAT-0186 线索自动分配配置面:FEATURE_LEADS_ASSIGN 闸控,默认
+	// off -> 路由不注册(404 不可见)且 intake 行为与既往逐字节一致;on ->
+	// owner 专属池配置 CRUD(服务端单点判定) + intake 首投确定性加权轮询。
+	// 归 admin 命名空间:与 members/agent-grants 同类的租户级运营配置,且避开
+	// /leads/{id} 模式家族(否则 off 时同路径会以 405 而非 404 应答)。
+	if s.Cfg.FeatureLeadsAssign {
+		mux.Handle("GET /api/v1/admin/leads-assign-pool", s.requireSession(s.handleAssignPoolList))
+		mux.Handle("POST /api/v1/admin/leads-assign-pool", s.requireSession(s.handleAssignPoolCreate))
+		mux.Handle("PATCH /api/v1/admin/leads-assign-pool/{id}", s.requireSession(s.handleAssignPoolPatch))
+		mux.Handle("DELETE /api/v1/admin/leads-assign-pool/{id}", s.requireSession(s.handleAssignPoolDelete))
+	}
 	// HUI-1683 线索 intake 去重:三分类领域规则的唯一 HTTP 形态(HUI-1680 的
 	// inbox 与它共用 store.IntakeLeadInTx;本票不做接收渠道本身)。
 	mux.Handle("POST /api/v1/leads/intake", s.requireSession(s.handleLeadIntake))

@@ -561,6 +561,10 @@ type SubmitFormInput struct {
 	// FilterEnabled turns on deterministic invalid-lead filtering (HUI-1686,
 	// FEATURE_LEADS_FILTER); it is passed straight through to the intake seam.
 	FilterEnabled bool
+	// AssignEnabled turns on deterministic lead auto-assignment (HUI-1685,
+	// FEATURE_LEADS_ASSIGN); passed straight through to the intake seam.
+	// 表单首版不采集地域/行业,匹配维度恒为空(走全池轮询)。
+	AssignEnabled bool
 	// Now overrides the clock in tests; zero = time.Now.
 	Now func() time.Time
 }
@@ -709,6 +713,7 @@ func SubmitFormInTx(tx *sql.Tx, in SubmitFormInput) (SubmitFormResult, error) {
 		Consent:          nil, // consent is written below under the submission id key
 		Pepper:           in.Pepper,
 		FilterEnabled:    in.FilterEnabled,
+		AssignEnabled:    in.AssignEnabled,
 	})
 	if err != nil {
 		return SubmitFormResult{}, err

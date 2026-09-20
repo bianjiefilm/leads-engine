@@ -55,6 +55,11 @@ const (
 	// (HUI-1679 / FEAT-0180): draft/publish/disable forms and the schema
 	// contract export. 表单领域配置与语义归获客,owner 专属。
 	ActionManageForms Action = "manage_forms"
+	// ActionManageAssignPool is the lead auto-assignment pool configuration
+	// surface (HUI-1685 / FEAT-0186): which enabled sales receive auto-routed
+	// leads, with what weight and region/industry tags. 池配置是租户级销售
+	// 运营决策,直接决定线索流向:owner 专属,绝不静默。
+	ActionManageAssignPool Action = "manage_assign_pool"
 )
 
 // Deny reason codes. ReasonNotFoundMask maps to HTTP 404 so a sales cannot
@@ -118,7 +123,7 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 	}
 
 	switch action {
-	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms:
+	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms, ActionManageAssignPool:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}

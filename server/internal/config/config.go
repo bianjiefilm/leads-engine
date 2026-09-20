@@ -32,6 +32,14 @@ const (
 	// registered (404 invisible). On: pure server-side domain, no push/email/
 	// outbound capability (reminders' actual reach belongs to future tickets).
 	EnvFeatureFollowups = "FEATURE_FOLLOWUPS"
+	// EnvFeatureLeadsAssign gates deterministic lead auto-assignment
+	// (HUI-1685 / FEAT-0186): pool configuration CRUD plus the intake-time
+	// routing of first deliveries. Default off = byte-identical legacy intake
+	// behavior and no pool routes. On: deterministic smooth weighted
+	// round-robin over the tenant's enabled sales pool, region/industry
+	// exact-match first; replays never reassign and manual reassignment is
+	// never overridden. 纯服务端单点判定,BFF 零业务判断。
+	EnvFeatureLeadsAssign = "FEATURE_LEADS_ASSIGN"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -91,6 +99,10 @@ type Config struct {
 	// FeatureFollowups: sales follow-up record surface (HUI-1692 / FEAT-0193).
 	// Default off (routes not registered).
 	FeatureFollowups bool
+
+	// FeatureLeadsAssign: deterministic lead auto-assignment (HUI-1685 /
+	// FEAT-0186). Default off (no pool routes; intake untouched).
+	FeatureLeadsAssign bool
 
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
@@ -170,6 +182,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
 		FeatureLeadsFilter:  isTruthy(get(EnvFeatureLeadsFilter)),
 		FeatureFollowups:    isTruthy(get(EnvFeatureFollowups)),
+		FeatureLeadsAssign:  isTruthy(get(EnvFeatureLeadsAssign)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -227,6 +240,7 @@ func (c Config) Describe() string {
 		{"service_draft", c.FeatureServiceDraft},
 		{"leads_filter", c.FeatureLeadsFilter},
 		{"followups", c.FeatureFollowups},
+		{"leads_assign", c.FeatureLeadsAssign},
 	} {
 		v := "off"
 		if f.on {
