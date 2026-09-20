@@ -203,6 +203,14 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("PATCH /api/v1/admin/leads-assign-pool/{id}", s.requireSession(s.handleAssignPoolPatch))
 		mux.Handle("DELETE /api/v1/admin/leads-assign-pool/{id}", s.requireSession(s.handleAssignPoolDelete))
 	}
+	// HUI-1694 / FEAT-0195 全漏斗分析(只读):FEATURE_FUNNEL 闸控,默认 off ->
+	// 路由不注册(404 不可见);on -> GET 分析端点。零迁移零状态,同窗口重算
+	// 幂等;曝光/留资触点无本仓可信事实,UNKNOWN 诚实降级(available=false +
+	// 中文 reason,count=null)。租户级聚合复用 read_list 鉴权与记录级作用域
+	// 推导(owner 全量 / 非 owner 只看自己人群)。
+	if s.Cfg.FeatureFunnel {
+		mux.Handle("GET /api/v1/funnel", s.requireSession(s.handleFunnel))
+	}
 	// HUI-1683 线索 intake 去重:三分类领域规则的唯一 HTTP 形态(HUI-1680 的
 	// inbox 与它共用 store.IntakeLeadInTx;本票不做接收渠道本身)。
 	mux.Handle("POST /api/v1/leads/intake", s.requireSession(s.handleLeadIntake))

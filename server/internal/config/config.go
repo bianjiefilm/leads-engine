@@ -40,6 +40,13 @@ const (
 	// exact-match first; replays never reassign and manual reassignment is
 	// never overridden. 纯服务端单点判定,BFF 零业务判断。
 	EnvFeatureLeadsAssign = "FEATURE_LEADS_ASSIGN"
+	// EnvFeatureFunnel gates the read-only full-funnel analysis surface
+	// (HUI-1694 / FEAT-0195). Default off: the route is not even registered
+	// (404 invisible). On: GET /api/v1/funnel computes the leads-domain
+	// trusted fact chain (建档/跟进/商机/成交) over an explicit RFC3339 window
+	// — 纯只读计算,零迁移、零状态;曝光/留资触点没有本仓可信事实,按 UNKNOWN
+	// 诚实降级范式输出 available=false + 中文 reason,绝不推算、绝不置 0。
+	EnvFeatureFunnel = "FEATURE_FUNNEL"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -103,6 +110,10 @@ type Config struct {
 	// FeatureLeadsAssign: deterministic lead auto-assignment (HUI-1685 /
 	// FEAT-0186). Default off (no pool routes; intake untouched).
 	FeatureLeadsAssign bool
+
+	// FeatureFunnel: read-only full-funnel analysis (HUI-1694 / FEAT-0195).
+	// Default off (route not registered).
+	FeatureFunnel bool
 
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
@@ -183,6 +194,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureLeadsFilter:  isTruthy(get(EnvFeatureLeadsFilter)),
 		FeatureFollowups:    isTruthy(get(EnvFeatureFollowups)),
 		FeatureLeadsAssign:  isTruthy(get(EnvFeatureLeadsAssign)),
+		FeatureFunnel:       isTruthy(get(EnvFeatureFunnel)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -241,6 +253,7 @@ func (c Config) Describe() string {
 		{"leads_filter", c.FeatureLeadsFilter},
 		{"followups", c.FeatureFollowups},
 		{"leads_assign", c.FeatureLeadsAssign},
+		{"funnel", c.FeatureFunnel},
 	} {
 		v := "off"
 		if f.on {
