@@ -183,3 +183,94 @@ func TestIntakeLeadInTxGuards(t *testing.T) {
 		t.Fatalf("live contacts in the ambiguous set = %d err=%v, want 3 (绝不静默合并)", merged, err)
 	}
 }
+
+// HUI-1748 / D-L1 回归:repeat_consult 重投同一「未撤销」consent 键时,
+// 事务控制权必须留在调用方 —— upsertConsentTx 的 UPDATE 分支绝不自行
+// Commit(否则外层二次 Commit 失败,且部分写入提前可见,破坏 intake 原子性)。
+// 真实 sqlite,事务由测试持有。
+func TestIntakeRepeatConsultSameConsentKeyTxOwnership(t *testing.T) {
+	d := intakeTestDB(t)
+
+	// 首投:contact+lead+consent 一并落库(consent 走 INSERT 分支)。
+	tx, err := d.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := intakeIn("touch", "wx", "dl1-e1", "13900000001")
+	first.Consent = &ConsentUpsert{
+		SourceSubmissionRef: "sub-dl1", SourceChannel: "wx_oa",
+		NoticeVersion: "notice-v1", Purpose: "marketing", MarketingAllowed: true,
+	}
+	if _, err := IntakeLeadInTx(tx, first); err != nil {
+		t.Fatalf("first intake: %v", err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("first commit: %v", err)
+	}
+
+	// 重投:新 event_id、同联系人(repeat_consult)、同一 consent 键且未撤销
+	// → 命中 upsertConsentTx 的 UPDATE 分支。
+	tx2, err := d.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := intakeIn("touch", "landing", "dl1-e2", "13900000001")
+	second.Consent = &ConsentUpsert{
+		SourceSubmissionRef: "sub-dl1", SourceChannel: "wx_oa",
+		NoticeVersion: "notice-v2", Purpose: "marketing", MarketingAllowed: true,
+	}
+	res, err := IntakeLeadInTx(tx2, second)
+	if err != nil {
+		t.Fatalf("repeat intake: %v", err)
+	}
+	if res.Class != IntakeClassRepeatConsult {
+		t.Fatalf("class = %q, want repeat_consult", res.Class)
+	}
+	// 调用方持 Begin/Commit 契约:这里失败即说明域函数内部越权提交了事务(D-L1)。
+	if err := tx2.Commit(); err != nil {
+		t.Fatalf("caller commit after repeat_consult: %v (upsertConsentTx 不得自行 Commit)", err)
+	}
+
+	// 单事务原子落库:恰好 2 event / 2 lead / 1 consent(更新为 notice-v2)。
+	var events, leads, consents int
+	if err := d.QueryRow(`SELECT COUNT(1) FROM lead_intake_events`).Scan(&events); err != nil || events != 2 {
+		t.Fatalf("events = %d err=%v, want 2", events, err)
+	}
+	if err := d.QueryRow(`SELECT COUNT(1) FROM leads`).Scan(&leads); err != nil || leads != 2 {
+		t.Fatalf("leads = %d err=%v, want 2", leads, err)
+	}
+	if err := d.QueryRow(`SELECT COUNT(1) FROM contact_consents`).Scan(&consents); err != nil || consents != 1 {
+		t.Fatalf("consents = %d err=%v, want 1 (同键更新不新建)", consents, err)
+	}
+	var nv string
+	if err := d.QueryRow(`SELECT notice_version FROM contact_consents`).Scan(&nv); err != nil || nv != "notice-v2" {
+		t.Fatalf("notice_version = %q err=%v, want notice-v2 (UPDATE 在同事务内生效)", nv, err)
+	}
+
+	// 原子性/零部分可见:外层回滚路径下,整条 intake 无任何行残留,既有
+	// consent 行原样(此前 UPDATE 分支提前提交会让回滚失效、部分行可见)。
+	tx3, err := d.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	third := intakeIn("touch", "landing", "dl1-e3", "13900000001")
+	third.Consent = &ConsentUpsert{
+		SourceSubmissionRef: "sub-dl1", SourceChannel: "wx_oa",
+		NoticeVersion: "notice-v9", Purpose: "marketing", MarketingAllowed: true,
+	}
+	if _, err := IntakeLeadInTx(tx3, third); err != nil {
+		t.Fatalf("third intake: %v", err)
+	}
+	if err := tx3.Rollback(); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if err := d.QueryRow(`SELECT COUNT(1) FROM lead_intake_events`).Scan(&events); err != nil || events != 2 {
+		t.Fatalf("events after rollback = %d err=%v, want 2 (回滚必须抹掉全部 intake 写入)", events, err)
+	}
+	if err := d.QueryRow(`SELECT COUNT(1) FROM leads`).Scan(&leads); err != nil || leads != 2 {
+		t.Fatalf("leads after rollback = %d err=%v, want 2 (无部分行残留)", leads, err)
+	}
+	if err := d.QueryRow(`SELECT notice_version FROM contact_consents`).Scan(&nv); err != nil || nv != "notice-v2" {
+		t.Fatalf("consent drifted after rollback: %q err=%v (回滚不得留下 UPDATE 残留)", nv, err)
+	}
+}

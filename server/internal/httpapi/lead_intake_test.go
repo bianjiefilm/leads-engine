@@ -344,6 +344,50 @@ func TestLeadIntakeRevokedConsentReplay(t *testing.T) {
 	})
 }
 
+// ---- D-L1 回归:repeat_consult 重投同一未撤销 consent 块 ----------------------------
+
+// 跨仓共测(touch T1 × leads L0)L0-06 缺陷回归:同联系人新 event_id 携带
+// 相同 (source_submission_ref, source_channel) 的未撤销 consent 块 —— 共测时
+// 曾稳定 500 "intake commit failed"(store 域函数 UPDATE 分支越权 Commit,
+// HTTP 层外层二次提交失败,且 lead+event 行已部分可见)。契约:201
+// class=repeat_consult,consent 同键更新不新建,咨询次数不丢。
+func TestLeadIntakeRepeatConsultSameConsentBlock(t *testing.T) {
+	h := newHarness(t)
+	tenantA, _, _ := h.seed()
+
+	first := `{"source_app":"touch","source_ns":"landing","event_id":"evt-dl1-1","contact":{"name":"庚商家","phone":"13988887777","email":"geng@shop.cn"},"business_category":"merchant_customer","source_type":"touch_campaign","consent":{"source_submission_ref":"sub-dl1","source_channel":"landing_page","notice_version":"notice-v1","marketing_allowed":true}}`
+	out := h.intake(sessionOwnerA, tenantA, first, http.StatusCreated)
+	if out["class"] != "new" {
+		t.Fatalf("first intake class = %v, want new", out["class"])
+	}
+	contactID, _ := out["contact_id"].(string)
+
+	// 同一 consent 块重投,仅换 event_id —— T1 常规业务路径。
+	second := `{"source_app":"touch","source_ns":"landing","event_id":"evt-dl1-2","contact":{"name":"庚商家","phone":"13988887777","email":"geng@shop.cn"},"business_category":"merchant_customer","source_type":"touch_campaign","consent":{"source_submission_ref":"sub-dl1","source_channel":"landing_page","notice_version":"notice-v1","marketing_allowed":true}}`
+	status, out2, _ := h.do("POST", "/api/v1/leads/intake", sessionOwnerA, tenantA, second)
+	if status != http.StatusCreated {
+		t.Fatalf("repeat consult with same consent block: status %d body %v, want 201 (D-L1 曾 500 intake commit failed)", status, out2)
+	}
+	if out2["class"] != "repeat_consult" {
+		t.Fatalf("class = %v, want repeat_consult", out2["class"])
+	}
+	if out2["contact_id"] != contactID {
+		t.Fatalf("contact drifted: got %v want %s", out2["contact_id"], contactID)
+	}
+	// 咨询次数不丢 + consent 同键更新不翻倍。
+	if ids := h.leadIDsForContact(sessionOwnerA, tenantA, contactID); len(ids) != 2 {
+		t.Fatalf("lead count = %d, want 2", len(ids))
+	}
+	list := h.mustDo("GET", "/api/v1/contacts/"+contactID+"/consents", sessionOwnerA, tenantA, "", http.StatusOK)
+	if got := len(list["items"].([]any)); got != 1 {
+		t.Fatalf("consent rows = %d, want 1 (同键更新,不新建)", got)
+	}
+	// 同字节第三次投递 → exact_duplicate 幂等 200(零写入路径不受影响)。
+	if out3 := h.intake(sessionOwnerA, tenantA, second, http.StatusOK); out3["class"] != "exact_duplicate" {
+		t.Fatalf("replay class = %v, want exact_duplicate", out3["class"])
+	}
+}
+
 // ---- 日志零手机号 -------------------------------------------------------------------
 
 func TestLeadIntakeLogRedaction(t *testing.T) {
