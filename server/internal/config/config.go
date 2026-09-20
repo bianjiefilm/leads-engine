@@ -55,6 +55,13 @@ const (
 	// 零迁移、零状态;low_sample 常量阈值机器标注;ROI 无本地费用事实 ->
 	// available=false + 中文 reason(引 HUI-1696),绝不推算、绝不置 0。
 	EnvFeatureChannelAnalytics = "FEATURE_CHANNEL_ANALYTICS"
+	// EnvFeatureContactTags gates the customer profile tag surface
+	// (HUI-1690 / FEAT-0191): 人工标签定义 CRUD + 联系人打标/去标(幂等留痕)+
+	// 派生标签(生命周期/活跃度/来源/跟进状态,纯只读按需重算不落库)+
+	// 「千人千面」v1 分群查询(组间 AND、组内 OR)。Default off: none of the
+	// routes are even registered (404 不可见). On: 纯服务端单点判定,无 AI 评分
+	// (外部依赖,deferred)、无推送/广告/外呼能力。
+	EnvFeatureContactTags = "FEATURE_CONTACT_TAGS"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -127,6 +134,10 @@ type Config struct {
 	// FEAT-0196). Default off (route not registered); independent of
 	// FeatureFunnel.
 	FeatureChannelAnalytics bool
+
+	// FeatureContactTags: customer profile tags + segment query (HUI-1690 /
+	// FEAT-0191). Default off (routes not registered).
+	FeatureContactTags bool
 
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
@@ -209,6 +220,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureLeadsAssign:      isTruthy(get(EnvFeatureLeadsAssign)),
 		FeatureFunnel:           isTruthy(get(EnvFeatureFunnel)),
 		FeatureChannelAnalytics: isTruthy(get(EnvFeatureChannelAnalytics)),
+		FeatureContactTags:      isTruthy(get(EnvFeatureContactTags)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -269,6 +281,7 @@ func (c Config) Describe() string {
 		{"leads_assign", c.FeatureLeadsAssign},
 		{"funnel", c.FeatureFunnel},
 		{"channel_analytics", c.FeatureChannelAnalytics},
+		{"contact_tags", c.FeatureContactTags},
 	} {
 		v := "off"
 		if f.on {

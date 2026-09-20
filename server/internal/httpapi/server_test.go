@@ -139,6 +139,7 @@ type harnessOpts struct {
 	featureLeadsAssign      bool // FEATURE_LEADS_ASSIGN=on (HUI-1685 / FEAT-0186 线索自动分配)
 	featureFunnel           bool // FEATURE_FUNNEL=on (HUI-1694 / FEAT-0195 全漏斗分析)
 	featureChannelAnalytics bool // FEATURE_CHANNEL_ANALYTICS=on (HUI-1695 / FEAT-0196 渠道效果分析)
+	featureContactTags      bool // FEATURE_CONTACT_TAGS=on (HUI-1690 / FEAT-0191 客户画像标签)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -195,6 +196,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return ""
 		case "FEATURE_CHANNEL_ANALYTICS":
 			if opts.featureChannelAnalytics {
+				return "true"
+			}
+			return ""
+		case "FEATURE_CONTACT_TAGS":
+			if opts.featureContactTags {
 				return "true"
 			}
 			return ""
