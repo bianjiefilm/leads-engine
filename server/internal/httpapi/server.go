@@ -172,6 +172,22 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/contacts/{id}/followups", s.requireSession(s.handleContactFollowupList))
 	mux.Handle("POST /api/v1/contacts/{id}/followups", s.requireSession(s.handleContactFollowupCreate))
 
+	// HUI-1692 / FEAT-0193 销售跟进记录(/follow-ups,与 HUI-1691 的 /followups
+	// 只追加时间线正交):FEATURE_FOLLOWUPS 闸控,默认 off -> 路由不注册(404
+	// 不可见);on -> CRUD + 完结/重开 + 「我的到期跟进」确定性查询。全部路由挂
+	// 既有鉴权中间件,L0 记录级作用域,零新增权限模型。
+	if s.Cfg.FeatureFollowups {
+		mux.Handle("POST /api/v1/follow-ups", s.requireSession(s.handleFollowUpCreate))
+		// exact literal segments win over {id} (ServeMux precedence)
+		mux.Handle("GET /api/v1/follow-ups/due", s.requireSession(s.handleFollowUpDue))
+		mux.Handle("GET /api/v1/follow-ups/{id}", s.requireSession(s.handleFollowUpGet))
+		mux.Handle("PATCH /api/v1/follow-ups/{id}", s.requireSession(s.handleFollowUpPatch))
+		mux.Handle("POST /api/v1/follow-ups/{id}/complete", s.requireSession(s.handleFollowUpComplete))
+		mux.Handle("POST /api/v1/follow-ups/{id}/reopen", s.requireSession(s.handleFollowUpReopen))
+		mux.Handle("GET /api/v1/contacts/{id}/follow-ups", s.requireSession(s.handleContactFollowUpPageList))
+		mux.Handle("GET /api/v1/leads/{id}/follow-ups", s.requireSession(s.handleLeadFollowUpPageList))
+	}
+
 	mux.Handle("POST /api/v1/leads", s.requireSession(s.handleLeadCreate))
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
 	mux.Handle("GET /api/v1/leads/{id}", s.requireSession(s.handleLeadGet))
