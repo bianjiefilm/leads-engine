@@ -135,6 +135,7 @@ type harnessOpts struct {
 	captureLog          bool // capture server log lines for redaction assertions
 	omitDedupPepper     bool // HUI-1683: intake fails closed when the pepper is missing
 	featureLeadsFilter  bool // FEATURE_LEADS_FILTER=on (HUI-1686 无效线索过滤)
+	featureFollowups    bool // FEATURE_FOLLOWUPS=on (HUI-1692 / FEAT-0193 跟进记录)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -171,6 +172,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return ""
 		case "FEATURE_LEADS_FILTER":
 			if opts.featureLeadsFilter {
+				return "true"
+			}
+			return ""
+		case "FEATURE_FOLLOWUPS":
+			if opts.featureFollowups {
 				return "true"
 			}
 			return ""

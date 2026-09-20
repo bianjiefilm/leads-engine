@@ -26,6 +26,12 @@ const (
 	// (deterministic rules only) and ledger marks the lead filtered instead of
 	// new, so it never enters the marketing pool. 纯服务端判定,无外部能力。
 	EnvFeatureLeadsFilter = "FEATURE_LEADS_FILTER"
+	// EnvFeatureFollowups gates the sales follow-up record surface
+	// (HUI-1692 / FEAT-0193): CRUD on follow_ups plus the deterministic
+	// 「我的到期跟进」query. Default off = none of the routes are even
+	// registered (404 invisible). On: pure server-side domain, no push/email/
+	// outbound capability (reminders' actual reach belongs to future tickets).
+	EnvFeatureFollowups = "FEATURE_FOLLOWUPS"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -81,6 +87,10 @@ type Config struct {
 	// FeatureLeadsFilter: deterministic invalid-lead filtering at intake
 	// (HUI-1686 / FEAT-0187). Default off = exactly the pre-flag behavior.
 	FeatureLeadsFilter bool
+
+	// FeatureFollowups: sales follow-up record surface (HUI-1692 / FEAT-0193).
+	// Default off (routes not registered).
+	FeatureFollowups bool
 
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
@@ -159,6 +169,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
 		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
 		FeatureLeadsFilter:  isTruthy(get(EnvFeatureLeadsFilter)),
+		FeatureFollowups:    isTruthy(get(EnvFeatureFollowups)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -215,6 +226,7 @@ func (c Config) Describe() string {
 		{"upload", c.FeatureUpload},
 		{"service_draft", c.FeatureServiceDraft},
 		{"leads_filter", c.FeatureLeadsFilter},
+		{"followups", c.FeatureFollowups},
 	} {
 		v := "off"
 		if f.on {
