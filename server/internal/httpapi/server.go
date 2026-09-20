@@ -44,7 +44,7 @@ type Server struct {
 
 	// FormRatePerMinute / FormResubmitWindow tune the public form surface
 	// (HUI-1679); zero selects the production defaults. Tests may inject.
-	FormRatePerMinute int
+	FormRatePerMinute  int
 	FormResubmitWindow time.Duration
 
 	formLimitOnce sync.Once
@@ -210,6 +210,16 @@ func (s *Server) Handler() http.Handler {
 	// 推导(owner 全量 / 非 owner 只看自己人群)。
 	if s.Cfg.FeatureFunnel {
 		mux.Handle("GET /api/v1/funnel", s.requireSession(s.handleFunnel))
+	}
+	// HUI-1695 / FEAT-0196 渠道效果分析(只读):FEATURE_CHANNEL_ANALYTICS
+	// 闸控,默认 off -> 路由不注册(404 不可见);on -> GET 渠道分组的漏斗
+	// 对比端点。阶段定义/窗口语义/作用域全部复用 FEAT-0195;渠道维度 =
+	// contacts.source_type 既有域(不发明 intake 接缝新维度);low_sample
+	// 常量阈值机器标注;ROI 无本地费用事实 -> available=false + 中文 reason
+	// (引 HUI-1696),spend/roi/cac 恒 null。与 FEATURE_FUNNEL 相互独立
+	//(各自登记制)。
+	if s.Cfg.FeatureChannelAnalytics {
+		mux.Handle("GET /api/v1/funnel/channels", s.requireSession(s.handleFunnelChannels))
 	}
 	// HUI-1683 线索 intake 去重:三分类领域规则的唯一 HTTP 形态(HUI-1680 的
 	// inbox 与它共用 store.IntakeLeadInTx;本票不做接收渠道本身)。

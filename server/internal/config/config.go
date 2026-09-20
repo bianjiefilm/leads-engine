@@ -47,6 +47,14 @@ const (
 	// — 纯只读计算,零迁移、零状态;曝光/留资触点没有本仓可信事实,按 UNKNOWN
 	// 诚实降级范式输出 available=false + 中文 reason,绝不推算、绝不置 0。
 	EnvFeatureFunnel = "FEATURE_FUNNEL"
+	// EnvFeatureChannelAnalytics gates the read-only channel-effect analysis
+	// surface (HUI-1695 / FEAT-0196): the FEAT-0195 funnel grouped by channel
+	// (contacts.source_type, the existing source domain). Default off: the
+	// route is not even registered (404 invisible). Independent of
+	// FEATURE_FUNNEL (each flag registers its own routes). 纯只读 group-by,
+	// 零迁移、零状态;low_sample 常量阈值机器标注;ROI 无本地费用事实 ->
+	// available=false + 中文 reason(引 HUI-1696),绝不推算、绝不置 0。
+	EnvFeatureChannelAnalytics = "FEATURE_CHANNEL_ANALYTICS"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -115,6 +123,11 @@ type Config struct {
 	// Default off (route not registered).
 	FeatureFunnel bool
 
+	// FeatureChannelAnalytics: read-only channel-effect analysis (HUI-1695 /
+	// FEAT-0196). Default off (route not registered); independent of
+	// FeatureFunnel.
+	FeatureChannelAnalytics bool
+
 	// EcoHandoff carries the deployment-injected receiver facts (HUI-1749).
 	// TargetAppID defaults to "orders" (the receiver's registered app id).
 	EcoHandoff EcoHandoffConfig
@@ -175,26 +188,27 @@ func Load(get func(string) string) Config {
 
 func fromEnv(get func(string) string) Config {
 	return Config{
-		HTTPAddr:            firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
-		DBPath:              firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
-		Env:                 firstNonEmpty(get("LEADS_ENV"), "development"),
-		AppID:               firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
-		InternalToken:       get("LEADS_INTERNAL_TOKEN"),
-		SessionCookie:       firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
-		IdentityBaseURL:     get("PLATFORM_IDENTITY_BASE_URL"),
-		IdentityToken:       get("PLATFORM_IDENTITY_TOKEN"),
-		IdentityAppHost:     get("PLATFORM_IDENTITY_APP_HOST"),
-		NotifyBaseURL:       get("PLATFORM_NOTIFY_BASE_URL"),
-		NotifyToken:         get("PLATFORM_NOTIFY_TOKEN"),
-		UploadBaseURL:       get("PLATFORM_UPLOAD_BASE_URL"),
-		UploadToken:         get("PLATFORM_UPLOAD_TOKEN"),
-		FeatureNotify:       isTruthy(get(EnvFeatureNotify)),
-		FeatureUpload:       isTruthy(get(EnvFeatureUpload)),
-		FeatureServiceDraft: isTruthy(get(EnvFeatureServiceDraft)),
-		FeatureLeadsFilter:  isTruthy(get(EnvFeatureLeadsFilter)),
-		FeatureFollowups:    isTruthy(get(EnvFeatureFollowups)),
-		FeatureLeadsAssign:  isTruthy(get(EnvFeatureLeadsAssign)),
-		FeatureFunnel:       isTruthy(get(EnvFeatureFunnel)),
+		HTTPAddr:                firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
+		DBPath:                  firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
+		Env:                     firstNonEmpty(get("LEADS_ENV"), "development"),
+		AppID:                   firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
+		InternalToken:           get("LEADS_INTERNAL_TOKEN"),
+		SessionCookie:           firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
+		IdentityBaseURL:         get("PLATFORM_IDENTITY_BASE_URL"),
+		IdentityToken:           get("PLATFORM_IDENTITY_TOKEN"),
+		IdentityAppHost:         get("PLATFORM_IDENTITY_APP_HOST"),
+		NotifyBaseURL:           get("PLATFORM_NOTIFY_BASE_URL"),
+		NotifyToken:             get("PLATFORM_NOTIFY_TOKEN"),
+		UploadBaseURL:           get("PLATFORM_UPLOAD_BASE_URL"),
+		UploadToken:             get("PLATFORM_UPLOAD_TOKEN"),
+		FeatureNotify:           isTruthy(get(EnvFeatureNotify)),
+		FeatureUpload:           isTruthy(get(EnvFeatureUpload)),
+		FeatureServiceDraft:     isTruthy(get(EnvFeatureServiceDraft)),
+		FeatureLeadsFilter:      isTruthy(get(EnvFeatureLeadsFilter)),
+		FeatureFollowups:        isTruthy(get(EnvFeatureFollowups)),
+		FeatureLeadsAssign:      isTruthy(get(EnvFeatureLeadsAssign)),
+		FeatureFunnel:           isTruthy(get(EnvFeatureFunnel)),
+		FeatureChannelAnalytics: isTruthy(get(EnvFeatureChannelAnalytics)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -254,6 +268,7 @@ func (c Config) Describe() string {
 		{"followups", c.FeatureFollowups},
 		{"leads_assign", c.FeatureLeadsAssign},
 		{"funnel", c.FeatureFunnel},
+		{"channel_analytics", c.FeatureChannelAnalytics},
 	} {
 		v := "off"
 		if f.on {

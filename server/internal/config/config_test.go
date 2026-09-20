@@ -22,6 +22,9 @@ func TestDefaults(t *testing.T) {
 	if cfg.FeatureFunnel {
 		t.Errorf("FEATURE_FUNNEL must default to off (routes not registered)")
 	}
+	if cfg.FeatureChannelAnalytics {
+		t.Errorf("FEATURE_CHANNEL_ANALYTICS must default to off (routes not registered)")
+	}
 }
 
 // HUI-1694 / FEAT-0195: the full-funnel analysis surface is gated by
@@ -39,6 +42,27 @@ func TestFeatureFunnelCoupleToConfig(t *testing.T) {
 	// Describe() carries the flag so operators can see the register state.
 	if off.Describe() == "" || !strings.Contains(cfg.Describe(), "funnel=on") {
 		t.Fatalf("Describe must report funnel=on when enabled: %s", cfg.Describe())
+	}
+}
+
+// HUI-1695 / FEAT-0196: the channel-effect analysis surface is gated by
+// FEATURE_CHANNEL_ANALYTICS; default off (登记制开关,与 FEATURE_FUNNEL 同款
+// 语义,两者相互独立)。
+func TestFeatureChannelAnalyticsCoupleToConfig(t *testing.T) {
+	env := map[string]string{"FEATURE_CHANNEL_ANALYTICS": "true"}
+	cfg := Load(func(k string) string { return env[k] })
+	if !cfg.FeatureChannelAnalytics {
+		t.Fatal("FEATURE_CHANNEL_ANALYTICS=true must enable the channel analytics flag")
+	}
+	off := Load(func(string) string { return "" })
+	if off.FeatureChannelAnalytics {
+		t.Fatal("FEATURE_CHANNEL_ANALYTICS must default to off")
+	}
+	// Describe() carries the flag so operators can see the register state.
+	if !strings.Contains(cfg.Describe(), "channel_analytics=on") ||
+		!strings.Contains(off.Describe(), "channel_analytics=off") {
+		t.Fatalf("Describe must report channel_analytics state: on=%s off=%s",
+			cfg.Describe(), off.Describe())
 	}
 }
 
