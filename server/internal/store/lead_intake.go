@@ -91,6 +91,19 @@ type IntakeInput struct {
 	// created lead filtered (+ machine reason) instead of new; the dedup
 	// three-way classification is NOT changed by it.
 	FilterEnabled bool
+	// AssignEnabled turns on deterministic lead auto-assignment (HUI-1685,
+	// FEATURE_LEADS_ASSIGN). Off (zero value) = byte-identical legacy
+	// behavior. On: the FIRST delivery only (replays short-circuit at the
+	// idempotency lookup) routes the freshly created, still-unassigned lead
+	// through the tenant's assignment pool — region/industry exact-match
+	// first, else smooth weighted round-robin over the whole pool. Empty pool
+	// never blocks intake (the lead is created unassigned).
+	AssignEnabled bool
+	// Region/Industry are optional lead facts for pool matching (exact tag
+	// equality per provided dimension). They never enter the ledger beyond the
+	// assignment decision; empty = no constraint on that dimension.
+	Region   string
+	Industry string
 }
 
 // IntakeResult reports the dedup classification and the lead/contact the event
@@ -105,6 +118,10 @@ type IntakeResult struct {
 	// facts were classified invalid ("" otherwise; replays carry "" — the
 	// filter verdict belongs to the first delivery).
 	FilterReason string `json:"filter_reason,omitempty"`
+	// AssignedTo is the members.id the lead was auto-assigned to on THIS first
+	// delivery (HUI-1685; "" when the flag is off, the pool was empty, or the
+	// delivery was a replay — replays never reassign).
+	AssignedTo string `json:"assigned_to,omitempty"`
 }
 
 // intakeEventCols mirrors lead_intake_events (HUI-1683 migration).
@@ -385,7 +402,21 @@ func IntakeLeadInTx(tx *sql.Tx, in IntakeInput) (IntakeResult, error) {
 		}
 	}
 
-	return IntakeResult{Class: class, LeadID: lead.ID, ContactID: contactID, FilterReason: filterReason}, nil
+	// ---- 4. auto-assignment (HUI-1685 / FEAT-0186, gated) -----------------
+	// 首投专属:重放在第 1 步已返回;此处的 lead 刚建档、必然未分配,同事务内
+	// 路由给池成员(地域/行业精确匹配优先,否则全池平滑加权轮询)。池空/开关关
+	// 都不阻塞建档。filtered 正交:FEAT-0187 过滤只改 status,照常分配。
+	assignedTo := ""
+	if in.AssignEnabled {
+		assignedTo, err = AssignLeadInTx(tx, in.TenantID, lead.ID,
+			strings.TrimSpace(in.Region), strings.TrimSpace(in.Industry))
+		if err != nil {
+			return IntakeResult{}, err
+		}
+	}
+
+	return IntakeResult{Class: class, LeadID: lead.ID, ContactID: contactID,
+		FilterReason: filterReason, AssignedTo: assignedTo}, nil
 }
 
 // errIntakeKeyUnknown marks "idempotency key not seen before".

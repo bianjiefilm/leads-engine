@@ -23,6 +23,10 @@ import (
 
 const intakeMaxBodyBytes = 1 << 16 // 64 KiB: 单条线索事件的硬上限
 
+// assignTagCapRunes caps the intake-side region/industry matching dimensions
+// (HUI-1685); the pool config carries the same cap server-side.
+const assignTagCapRunes = 64
+
 // handleLeadIntake is THE dedup seam for every intake channel (HUI-1680 calls
 // store.IntakeLeadInTx on its inbox tx; this endpoint is the HTTP form).
 func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +56,12 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		SourceType       string              `json:"source_type"`
 		Source           *sourceInput        `json:"source"`
 		Consent          *intakeConsentInput `json:"consent"`
+		// Region/Industry feed the auto-assignment pool matching (HUI-1685).
+		// Only validated/forwarded when FEATURE_LEADS_ASSIGN=on; with the flag
+		// off they are ignored exactly like any other unknown field was before
+		// (byte-identical legacy behavior).
+		Region   string `json:"region"`
+		Industry string `json:"industry"`
 	}
 	if err := json.Unmarshal(body, &in); err != nil {
 		fail(w, http.StatusBadRequest, "bad_request", "invalid JSON body")
@@ -116,6 +126,17 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 分配匹配维度(HUI-1685):仅开关开时校验并转发;off 时零参与(off =
+	// 与既往逐字节一致 —— 开关关时这两个字段与任何未知字段一样被忽略)。
+	region, industry := "", ""
+	if s.Cfg.FeatureLeadsAssign {
+		region, industry = strings.TrimSpace(in.Region), strings.TrimSpace(in.Industry)
+		if runeLen(region) > assignTagCapRunes || runeLen(industry) > assignTagCapRunes {
+			fail(w, http.StatusBadRequest, "bad_request", "region/industry must be at most 64 characters")
+			return
+		}
+	}
+
 	tx, err := s.St.DB.Begin()
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "intake begin failed")
@@ -137,6 +158,9 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		Consent:          consent,
 		Pepper:           s.Cfg.DedupPepper,
 		FilterEnabled:    s.Cfg.FeatureLeadsFilter,
+		AssignEnabled:    s.Cfg.FeatureLeadsAssign,
+		Region:           region,
+		Industry:         industry,
 	})
 	if errors.Is(err, store.ErrEventContentConflict) {
 		// 同键不同内容:显式冲突,绝不静默覆盖。
@@ -157,15 +181,20 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 日志只记分类/幂等键/引用与指纹前缀;手机号明文零出现。过滤开着时追加
-	// 机器原因码(HUI-1686),off 时日志格式与既往逐字一致。
+	// 机器原因码(HUI-1686),off 时日志格式与既往逐字一致。自动分配开着且本投
+	// 命中时追加 assigned=<member id>;空后缀不改变既往字节。
+	assignSuffix := ""
+	if res.AssignedTo != "" {
+		assignSuffix = " assigned=" + res.AssignedTo
+	}
 	if res.FilterReason != "" {
-		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t filter=%s",
+		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t filter=%s%s",
 			c.Member.TenantID, in.SourceApp, in.SourceNS, in.EventID, res.Class,
-			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate, res.FilterReason)
+			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate, res.FilterReason, assignSuffix)
 	} else {
-		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t",
+		s.Log.Printf("lead intake tenant=%s event=%s/%s/%s class=%s lead=%s contact=%s phone_fpr=%s dup=%t%s",
 			c.Member.TenantID, in.SourceApp, in.SourceNS, in.EventID, res.Class,
-			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate)
+			res.LeadID, res.ContactID, shortFPR(s.Cfg.DedupPepper, in.Contact.Phone), res.Duplicate, assignSuffix)
 	}
 	status := http.StatusCreated
 	if res.Duplicate {
@@ -178,9 +207,13 @@ func (s *Server) handleLeadIntake(w http.ResponseWriter, r *http.Request) {
 		"duplicate":  res.Duplicate,
 	}
 	// filter_reason 只在首投判定命中时出现(机器码,零联系方式原文);
-	// off 模式下响应键与既往完全一致。
+	// off 模式下响应键与既往完全一致。assigned_member_id 同理:仅自动分配
+	// 开且本投真的指派了成员时出现(重放/池空都不出现该键)。
 	if res.FilterReason != "" {
 		out["filter_reason"] = res.FilterReason
+	}
+	if res.AssignedTo != "" {
+		out["assigned_member_id"] = res.AssignedTo
 	}
 	writeJSON(w, status, out)
 }

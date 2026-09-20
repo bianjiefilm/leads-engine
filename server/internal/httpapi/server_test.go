@@ -136,6 +136,7 @@ type harnessOpts struct {
 	omitDedupPepper     bool // HUI-1683: intake fails closed when the pepper is missing
 	featureLeadsFilter  bool // FEATURE_LEADS_FILTER=on (HUI-1686 无效线索过滤)
 	featureFollowups    bool // FEATURE_FOLLOWUPS=on (HUI-1692 / FEAT-0193 跟进记录)
+	featureLeadsAssign  bool // FEATURE_LEADS_ASSIGN=on (HUI-1685 / FEAT-0186 线索自动分配)
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -177,6 +178,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return ""
 		case "FEATURE_FOLLOWUPS":
 			if opts.featureFollowups {
+				return "true"
+			}
+			return ""
+		case "FEATURE_LEADS_ASSIGN":
+			if opts.featureLeadsAssign {
 				return "true"
 			}
 			return ""
