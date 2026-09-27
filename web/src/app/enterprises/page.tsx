@@ -366,7 +366,11 @@ export default function EnterprisesPage() {
             ))}
           </ul>
           {preview.record?.conflict ? (
-            <p>资料冲突：目录里是新事实，候选池里仍是确认时的旧内容，不能静默覆盖。</p>
+            <p>
+              {preview.record.status === "confirmed"
+                ? "资料冲突：目录里是新事实，候选池里仍是确认时的旧内容，不能静默覆盖。"
+                : "资料冲突：前后事实不一致。确认之前不会进入候选池。"}
+            </p>
           ) : null}
           <p className="muted">自然人联系方式只作旁注，不构成营销许可。拒绝或删除只挡住同一来源的再次导入。</p>
           {preview.record ? (
