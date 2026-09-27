@@ -91,6 +91,15 @@ func TestComposeDoesNotUseFAQAsPrice(t *testing.T) {
 	if strings.Contains(priced.Body, "1元") || priced.ShouldSend {
 		t.Fatalf("priced FAQ sent as knowledge: %+v", priced)
 	}
+	for _, answer := range []string{"不退款，只要1元", "只要一元", "一百元", "¥9"} {
+		out := Compose(ComposeInput{
+			Mode: ModeAI, VisitorText: "售后", Now: now, FactCode: "missing",
+			FAQs: []FAQ{{ID: "kns_after", Question: "售后", Answer: answer, Version: 1, Enabled: true}},
+		})
+		if strings.Contains(out.Body, "元") || strings.Contains(out.Body, "¥") || out.ShouldSend {
+			t.Fatalf("trade FAQ %q sent: %+v", answer, out)
+		}
+	}
 }
 
 func TestComposeRejectsWriteAndInjectionDoesNotChangeAnswer(t *testing.T) {

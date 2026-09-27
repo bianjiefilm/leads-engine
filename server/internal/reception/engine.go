@@ -180,13 +180,34 @@ func Intent(text string) string {
 			return "order_status"
 		}
 	}
-	if priceAmount.MatchString(text) {
+	if priceAmount.MatchString(text) || chinesePrice.MatchString(text) || markedPrice.MatchString(text) {
 		return "price"
 	}
 	return ""
 }
 
-var priceAmount = regexp.MustCompile(`[0-9０-９]+(?:\.[0-9０-９]+)?\s*元`)
+var (
+	priceAmount  = regexp.MustCompile(`[0-9０-９]+(?:\.[0-9０-９]+)?\s*元`)
+	chinesePrice = regexp.MustCompile(`[零〇一二三四五六七八九十百千万两壹贰叁肆伍陆柒捌玖拾佰仟]+\s*元`)
+	markedPrice  = regexp.MustCompile(`[¥￥]\s*[0-9０-９]`)
+)
+
+// faqStatesTrade is true when a static card itself states price, stock, or order status.
+// Write words are ignored here: "不退款，只要1元" is still a price card.
+// Those cards are not a FactBook result and must not be sent as live trade truth.
+func faqStatesTrade(f FAQ) bool {
+	text := f.Question + "\n" + f.Answer
+	if priceAmount.MatchString(text) || chinesePrice.MatchString(text) || markedPrice.MatchString(text) {
+		return true
+	}
+	n := fold(text)
+	for _, w := range []string{"价格", "价目", "报价", "价钱", "费用", "收费", "单价", "标价", "多少钱", "售价", "price", "cost", "fee", "库存", "还有货", "有货", "缺货", "现货", "inventory", "stock", "订单状态", "物流", "订单", "发货", "运单", "orderstatus"} {
+		if strings.Contains(n, fold(w)) {
+			return true
+		}
+	}
+	return false
+}
 
 // MatchFAQ returns the longest enabled, not-withdrawn question contained in
 // the visitor text. A short visitor fragment inside a longer question does not match.
@@ -208,17 +229,6 @@ func MatchFAQ(faqs []FAQ, text string) (FAQ, bool) {
 		}
 	}
 	return best, found
-}
-
-// faqStatesTrade is true when a static card itself states price, stock, or order status.
-// Those cards are not a FactBook result and must not be sent as live trade truth.
-func faqStatesTrade(f FAQ) bool {
-	switch Intent(f.Question + "\n" + f.Answer) {
-	case "price", "inventory", "order_status":
-		return true
-	default:
-		return false
-	}
 }
 
 // Compose drafts a reply. It never interpolates Persona into Body.
