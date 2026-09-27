@@ -74,7 +74,7 @@ export default function EnterprisesPage() {
   const [collectedAt, setCollectedAt] = useState("");
   const [cycle, setCycle] = useState("30");
   const [license, setLicense] = useState("");
-  const [correction, setCorrection] = useState("客户可在本页删除；删除或拒绝后，同一企业刷新不得恢复营销");
+  const [correction, setCorrection] = useState("客户可在本页删除；同一来源再次导入这家企业不得恢复营销");
   const [enterpriseID, setEnterpriseID] = useState("");
   const [enterpriseName, setEnterpriseName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -200,7 +200,7 @@ export default function EnterprisesPage() {
         `已进入本租户候选池。线索 ${String(body.lead_id ?? "")}。营销同意：否。外呼/短信/SOP：无。来源 ${String(body.source_app ?? "")}。`,
       );
     } else {
-      setConfirmText(action === "refuse" ? "已拒绝。之后刷新这条企业资料不能恢复营销。" : "已删除。之后刷新这条企业资料不能恢复营销。");
+      setConfirmText(action === "refuse" ? "已拒绝。同一来源再次导入这家企业不能恢复营销。" : "已删除。同一来源再次导入这家企业不能恢复营销。");
     }
     setPreview(null);
     await load(tenant);
@@ -338,7 +338,7 @@ export default function EnterprisesPage() {
                 </td>
                 <td>{row.freshness === "expired" ? "已过期" : "未过期"}</td>
                 <td>{(row.missing_fields ?? []).join("、") || "无"}</td>
-                <td>{row.status}</td>
+                <td>{row.conflict && row.status === "confirmed" ? "池内仍是确认时的旧内容" : row.status}</td>
                 <td>
                   <button type="button" onClick={() => void openPreview(row.id)}>
                     预览
@@ -365,7 +365,10 @@ export default function EnterprisesPage() {
               </li>
             ))}
           </ul>
-          <p className="muted">自然人联系方式只作旁注，不构成营销许可。</p>
+          {preview.record?.conflict ? (
+            <p>资料冲突：目录里是新事实，候选池里仍是确认时的旧内容，不能静默覆盖。</p>
+          ) : null}
+          <p className="muted">自然人联系方式只作旁注，不构成营销许可。拒绝或删除只挡住同一来源的再次导入。</p>
           {preview.record ? (
             <p>
               <button id="confirm-submit" type="button" onClick={() => void act(preview.record!.id, "confirm")}>

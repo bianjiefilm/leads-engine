@@ -29,6 +29,3 @@ Thumbs.db
 
 # local git worktrees
 .worktrees/
-
-# local git worktrees
-.worktrees/

@@ -190,6 +190,31 @@ func TestEnterpriseDirectoryScreenPreviewConfirm(t *testing.T) {
 		t.Fatalf("stale sample not marked expired: %v", expPreview)
 	}
 
+	staleCo := h.mustDo("POST", "/api/v1/enterprise-directory/imports", sessionOwnerA, tenantA,
+		enterpriseImportBody("cust-mixed", "混合导出", expiredAt, 30, []map[string]any{
+			entRecord("91440300MA5DSTALE1", "同来源过期企业", "制造", "深圳", "小型", "", "", ""),
+		}), http.StatusCreated)
+	h.mustDo("POST", "/api/v1/enterprise-directory/imports", sessionOwnerA, tenantA,
+		enterpriseImportBody("cust-mixed", "混合导出", freshAt, 30, []map[string]any{
+			entRecord("91440300MA5DFRESH1", "同来源新企业", "制造", "深圳", "小型", "", "", ""),
+		}), http.StatusCreated)
+	_ = staleCo
+	mixed := h.mustDo("GET", "/api/v1/enterprise-directory/records?industry=制造&region=深圳&scale=小型",
+		sessionOwnerA, tenantA, "", http.StatusOK)
+	var staleFreshness, freshFreshness string
+	for _, it := range mixed["items"].([]any) {
+		m := it.(map[string]any)
+		switch m["enterprise_id"] {
+		case "91440300MA5DSTALE1":
+			staleFreshness, _ = m["freshness"].(string)
+		case "91440300MA5DFRESH1":
+			freshFreshness, _ = m["freshness"].(string)
+		}
+	}
+	if staleFreshness != "expired" || freshFreshness != "fresh" {
+		t.Fatalf("later import rewrote sibling freshness: stale=%q fresh=%q body=%v", staleFreshness, freshFreshness, mixed)
+	}
+
 	h.mustDo("POST", "/api/v1/enterprise-directory/records/"+missingID+"/refuse", sessionOwnerA, tenantA, "", http.StatusOK)
 	refused := h.mustDo("POST", "/api/v1/enterprise-directory/records/"+missingID+"/confirm", sessionOwnerA, tenantA, "", http.StatusConflict)
 	if refused["error"] != "suppression_held" {

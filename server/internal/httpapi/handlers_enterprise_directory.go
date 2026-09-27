@@ -204,7 +204,7 @@ func writeEnterpriseErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrEnterpriseNotFound):
 		fail(w, http.StatusNotFound, "not_found", "enterprise record not found")
 	case errors.Is(err, store.ErrEnterpriseSuppressed):
-		fail(w, http.StatusConflict, "suppression_held", "拒绝或删除后的企业资料不能再次进入候选池，刷新也不会恢复营销")
+		fail(w, http.StatusConflict, "suppression_held", "同一来源下，拒绝或删除后的企业不能再次进入候选池，该来源的刷新也不会恢复营销")
 	case errors.Is(err, store.ErrEventContentConflict):
 		fail(w, http.StatusConflict, "event_content_conflict", "同一企业的资料与已入库内容不一致，已标记冲突，未覆盖原线索")
 	default:

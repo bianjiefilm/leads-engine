@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS enterprise_records (
     person_name     TEXT NOT NULL DEFAULT '',
     person_phone    TEXT NOT NULL DEFAULT '',
     person_email    TEXT NOT NULL DEFAULT '',
+    collected_at    TEXT NOT NULL,
+    update_cycle_days INTEGER NOT NULL CHECK (update_cycle_days > 0),
     content_sha     TEXT NOT NULL,
     confirmed_sha   TEXT NOT NULL DEFAULT '',
     conflict        INTEGER NOT NULL DEFAULT 0 CHECK (conflict IN (0,1)),

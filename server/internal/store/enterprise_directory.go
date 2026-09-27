@@ -163,7 +163,7 @@ func (s *Store) UpsertEnterpriseImport(tenantID, memberID string, in EnterpriseI
 			return EnterpriseImportResult{}, &EnterpriseBadInput{Msg: "duplicate enterprise_id in one import"}
 		}
 		seen[rec.EnterpriseID] = true
-		ref, inserted, err := upsertEnterpriseRecordTx(tx, tenantID, importID, in.SourceKey, rec)
+		ref, inserted, err := upsertEnterpriseRecordTx(tx, tenantID, importID, in.SourceKey, collectedAt, in.UpdateCycleDays, rec)
 		if err != nil {
 			return EnterpriseImportResult{}, err
 		}
@@ -235,7 +235,7 @@ func upsertEnterpriseImportTx(tx *sql.Tx, tenantID, memberID string, in Enterpri
 	return kept, err
 }
 
-func upsertEnterpriseRecordTx(tx *sql.Tx, tenantID, importID, sourceKey string, rec EnterpriseRecordIn) (EnterpriseRecordRef, bool, error) {
+func upsertEnterpriseRecordTx(tx *sql.Tx, tenantID, importID, sourceKey, collectedAt string, cycleDays int, rec EnterpriseRecordIn) (EnterpriseRecordRef, bool, error) {
 	name := strings.TrimSpace(rec.EnterpriseName)
 	industry := strings.TrimSpace(rec.Industry)
 	region := strings.TrimSpace(rec.Region)
@@ -259,11 +259,11 @@ func upsertEnterpriseRecordTx(tx *sql.Tx, tenantID, importID, sourceKey string, 
 		}
 		_, err = tx.Exec(`INSERT INTO enterprise_records(
 			id,tenant_id,import_id,source_key,enterprise_id,enterprise_name,industry,region,scale,
-			person_name,person_phone,person_email,content_sha,confirmed_sha,conflict,status,lead_id,contact_id,created_at,updated_at)
-			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'',0,?,NULL,NULL,?,?)`,
+			person_name,person_phone,person_email,collected_at,update_cycle_days,content_sha,confirmed_sha,conflict,status,lead_id,contact_id,created_at,updated_at)
+			VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'',0,?,NULL,NULL,?,?)`,
 			id, tenantID, importID, sourceKey, rec.EnterpriseID, name, industry, region, scale,
 			strings.TrimSpace(rec.PersonName), strings.TrimSpace(rec.PersonPhone), strings.TrimSpace(rec.PersonEmail),
-			sha, status, now(), now())
+			collectedAt, cycleDays, sha, status, now(), now())
 		if err != nil {
 			return EnterpriseRecordRef{}, false, err
 		}
@@ -280,11 +280,12 @@ func upsertEnterpriseRecordTx(tx *sql.Tx, tenantID, importID, sourceKey string, 
 	}
 	_, err = tx.Exec(`UPDATE enterprise_records SET
 		import_id=?, enterprise_name=?, industry=?, region=?, scale=?,
-		person_name=?, person_phone=?, person_email=?, content_sha=?, conflict=?, status=?, updated_at=?
+		person_name=?, person_phone=?, person_email=?, collected_at=?, update_cycle_days=?,
+		content_sha=?, conflict=?, status=?, updated_at=?
 		WHERE id=? AND tenant_id=?`,
 		importID, name, industry, region, scale,
 		strings.TrimSpace(rec.PersonName), strings.TrimSpace(rec.PersonPhone), strings.TrimSpace(rec.PersonEmail),
-		sha, conflict, status, now(), id, tenantID)
+		collectedAt, cycleDays, sha, conflict, status, now(), id, tenantID)
 	if err != nil {
 		return EnterpriseRecordRef{}, false, err
 	}
@@ -487,7 +488,7 @@ func loadEnterpriseRowTx(tx *sql.Tx, tenantID, id string) (enterpriseRow, error)
 
 const enterpriseViewCols = `r.id, r.enterprise_id, r.enterprise_name, r.industry, r.region, r.scale,
 	r.person_name, r.person_phone, r.person_email, r.conflict, r.status,
-	i.collected_at, i.source_name, i.source_key, i.update_cycle_days, i.license, i.correction`
+	r.collected_at, i.source_name, i.source_key, r.update_cycle_days, i.license, i.correction`
 
 func scanEnterpriseRow(sc interface{ Scan(...any) error }) (enterpriseRow, error) {
 	var row enterpriseRow
