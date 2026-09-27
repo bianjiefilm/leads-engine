@@ -80,6 +80,14 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if prior, err := s.St.GetNotifyInboxByFact(delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventType, delivery.Profile.SourceRef); err == nil && delivery.Profile.SourceVersion < prior.SourceVersion {
+		writeReceipt(w, prior.ReceiptJSON)
+		return
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
+		return
+	}
+
 	rec, err := notifyingest.FetchRecord(r.Context(), src.FetchBase, src.FetchToken, delivery.TenantID, delivery.Profile.SourceRef)
 	if err != nil {
 		s.Log.Printf("notify ingest fetch failed tenant=%s source=%s event=%s", delivery.TenantID, src.AppID, delivery.Profile.EventID)
@@ -120,6 +128,31 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		writeReceipt(w, existing.ReceiptJSON)
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
+		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
+		return
+	}
+
+	// 事实键上 source_version 单调。更旧的另一个 event_id 只确认、不改数据，
+	// 避免 Notify 把 500 重试到死信。同版本异正文仍是 409。
+	prior, factErr := store.GetNotifyInboxByFactTx(tx, delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventType, delivery.Profile.SourceRef)
+	advance := false
+	if factErr == nil {
+		switch {
+		case delivery.Profile.SourceVersion < prior.SourceVersion,
+			delivery.Profile.SourceVersion == prior.SourceVersion && prior.BodySHA256 == bodySHA:
+			if err := tx.Commit(); err != nil {
+				fail(w, http.StatusInternalServerError, "internal", "ingest commit failed")
+				return
+			}
+			writeReceipt(w, prior.ReceiptJSON)
+			return
+		case delivery.Profile.SourceVersion == prior.SourceVersion:
+			fail(w, http.StatusConflict, "event_content_conflict", "the same fact was delivered with different content")
+			return
+		default:
+			advance = true
+		}
+	} else if !errors.Is(factErr, sql.ErrNoRows) {
 		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
 		return
 	}
@@ -237,7 +270,20 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 	if !delivery.OccurredAt.IsZero() {
 		occurred = delivery.OccurredAt.UTC().Format(time.RFC3339)
 	}
-	if err := insertInbox(tx, delivery, r.Header.Get("X-Notify-Delivery-Id"), bodySHA, leadID, contactID, string(raw), occurred); err != nil {
+	inboxRow := store.NotifyInbox{
+		TenantID: delivery.TenantID, SourceApp: delivery.Profile.SourceApp, EventType: delivery.Profile.EventType,
+		SourceRef: delivery.Profile.SourceRef, SourceVersion: delivery.Profile.SourceVersion,
+		ProfileEventID: delivery.Profile.EventID, NotifyEventID: delivery.NotifyEventID,
+		DeliveryID: r.Header.Get("X-Notify-Delivery-Id"), BodySHA256: bodySHA,
+		LeadID: leadID, ContactID: contactID, ReceiptJSON: string(raw), OccurredAt: occurred,
+	}
+	var writeErr error
+	if advance {
+		writeErr = store.UpdateNotifyInboxFactTx(tx, prior.ID, inboxRow)
+	} else {
+		writeErr = store.InsertNotifyInboxTx(tx, inboxRow)
+	}
+	if writeErr != nil {
 		fail(w, http.StatusInternalServerError, "internal", "inbox write failed")
 		return
 	}
@@ -393,13 +439,4 @@ func storeUpsertRevocation(tx *sql.Tx, d notifyingest.Delivery, version int) err
 
 func setNotes(tx *sql.Tx, tenantID, contactID string, rec notifyingest.Record) error {
 	return store.SetContactNotesIfEmptyTx(tx, tenantID, contactID, contactExtraNotes(rec))
-}
-
-func insertInbox(tx *sql.Tx, d notifyingest.Delivery, deliveryID, bodySHA, leadID, contactID, receipt, occurred string) error {
-	return store.InsertNotifyInboxTx(tx, store.NotifyInbox{
-		TenantID: d.TenantID, SourceApp: d.Profile.SourceApp, EventType: d.Profile.EventType,
-		SourceRef: d.Profile.SourceRef, SourceVersion: d.Profile.SourceVersion,
-		ProfileEventID: d.Profile.EventID, NotifyEventID: d.NotifyEventID, DeliveryID: deliveryID,
-		BodySHA256: bodySHA, LeadID: leadID, ContactID: contactID, ReceiptJSON: receipt, OccurredAt: occurred,
-	})
 }

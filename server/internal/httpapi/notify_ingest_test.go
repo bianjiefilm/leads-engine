@@ -214,6 +214,39 @@ func TestNotifyIngestReceiver(t *testing.T) {
 		}
 	})
 
+	t.Run("a newer fact replaces the older one and a late older event stays stale", func(t *testing.T) {
+		ref := "sub_versions"
+		older := ingestEvent(tenantA, "evt-v1", ref, 1, "lead.authorized_submitted", "nfc", false, "版本", "13900000041", "")
+		src.put(ref, recordJSON(tenantA, ref, "版本", "13900000041", "", "", "granted", "lead_submission", true, false, false))
+		first := postIngest(t, h, older, signBody(secret, older))
+		if first.status != http.StatusOK {
+			t.Fatalf("v1=%d %s", first.status, first.raw)
+		}
+		newer := ingestEvent(tenantA, "evt-v2", ref, 2, "lead.authorized_submitted", "nfc", false, "版本", "13900000041", "")
+		src.put(ref, recordJSON(tenantA, ref, "版本", "13900000041", "", "", "granted", "lead_submission", true, true, false))
+		second := postIngest(t, h, newer, signBody(secret, newer))
+		if second.status != http.StatusOK {
+			t.Fatalf("v2=%d %s", second.status, second.raw)
+		}
+		if second.json["lead_id"] != first.json["lead_id"] {
+			t.Fatalf("version bump created another lead: %v vs %v", first.json, second.json)
+		}
+		cid, _ := second.json["contact_id"].(string)
+		if !marketingAllowed(t, h, tenantA, cid, "marketing_phone") {
+			t.Fatal("newer fact did not apply marketing_phone")
+		}
+		late := postIngest(t, h, older, signBody(secret, older))
+		if late.status != http.StatusOK {
+			t.Fatalf("stale=%d %s", late.status, late.raw)
+		}
+		if !marketingAllowed(t, h, tenantA, cid, "marketing_phone") {
+			t.Fatal("stale older event cleared the newer marketing grant")
+		}
+		if h.leadIDsForContact(sessionOwnerA, tenantA, cid) == nil || len(h.leadIDsForContact(sessionOwnerA, tenantA, cid)) != 1 {
+			t.Fatal("version sequence changed the lead count")
+		}
+	})
+
 	t.Run("source outage does not acknowledge success", func(t *testing.T) {
 		src.fail = true
 		defer func() { src.fail = false }()
@@ -234,6 +267,18 @@ type ingestResult struct {
 	status int
 	raw    string
 	json   map[string]any
+}
+
+func marketingAllowed(t *testing.T, h *harness, tenant, contactID, channel string) bool {
+	t.Helper()
+	consents := h.mustDo("GET", "/api/v1/contacts/"+contactID+"/consents", sessionOwnerA, tenant, "", http.StatusOK)
+	for _, it := range consents["items"].([]any) {
+		row := it.(map[string]any)
+		if row["source_channel"] == channel {
+			return row["marketing_allowed"] == true && row["revoked_at"] == nil
+		}
+	}
+	return false
 }
 
 func postIngest(t *testing.T, h *harness, body []byte, sig string) ingestResult {

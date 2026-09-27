@@ -72,7 +72,8 @@ cd web && npm run build
 
 - Identity:BFF→server→`POST /internal/v1/identity/{login,refresh,revocations,session/resolve}`,
   头部 `X-App-ID` + `X-PilotSeaView-Internal-Token`(本 app 专用令牌,禁万能 token);refresh 必带 app_id。
-- Notify/Upload:仅 client 脚手架 + 配置 + `FEATURE_NOTIFY`/`FEATURE_UPLOAD`(默认 off);
+- Notify 出站与 Upload:client 脚手架 + 配置 + `FEATURE_NOTIFY`/`FEATURE_UPLOAD`(默认 off);
+- Notify 接收入口:`FEATURE_NOTIFY_INGEST`(默认 off)。只收已登记来源,联系方式不进事件;
   off 或缺专用 token 时调用返回显式错误,不伪造事件/上传成功。
 
 ## 后续 FEAT 集成落点(本票未实现)

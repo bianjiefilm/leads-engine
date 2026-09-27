@@ -53,6 +53,18 @@ func GetNotifyInboxByEventTx(tx *sql.Tx, tenantID, sourceApp, eventID string) (N
 	return scanInbox(row)
 }
 
+func (s *Store) GetNotifyInboxByFact(tenantID, sourceApp, eventType, sourceRef string) (NotifyInbox, error) {
+	row := s.DB.QueryRow(`SELECT `+inboxCols+` FROM notify_inbox WHERE tenant_id=? AND source_app=? AND event_type=? AND source_ref=?`,
+		tenantID, sourceApp, eventType, sourceRef)
+	return scanInbox(row)
+}
+
+func GetNotifyInboxByFactTx(tx *sql.Tx, tenantID, sourceApp, eventType, sourceRef string) (NotifyInbox, error) {
+	row := tx.QueryRow(`SELECT `+inboxCols+` FROM notify_inbox WHERE tenant_id=? AND source_app=? AND event_type=? AND source_ref=?`,
+		tenantID, sourceApp, eventType, sourceRef)
+	return scanInbox(row)
+}
+
 func InsertNotifyInboxTx(tx *sql.Tx, n NotifyInbox) error {
 	if n.ID == "" {
 		n.ID = newID("nin_")
@@ -65,6 +77,15 @@ func InsertNotifyInboxTx(tx *sql.Tx, n NotifyInbox) error {
 		n.ID, n.TenantID, n.SourceApp, n.EventType, n.SourceRef, n.SourceVersion, n.ProfileEventID,
 		n.NotifyEventID, n.DeliveryID, n.BodySHA256, nullable(n.LeadID), nullable(n.ContactID),
 		n.ReceiptJSON, n.OccurredAt, n.CreatedAt, n.UpdatedAt)
+	return err
+}
+
+// UpdateNotifyInboxFactTx advances the one fact row to a higher source_version.
+// The fact key stays; the winning event id and receipt replace the older ones.
+func UpdateNotifyInboxFactTx(tx *sql.Tx, id string, n NotifyInbox) error {
+	_, err := tx.Exec(`UPDATE notify_inbox SET source_version=?, profile_event_id=?, notify_event_id=?, delivery_id=?, body_sha256=?, lead_id=?, contact_id=?, receipt_json=?, occurred_at=?, updated_at=? WHERE id=?`,
+		n.SourceVersion, n.ProfileEventID, n.NotifyEventID, n.DeliveryID, n.BodySHA256,
+		nullable(n.LeadID), nullable(n.ContactID), n.ReceiptJSON, n.OccurredAt, now(), id)
 	return err
 }
 

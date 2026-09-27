@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // L0 页面骨架:只打本站 /api/*(BFF),绝不直连 Go 服务或平台服务。
-// 联系人/线索/商机的管理界面由后续 FEAT 票(HUI-1691/1683/1692/1693)实现。
+// 客户档案、商机与线索列表打本站 BFF。销售工作台(HUI-1893)不在本页。
 
 interface Whoami {
   principal_ref?: string;
