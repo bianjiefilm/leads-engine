@@ -68,6 +68,11 @@ const (
 	// deployment-registered sources may deliver; missing per-source secret
 	// or fetch base fails that route closed.
 	EnvFeatureNotifyIngest = "FEATURE_NOTIFY_INGEST"
+	// EnvFeatureEnterpriseDirectory gates customer-authorized enterprise
+	// screening (HUI-1678). Default off: routes are not registered. On: a
+	// tenant may import records it has rights to reuse. There is no official
+	// public directory client in this process.
+	EnvFeatureEnterpriseDirectory = "FEATURE_ENTERPRISE_DIRECTORY"
 	// EnvIngestSources is a comma-separated allowlist of source app ids.
 	// Each app reads LEADS_INGEST_<APP>_SECRET / _FETCH_BASE / _FETCH_TOKEN,
 	// where <APP> is the app id uppercased with '-' replaced by '_'.
@@ -159,6 +164,9 @@ type Config struct {
 
 	// FeatureNotifyIngest mounts the HUI-1680 Notify receiver. Default off.
 	FeatureNotifyIngest bool
+	// FeatureEnterpriseDirectory mounts HUI-1678 customer-authorized screening.
+	// Default off (routes not registered).
+	FeatureEnterpriseDirectory bool
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
 	IngestSources []IngestSource
 }
@@ -223,30 +231,31 @@ func Load(get func(string) string) Config {
 
 func fromEnv(get func(string) string) Config {
 	return Config{
-		HTTPAddr:                firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
-		DBPath:                  firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
-		Env:                     firstNonEmpty(get("LEADS_ENV"), "development"),
-		AppID:                   firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
-		InternalToken:           get("LEADS_INTERNAL_TOKEN"),
-		SessionCookie:           firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
-		IdentityBaseURL:         get("PLATFORM_IDENTITY_BASE_URL"),
-		IdentityToken:           get("PLATFORM_IDENTITY_TOKEN"),
-		IdentityAppHost:         get("PLATFORM_IDENTITY_APP_HOST"),
-		NotifyBaseURL:           get("PLATFORM_NOTIFY_BASE_URL"),
-		NotifyToken:             get("PLATFORM_NOTIFY_TOKEN"),
-		UploadBaseURL:           get("PLATFORM_UPLOAD_BASE_URL"),
-		UploadToken:             get("PLATFORM_UPLOAD_TOKEN"),
-		FeatureNotify:           isTruthy(get(EnvFeatureNotify)),
-		FeatureUpload:           isTruthy(get(EnvFeatureUpload)),
-		FeatureServiceDraft:     isTruthy(get(EnvFeatureServiceDraft)),
-		FeatureLeadsFilter:      isTruthy(get(EnvFeatureLeadsFilter)),
-		FeatureFollowups:        isTruthy(get(EnvFeatureFollowups)),
-		FeatureLeadsAssign:      isTruthy(get(EnvFeatureLeadsAssign)),
-		FeatureFunnel:           isTruthy(get(EnvFeatureFunnel)),
-		FeatureChannelAnalytics: isTruthy(get(EnvFeatureChannelAnalytics)),
-		FeatureContactTags:      isTruthy(get(EnvFeatureContactTags)),
-		FeatureNotifyIngest:     isTruthy(get(EnvFeatureNotifyIngest)),
-		IngestSources:           parseIngestSources(get),
+		HTTPAddr:                   firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
+		DBPath:                     firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
+		Env:                        firstNonEmpty(get("LEADS_ENV"), "development"),
+		AppID:                      firstNonEmpty(get("LEADS_APP_ID"), "leads-engine"),
+		InternalToken:              get("LEADS_INTERNAL_TOKEN"),
+		SessionCookie:              firstNonEmpty(get("LEADS_SESSION_COOKIE"), "leads_session"),
+		IdentityBaseURL:            get("PLATFORM_IDENTITY_BASE_URL"),
+		IdentityToken:              get("PLATFORM_IDENTITY_TOKEN"),
+		IdentityAppHost:            get("PLATFORM_IDENTITY_APP_HOST"),
+		NotifyBaseURL:              get("PLATFORM_NOTIFY_BASE_URL"),
+		NotifyToken:                get("PLATFORM_NOTIFY_TOKEN"),
+		UploadBaseURL:              get("PLATFORM_UPLOAD_BASE_URL"),
+		UploadToken:                get("PLATFORM_UPLOAD_TOKEN"),
+		FeatureNotify:              isTruthy(get(EnvFeatureNotify)),
+		FeatureUpload:              isTruthy(get(EnvFeatureUpload)),
+		FeatureServiceDraft:        isTruthy(get(EnvFeatureServiceDraft)),
+		FeatureLeadsFilter:         isTruthy(get(EnvFeatureLeadsFilter)),
+		FeatureFollowups:           isTruthy(get(EnvFeatureFollowups)),
+		FeatureLeadsAssign:         isTruthy(get(EnvFeatureLeadsAssign)),
+		FeatureFunnel:              isTruthy(get(EnvFeatureFunnel)),
+		FeatureChannelAnalytics:    isTruthy(get(EnvFeatureChannelAnalytics)),
+		FeatureContactTags:         isTruthy(get(EnvFeatureContactTags)),
+		FeatureNotifyIngest:        isTruthy(get(EnvFeatureNotifyIngest)),
+		FeatureEnterpriseDirectory: isTruthy(get(EnvFeatureEnterpriseDirectory)),
+		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -309,6 +318,7 @@ func (c Config) Describe() string {
 		{"channel_analytics", c.FeatureChannelAnalytics},
 		{"contact_tags", c.FeatureContactTags},
 		{"notify_ingest", c.FeatureNotifyIngest},
+		{"enterprise_directory", c.FeatureEnterpriseDirectory},
 	} {
 		v := "off"
 		if f.on {
