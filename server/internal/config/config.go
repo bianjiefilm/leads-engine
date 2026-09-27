@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -62,6 +63,15 @@ const (
 	// routes are even registered (404 不可见). On: 纯服务端单点判定,无 AI 评分
 	// (外部依赖,deferred)、无推送/广告/外呼能力。
 	EnvFeatureContactTags = "FEATURE_CONTACT_TAGS"
+	// EnvFeatureNotifyIngest gates the registered Notify HTTP receiver
+	// (HUI-1680). Default off: the route is not registered. On: only
+	// deployment-registered sources may deliver; missing per-source secret
+	// or fetch base fails that route closed.
+	EnvFeatureNotifyIngest = "FEATURE_NOTIFY_INGEST"
+	// EnvIngestSources is a comma-separated allowlist of source app ids.
+	// Each app reads LEADS_INGEST_<APP>_SECRET / _FETCH_BASE / _FETCH_TOKEN,
+	// where <APP> is the app id uppercased with '-' replaced by '_'.
+	EnvIngestSources = "LEADS_INGEST_SOURCES"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -146,6 +156,20 @@ type Config struct {
 	// DedupPepper is the HMAC pepper for intake phone fingerprints (HUI-1683).
 	// Deployment-injected; the intake endpoint fails closed when empty.
 	DedupPepper string
+
+	// FeatureNotifyIngest mounts the HUI-1680 Notify receiver. Default off.
+	FeatureNotifyIngest bool
+	// IngestSources is the deployment allowlist. Empty unless the flag is on.
+	IngestSources []IngestSource
+}
+
+// IngestSource is one registered Notify sender (HUI-1680). The fetch base is
+// deployment configuration, never a URL taken from the event.
+type IngestSource struct {
+	AppID      string
+	Secret     string
+	FetchBase  string
+	FetchToken string
 }
 
 // EcoHandoffConfig is the constrained handoff delivery configuration
@@ -221,6 +245,8 @@ func fromEnv(get func(string) string) Config {
 		FeatureFunnel:           isTruthy(get(EnvFeatureFunnel)),
 		FeatureChannelAnalytics: isTruthy(get(EnvFeatureChannelAnalytics)),
 		FeatureContactTags:      isTruthy(get(EnvFeatureContactTags)),
+		FeatureNotifyIngest:     isTruthy(get(EnvFeatureNotifyIngest)),
+		IngestSources:           parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -282,6 +308,7 @@ func (c Config) Describe() string {
 		{"funnel", c.FeatureFunnel},
 		{"channel_analytics", c.FeatureChannelAnalytics},
 		{"contact_tags", c.FeatureContactTags},
+		{"notify_ingest", c.FeatureNotifyIngest},
 	} {
 		v := "off"
 		if f.on {
@@ -311,4 +338,74 @@ func isTruthy(v string) bool {
 		return true
 	}
 	return false
+}
+
+// parseIngestSources reads the deployment allowlist. It does not validate;
+// IngestGate reports problems when the feature is on.
+func parseIngestSources(get func(string) string) []IngestSource {
+	raw := strings.TrimSpace(get(EnvIngestSources))
+	if raw == "" {
+		return nil
+	}
+	var out []IngestSource
+	for _, part := range strings.Split(raw, ",") {
+		app := strings.TrimSpace(part)
+		if app == "" {
+			continue
+		}
+		key := ingestEnvKey(app)
+		out = append(out, IngestSource{
+			AppID:      app,
+			Secret:     strings.TrimSpace(get("LEADS_INGEST_" + key + "_SECRET")),
+			FetchBase:  strings.TrimRight(strings.TrimSpace(get("LEADS_INGEST_"+key+"_FETCH_BASE")), "/"),
+			FetchToken: strings.TrimSpace(get("LEADS_INGEST_" + key + "_FETCH_TOKEN")),
+		})
+	}
+	return out
+}
+
+func ingestEnvKey(appID string) string {
+	return strings.ToUpper(strings.ReplaceAll(appID, "-", "_"))
+}
+
+// IngestGate lists fail-closed problems for the Notify receiver. An empty
+// list means the route may accept deliveries. The flag off yields nil (the
+// route is not mounted).
+func (c Config) IngestGate() []string {
+	if !c.FeatureNotifyIngest {
+		return nil
+	}
+	var problems []string
+	if strings.TrimSpace(c.DedupPepper) == "" {
+		problems = append(problems, EnvDedupPepper+" is required when FEATURE_NOTIFY_INGEST=on")
+	}
+	if len(c.IngestSources) == 0 {
+		problems = append(problems, EnvIngestSources+" is required when FEATURE_NOTIFY_INGEST=on")
+	}
+	seen := map[string]bool{}
+	for _, src := range c.IngestSources {
+		if seen[src.AppID] {
+			problems = append(problems, "duplicate ingest source "+src.AppID)
+		}
+		seen[src.AppID] = true
+		prefix := "LEADS_INGEST_" + ingestEnvKey(src.AppID)
+		if src.Secret == "" {
+			problems = append(problems, prefix+"_SECRET is required")
+		}
+		if src.FetchToken == "" {
+			problems = append(problems, prefix+"_FETCH_TOKEN is required")
+		}
+		if err := validateFetchBase(src.FetchBase); err != nil {
+			problems = append(problems, prefix+"_FETCH_BASE: "+err.Error())
+		}
+	}
+	return problems
+}
+
+func validateFetchBase(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return fmt.Errorf("must be an http(s) origin without userinfo, query, or fragment")
+	}
+	return nil
 }
