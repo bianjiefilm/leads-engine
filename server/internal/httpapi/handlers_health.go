@@ -17,15 +17,16 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		ready = "degraded (authenticated actions fail-closed)"
 	}
 	writeJSON(w, status, map[string]any{
-		"service":        "leads-server",
-		"app_id":         s.Cfg.AppID,
-		"env":            s.Cfg.Env,
-		"status":         ready,
-		"config_issues":  len(problems),
-		"feature_notify": boolOnOff(s.Cfg.FeatureNotify),
-		"feature_upload": boolOnOff(s.Cfg.FeatureUpload),
-		"identity_mode":  "platform",
-		"detail":         problems,
+		"service":               "leads-server",
+		"app_id":                s.Cfg.AppID,
+		"env":                   s.Cfg.Env,
+		"status":                ready,
+		"config_issues":         len(problems),
+		"feature_notify":        boolOnOff(s.Cfg.FeatureNotify),
+		"feature_notify_ingest": boolOnOff(s.Cfg.FeatureNotifyIngest),
+		"feature_upload":        boolOnOff(s.Cfg.FeatureUpload),
+		"identity_mode":         "platform",
+		"detail":                problems,
 	})
 }
 

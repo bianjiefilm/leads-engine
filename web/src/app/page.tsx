@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // L0 页面骨架:只打本站 /api/*(BFF),绝不直连 Go 服务或平台服务。
-// 联系人/线索/商机的管理界面由后续 FEAT 票(HUI-1691/1683/1692/1693)实现。
+// 客户档案、商机与线索列表打本站 BFF。销售工作台(HUI-1893)不在本页。
 
 interface Whoami {
   principal_ref?: string;
@@ -59,7 +59,8 @@ export default function Home() {
         <h2>L0 底座范围</h2>
         <p className="muted">
           本应用是独立商家 CRM:不内嵌接单数据库、不做平台全局客户库。
-          平台登录经 platform-identity;线索接收与去重由后续 FEAT 票实施。
+          平台登录经 platform-identity。Notify 授权线索进入
+          <a href="/leads">线索列表（来源与待分配原因可见）</a>。
           客户档案(HUI-1691)已就绪:<a href="/contacts">进入客户档案(授权按来源保留、撤销不可恢复)</a>。
           商机管理(HUI-1693)已就绪:
           <a href="/opportunities">进入商机管理(按 商家经营销售 / 创意服务 类别隔离)</a>。

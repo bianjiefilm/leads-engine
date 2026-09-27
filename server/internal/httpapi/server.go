@@ -149,6 +149,13 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 
+	// HUI-1680: registered Notify receiver. No browser session — HMAC is the
+	// credential. Flag off → route not mounted (404).
+	if s.Cfg.FeatureNotifyIngest {
+		mux.HandleFunc("POST /internal/v1/notify/ingest", s.handleNotifyIngest)
+		mux.HandleFunc("GET /internal/v1/notify/receipts/{eventID}", s.handleNotifyReceipt)
+	}
+
 	// auth (internal token required; no session yet for login/refresh)
 	mux.Handle("POST /api/v1/auth/login", s.requireInternal(s.handleLogin))
 	mux.Handle("POST /api/v1/auth/refresh", s.requireInternal(s.handleRefresh))

@@ -140,6 +140,10 @@ type harnessOpts struct {
 	featureFunnel           bool // FEATURE_FUNNEL=on (HUI-1694 / FEAT-0195 全漏斗分析)
 	featureChannelAnalytics bool // FEATURE_CHANNEL_ANALYTICS=on (HUI-1695 / FEAT-0196 渠道效果分析)
 	featureContactTags      bool // FEATURE_CONTACT_TAGS=on (HUI-1690 / FEAT-0191 客户画像标签)
+	featureNotifyIngest     bool // FEATURE_NOTIFY_INGEST=on (HUI-1680)
+	ingestFetchBase         string
+	ingestSecret            string
+	ingestFetchToken        string
 }
 
 func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
@@ -219,6 +223,28 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 				return ""
 			}
 			return "test-dedup-pepper"
+		case "FEATURE_NOTIFY_INGEST":
+			if opts.featureNotifyIngest {
+				return "on"
+			}
+			return ""
+		case "LEADS_INGEST_SOURCES":
+			if opts.featureNotifyIngest {
+				return "touch-engine"
+			}
+			return ""
+		case "LEADS_INGEST_TOUCH_ENGINE_SECRET":
+			if opts.ingestSecret != "" {
+				return opts.ingestSecret
+			}
+			return "test-ingest-secret"
+		case "LEADS_INGEST_TOUCH_ENGINE_FETCH_BASE":
+			return opts.ingestFetchBase
+		case "LEADS_INGEST_TOUCH_ENGINE_FETCH_TOKEN":
+			if opts.ingestFetchToken != "" {
+				return opts.ingestFetchToken
+			}
+			return "test-fetch-token"
 		}
 		return ""
 	})
