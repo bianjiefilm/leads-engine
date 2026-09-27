@@ -14,6 +14,7 @@ import {
   type BusinessCategory,
   type OpportunityStatsBody,
 } from "@/lib/opportunity";
+import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 商机列表(HUI-1693):类别 tab 完全隔离——每个 tab 只请求自己的
 // business_category(列表与统计端点都强制必填 category,无跨类别视图)。
@@ -31,6 +32,7 @@ interface OpportunityRow {
 }
 
 export default function OpportunitiesPage() {
+  const scope = useCrmScope();
   const [category, setCategory] = useState<BusinessCategory>("merchant_customer");
   const [items, setItems] = useState<OpportunityRow[] | null>(null);
   const [stats, setStats] = useState<OpportunityStatsBody | null>(null);
@@ -42,8 +44,8 @@ export default function OpportunitiesPage() {
     setStats(null);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/opportunities?category=${cat}`),
-        fetch(`/api/opportunities/stats?category=${cat}`),
+        fetch(`/api/opportunities?category=${cat}`, scopeInit(scope.tenantId)),
+        fetch(`/api/opportunities/stats?category=${cat}`, scopeInit(scope.tenantId)),
       ]);
       const listBody = await listRes.json();
       if (!listRes.ok) {
@@ -55,11 +57,13 @@ export default function OpportunitiesPage() {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [scope.tenantId]);
 
   useEffect(() => {
+    setItems(null);
+    setStats(null);
     load(category);
-  }, [category, load]);
+  }, [category, load, scope.epoch]);
 
   return (
     <main>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { canExportContacts, searchGuard } from "@/lib/contact";
+import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 客户档案列表(HUI-1691 / FEAT-0192)。搜索只按姓名/标签 —— 手机号不作为
 // 搜索参数、不进 URL(服务端对疑似手机号输入一律 400,前端同规则先行拦截);
@@ -30,6 +31,7 @@ const CATEGORY_TEXT: Record<string, string> = {
 };
 
 export default function ContactsPage() {
+  const scope = useCrmScope();
   const [items, setItems] = useState<ContactRow[] | null>(null);
   const [me, setMe] = useState<Whoami | null>(null);
   const [name, setName] = useState("");
@@ -43,8 +45,9 @@ export default function ContactsPage() {
 
   const load = useCallback(async (q: string) => {
     setError("");
+    setItems(null);
     try {
-      const res = await fetch(`/api/contacts${q}`);
+      const res = await fetch(`/api/contacts${q}`, scopeInit(scope.tenantId));
       const body = await res.json();
       if (!res.ok) {
         setError(body.message ?? body.error ?? `HTTP ${res.status}`);
@@ -55,14 +58,17 @@ export default function ContactsPage() {
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [scope.tenantId]);
 
   useEffect(() => {
+    setName("");
+    setTag("");
+    setItems(null);
     load("");
-    fetch("/api/whoami")
+    fetch("/api/whoami", scopeInit(scope.tenantId))
       .then(async (res) => (res.ok ? setMe(await res.json()) : setMe({})))
       .catch(() => setMe({}));
-  }, [load]);
+  }, [load, scope.epoch, scope.tenantId]);
 
   const search = () => {
     const guard = searchGuard(name, tag);
@@ -81,11 +87,11 @@ export default function ContactsPage() {
     setCreating(true);
     setError("");
     try {
-      const res = await fetch("/api/contacts", {
+      const res = await fetch("/api/contacts", scopeInit(scope.tenantId, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
-      });
+      }));
       const body = await res.json();
       if (!res.ok) {
         setError(body.message ?? body.error ?? `HTTP ${res.status}`);

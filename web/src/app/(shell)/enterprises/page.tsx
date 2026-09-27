@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // HUI-1678 企业资料筛选。只打本站 BFF。
 // 没有官方公开库。导入的是客户声明有权再利用的资料。
 // 确认前只预览；确认后进入本租户候选池，不授予营销同意，也不发起触达。
 // 销售工作台（HUI-1893）、活的碰一碰活动和广告渠道不在本页。
-
-const TENANT_KEY = "leads_tenant_id";
 
 interface Capability {
   official_directory?: string;
@@ -63,6 +62,7 @@ async function readJSON(res: Response): Promise<Record<string, unknown>> {
 }
 
 export default function EnterprisesPage() {
+  const scope = useCrmScope();
   const [tenant, setTenant] = useState("");
   const [capability, setCapability] = useState<Capability | null>(null);
   const [rows, setRows] = useState<EnterpriseRow[] | null>(null);
@@ -124,16 +124,30 @@ export default function EnterprisesPage() {
   }, [filterIndustry, filterRegion, filterScale]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(TENANT_KEY) ?? "";
-    if (saved) {
-      setTenant(saved);
+    if (scope.epoch === 0) return;
+    setFilterIndustry("");
+    setFilterRegion("");
+    setFilterScale("");
+    setPreview(null);
+    setConfirmText("");
+    setRows(null);
+    setTenant(scope.tenantId ?? "");
+    if (scope.tenantId) {
+      void load(scope.tenantId, { industry: "", region: "", scale: "" });
+    } else {
+      setRows([]);
+      setError("先填写当前租户");
     }
-  }, []);
+  }, [scope.epoch, scope.tenantId, load]);
 
   const saveTenant = () => {
     const value = tenant.trim();
-    window.localStorage.setItem(TENANT_KEY, value);
-    void load(value);
+    if (!value) {
+      setError("先填写当前租户");
+      return;
+    }
+    if (value === scope.tenantId) void load(value);
+    else commitCrmTenant(value);
   };
 
   const importBatch = async () => {

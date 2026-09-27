@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 原生线索页（HUI-1680）。只打本站 BFF。租户由工作区选择，服务端再校验成员身份。
 // 未分配的线索明确写「待分配」，不把空负责人伪装成已分派。
@@ -35,16 +36,11 @@ const STATUS_TEXT: Record<string, string> = {
   filtered: "已过滤",
 };
 
-const TENANT_KEY = "leads_tenant_id";
-
 export default function LeadsPage() {
+  const scope = useCrmScope();
   const [tenant, setTenant] = useState("");
   const [rows, setRows] = useState<Array<LeadRow & { name: string; source: string }> | null>(null);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    setTenant(window.localStorage.getItem(TENANT_KEY) ?? "");
-  }, []);
 
   const load = useCallback(async (tenantID: string) => {
     setError("");
@@ -89,13 +85,24 @@ export default function LeadsPage() {
   }, []);
 
   useEffect(() => {
-    if (tenant) load(tenant);
-  }, [tenant, load]);
+    setRows(null);
+    setTenant(scope.tenantId ?? "");
+    if (scope.tenantId) load(scope.tenantId);
+    else {
+      setRows([]);
+      setError("先填写当前租户");
+    }
+  }, [scope.epoch, scope.tenantId, load]);
 
   const saveTenant = () => {
     const value = tenant.trim();
-    window.localStorage.setItem(TENANT_KEY, value);
-    load(value);
+    if (!value) {
+      setError("先填写当前租户");
+      setRows([]);
+      return;
+    }
+    if (value === scope.tenantId) load(value);
+    else commitCrmTenant(value);
   };
 
   return (
