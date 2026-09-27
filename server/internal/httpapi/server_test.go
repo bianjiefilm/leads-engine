@@ -141,6 +141,7 @@ type harnessOpts struct {
 	featureChannelAnalytics bool // FEATURE_CHANNEL_ANALYTICS=on (HUI-1695 / FEAT-0196 渠道效果分析)
 	featureContactTags      bool // FEATURE_CONTACT_TAGS=on (HUI-1690 / FEAT-0191 客户画像标签)
 	featureNotifyIngest     bool // FEATURE_NOTIFY_INGEST=on (HUI-1680)
+	featureEnterpriseDir    bool // FEATURE_ENTERPRISE_DIRECTORY=on (HUI-1678)
 	ingestFetchBase         string
 	ingestSecret            string
 	ingestFetchToken        string
@@ -225,6 +226,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return "test-dedup-pepper"
 		case "FEATURE_NOTIFY_INGEST":
 			if opts.featureNotifyIngest {
+				return "on"
+			}
+			return ""
+		case "FEATURE_ENTERPRISE_DIRECTORY":
+			if opts.featureEnterpriseDir {
 				return "on"
 			}
 			return ""

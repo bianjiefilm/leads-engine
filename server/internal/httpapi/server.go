@@ -156,6 +156,17 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /internal/v1/notify/receipts/{eventID}", s.handleNotifyReceipt)
 	}
 
+	// HUI-1678 企业资料筛选。默认 off → 路由不注册。没有官方公开库客户端。
+	if s.Cfg.FeatureEnterpriseDirectory {
+		mux.Handle("GET /api/v1/enterprise-directory/capability", s.requireSession(s.handleEnterpriseCapability))
+		mux.Handle("POST /api/v1/enterprise-directory/imports", s.requireSession(s.handleEnterpriseImport))
+		mux.Handle("GET /api/v1/enterprise-directory/records", s.requireSession(s.handleEnterpriseRecordList))
+		mux.Handle("GET /api/v1/enterprise-directory/records/{id}/preview", s.requireSession(s.handleEnterprisePreview))
+		mux.Handle("POST /api/v1/enterprise-directory/records/{id}/confirm", s.requireSession(s.handleEnterpriseConfirm))
+		mux.Handle("POST /api/v1/enterprise-directory/records/{id}/refuse", s.requireSession(s.handleEnterpriseRefuse))
+		mux.Handle("POST /api/v1/enterprise-directory/records/{id}/delete", s.requireSession(s.handleEnterpriseDelete))
+	}
+
 	// auth (internal token required; no session yet for login/refresh)
 	mux.Handle("POST /api/v1/auth/login", s.requireInternal(s.handleLogin))
 	mux.Handle("POST /api/v1/auth/refresh", s.requireInternal(s.handleRefresh))
