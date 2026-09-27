@@ -73,6 +73,14 @@ const (
 	// tenant may import records it has rights to reuse. There is no official
 	// public directory client in this process.
 	EnvFeatureEnterpriseDirectory = "FEATURE_ENTERPRISE_DIRECTORY"
+	// EnvFeatureReception gates the unified reception core (HUI-1688).
+	// Default off: none of the routes are registered. On: H5 sessions,
+	// FAQ knowledge, and human takeover. The visitor-key pepper is separate
+	// from the intake pepper and is required by those routes (503 if empty).
+	EnvFeatureReception = "FEATURE_RECEPTION"
+	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
+	// billing secret and never a long-lived presentation token.
+	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
 	// EnvIngestSources is a comma-separated allowlist of source app ids.
 	// Each app reads LEADS_INGEST_<APP>_SECRET / _FETCH_BASE / _FETCH_TOKEN,
 	// where <APP> is the app id uppercased with '-' replaced by '_'.
@@ -167,6 +175,10 @@ type Config struct {
 	// FeatureEnterpriseDirectory mounts HUI-1678 customer-authorized screening.
 	// Default off (routes not registered).
 	FeatureEnterpriseDirectory bool
+	// FeatureReception mounts HUI-1688. Default off (routes not registered).
+	FeatureReception bool
+	// VisitorPepper HMACs anonymous reception visitor keys.
+	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
 	IngestSources []IngestSource
 }
@@ -255,6 +267,8 @@ func fromEnv(get func(string) string) Config {
 		FeatureContactTags:         isTruthy(get(EnvFeatureContactTags)),
 		FeatureNotifyIngest:        isTruthy(get(EnvFeatureNotifyIngest)),
 		FeatureEnterpriseDirectory: isTruthy(get(EnvFeatureEnterpriseDirectory)),
+		FeatureReception:           isTruthy(get(EnvFeatureReception)),
+		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
@@ -319,6 +333,7 @@ func (c Config) Describe() string {
 		{"contact_tags", c.FeatureContactTags},
 		{"notify_ingest", c.FeatureNotifyIngest},
 		{"enterprise_directory", c.FeatureEnterpriseDirectory},
+		{"reception", c.FeatureReception},
 	} {
 		v := "off"
 		if f.on {

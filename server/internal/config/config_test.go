@@ -85,6 +85,25 @@ func TestFeatureContactTagsCoupleToConfig(t *testing.T) {
 	}
 }
 
+func TestFeatureReceptionDefaultOff(t *testing.T) {
+	cfg := Load(func(k string) string {
+		if k == "FEATURE_RECEPTION" {
+			return "on"
+		}
+		return ""
+	})
+	if !cfg.FeatureReception {
+		t.Fatal("FEATURE_RECEPTION=on must enable reception")
+	}
+	off := Load(func(string) string { return "" })
+	if off.FeatureReception || off.VisitorPepper != "" {
+		t.Fatal("reception must default off without a pepper")
+	}
+	if !strings.Contains(cfg.Describe(), "reception=on") || !strings.Contains(off.Describe(), "reception=off") {
+		t.Fatalf("Describe reception flag missing: %s", cfg.Describe())
+	}
+}
+
 func TestGateFailClosed(t *testing.T) {
 	cfg := Load(func(string) string { return "" })
 	problems := cfg.Gate()

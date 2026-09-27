@@ -75,6 +75,8 @@ cd web && npm run build
 - Notify 出站与 Upload:client 脚手架 + 配置 + `FEATURE_NOTIFY`/`FEATURE_UPLOAD`(默认 off);
 - Notify 接收入口:`FEATURE_NOTIFY_INGEST`(默认 off)。只收已登记来源,联系方式不进事件;
   off 或缺专用 token 时调用返回显式错误,不伪造事件/上传成功。
+- 统一接待:`FEATURE_RECEPTION`(默认 off,HUI-1688)。H5 会话、FAQ 依据、人工接管。
+  `RECEPTION_VISITOR_PEPPER` 与去重 pepper 分开。用量账本 `live_charge` 恒为 0,不调用扣费接口。
 
 ## 后续 FEAT 集成落点(本票未实现)
 

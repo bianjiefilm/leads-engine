@@ -66,6 +66,7 @@ export default function Home() {
           客户档案(HUI-1691)已就绪:<a href="/contacts">进入客户档案(授权按来源保留、撤销不可恢复)</a>。
           商机管理(HUI-1693)已就绪:
           <a href="/opportunities">进入商机管理(按 商家经营销售 / 创意服务 类别隔离)</a>。
+          统一接待(HUI-1688):<a href="/reception">接待工作台</a>。
         </p>
       </div>
     </main>

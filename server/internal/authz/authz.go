@@ -60,6 +60,10 @@ const (
 	// leads, with what weight and region/industry tags. 池配置是租户级销售
 	// 运营决策,直接决定线索流向:owner 专属,绝不静默。
 	ActionManageAssignPool Action = "manage_assign_pool"
+	// ActionManageReception is the tenant reception setup surface (HUI-1688):
+	// H5 widget and FAQ knowledge. 接待入口和知识依据是租户级配置,owner 专属。
+	// 接管、批准和发送走记录级动作,不在这里。
+	ActionManageReception Action = "manage_reception"
 	// ActionManageContactTags is the tenant contact-tag definition surface
 	// (HUI-1690 / FEAT-0191): the tenant-authored tag directory (create /
 	// rename / recolor / delete). The tag directory defines the semantic
@@ -131,7 +135,7 @@ func Authorize(member *Member, grant *AgentGrant, action Action, rec RecordScope
 
 	switch action {
 	case ActionManageMembers, ActionExport, ActionDelete, ActionMerge, ActionManageForms,
-		ActionManageAssignPool, ActionManageContactTags:
+		ActionManageAssignPool, ActionManageContactTags, ActionManageReception:
 		if member.Role != RoleOwner {
 			return deny(ReasonForbidden)
 		}
