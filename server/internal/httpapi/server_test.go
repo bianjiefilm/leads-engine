@@ -142,6 +142,8 @@ type harnessOpts struct {
 	featureContactTags      bool // FEATURE_CONTACT_TAGS=on (HUI-1690 / FEAT-0191 客户画像标签)
 	featureNotifyIngest     bool // FEATURE_NOTIFY_INGEST=on (HUI-1680)
 	featureEnterpriseDir    bool // FEATURE_ENTERPRISE_DIRECTORY=on (HUI-1678)
+	featureReception        bool // FEATURE_RECEPTION=on (HUI-1688)
+	omitVisitorPepper       bool // reception routes fail closed without RECEPTION_VISITOR_PEPPER
 	ingestFetchBase         string
 	ingestSecret            string
 	ingestFetchToken        string
@@ -224,6 +226,19 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 				return ""
 			}
 			return "test-dedup-pepper"
+		case "FEATURE_RECEPTION":
+			if opts.featureReception {
+				return "on"
+			}
+			return ""
+		case "RECEPTION_VISITOR_PEPPER":
+			if opts.omitVisitorPepper {
+				return ""
+			}
+			if opts.featureReception {
+				return "test-visitor-pepper"
+			}
+			return ""
 		case "FEATURE_NOTIFY_INGEST":
 			if opts.featureNotifyIngest {
 				return "on"

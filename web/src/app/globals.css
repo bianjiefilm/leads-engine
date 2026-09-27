@@ -87,3 +87,98 @@ td {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+.chat-shell {
+  max-width: 720px;
+}
+
+.chat-meta {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.badge {
+  display: inline-block;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.badge.warn {
+  border-color: #f5c16c;
+  background: #fff8eb;
+}
+
+.chat-log {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-height: 280px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bubble {
+  max-width: 85%;
+  border-radius: 12px;
+  padding: 0.65rem 0.8rem;
+  line-height: 1.45;
+}
+
+.bubble p {
+  margin: 0;
+}
+
+.bubble.visitor {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+}
+
+.bubble.shop {
+  background: #f4f7fb;
+  border: 1px solid var(--line);
+}
+
+.fine {
+  margin-top: 0.35rem !important;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.composer input {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+}
+
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  color: #b42318;
+}
