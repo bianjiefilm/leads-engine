@@ -1,0 +1,107 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+}
+
+.brand,
+.apps,
+.context,
+.right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brandName,
+.currentApp,
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brandName {
+  max-width: 140px;
+  color: var(--muted);
+}
+
+.currentApp {
+  max-width: 160px;
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.pinned {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.link,
+.button,
+.quiet {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  font: inherit;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.button {
+  cursor: pointer;
+  border-color: var(--line);
+  background: #fff;
+}
+
+.pressed {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.badge,
+.roleLine {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.menu {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  min-width: 160px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.popover {
+  position: relative;
+}
+
+.menuLeft {
+  left: 0;
+  right: auto;
+}

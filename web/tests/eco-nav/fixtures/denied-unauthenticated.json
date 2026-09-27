@@ -1,0 +1,22 @@
+{
+  "schema_version": "eco-nav/v1",
+  "status": {
+    "state": "denied",
+    "reasons": [
+      "unauthenticated"
+    ]
+  },
+  "brand": null,
+  "app": null,
+  "visible_apps": [],
+  "work_context": null,
+  "role": null,
+  "billing": null,
+  "return_context": null,
+  "capabilities": {
+    "can_switch_app": false,
+    "can_switch_tenant": false,
+    "can_manage_members": false,
+    "can_open_billing": false
+  }
+}

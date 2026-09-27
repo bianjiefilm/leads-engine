@@ -13,6 +13,7 @@ import {
   type ConsentSummary,
   type FollowupRow,
 } from "@/lib/contact";
+import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 客户档案详情(HUI-1691 / FEAT-0192):基本信息/联系方式/标签/备注、
 // consent 来源明细(每来源独立可查、独立撤销,撤销后显示「已撤销(不可恢复)」,
@@ -55,6 +56,7 @@ const SOURCE_TEXT: Record<string, string> = {
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
+  const scope = useCrmScope();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [consents, setConsents] = useState<ConsentRow[]>([]);
   const [summary, setSummary] = useState<ConsentSummary | null>(null);
@@ -68,10 +70,10 @@ export default function ContactDetailPage() {
   const load = useCallback(async () => {
     try {
       const [whoRes, cRes, consRes, fuRes] = await Promise.all([
-        fetch("/api/whoami"),
-        fetch(`/api/contacts/${id}`),
-        fetch(`/api/contacts/${id}/consents`),
-        fetch(`/api/contacts/${id}/followups`),
+        fetch("/api/whoami", scopeInit(scope.tenantId)),
+        fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId)),
+        fetch(`/api/contacts/${id}/consents`, scopeInit(scope.tenantId)),
+        fetch(`/api/contacts/${id}/followups`, scopeInit(scope.tenantId)),
       ]);
       if (whoRes.ok) setMe(await whoRes.json());
       const cBody = await cRes.json();
@@ -95,21 +97,25 @@ export default function ContactDetailPage() {
     } catch (e) {
       setMsg((e as Error).message);
     }
-  }, [id]);
+  }, [id, scope.tenantId]);
 
   useEffect(() => {
+    setContact(null);
+    setConsents([]);
+    setFollowups([]);
+    setSummary(null);
     if (id) load();
-  }, [id, load]);
+  }, [id, load, scope.epoch]);
 
   const post = async (path: string, body: unknown) => {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/contacts/${id}${path}`, {
+      const res = await fetch(`/api/contacts/${id}${path}`, scopeInit(scope.tenantId, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
-      });
+      }));
       const b = await res.json();
       if (!res.ok) {
         setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);
@@ -127,11 +133,11 @@ export default function ContactDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/contacts/${id}`, {
+      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(edit),
-      });
+      }));
       const b = await res.json();
       if (!res.ok) {
         setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);
@@ -150,7 +156,7 @@ export default function ContactDetailPage() {
     if (!window.confirm("确认删除该客户档案?删除后所有角色不可再访问,授权与跟进记录将依法保留最小审计。")) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId, { method: "DELETE" }));
       const b = await res.json();
       if (!res.ok) {
         setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);

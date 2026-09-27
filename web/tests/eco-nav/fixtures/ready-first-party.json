@@ -1,0 +1,52 @@
+{
+  "schema_version": "eco-nav/v1",
+  "status": {"state": "ready", "reasons": []},
+  "brand": {
+    "brand_id": "brand-huigoo",
+    "kind": "first_party",
+    "status": "active",
+    "config_version": "3",
+    "display_name": "数海观澜",
+    "logo": {"url": "https://assets.example.com/brand-huigoo/logo.svg", "alt": "数海观澜"},
+    "theme": {"token_set_ref": "default", "accent": null},
+    "support": {"label": "联系客服", "url": "https://help.example.com/"}
+  },
+  "app": {
+    "app_id": "goboost",
+    "display_name": "GoBoost",
+    "icon_ref": "lucide:clapperboard",
+    "home_target_id": "ti-goboost-web"
+  },
+  "visible_apps": [
+    {"app_id": "goboost", "display_name": "GoBoost", "icon_ref": "lucide:clapperboard", "state": "current", "launch_mode": "none", "launch_target_id": null, "unavailable_reason": null},
+    {"app_id": "orders", "display_name": "订单", "icon_ref": "lucide:clipboard-list", "state": "launchable", "launch_mode": "sso_launch", "launch_target_id": "ti-orders-web", "unavailable_reason": null},
+    {"app_id": "product-image", "display_name": "产品图", "icon_ref": "lucide:image", "state": "entitlement_required", "launch_mode": "none", "launch_target_id": null, "unavailable_reason": "entitlement_missing"}
+  ],
+  "work_context": {
+    "state": "resolved",
+    "current_scope": {"tenant_id": "tnt-studio-a", "display_name": "工作室 A", "source": "membership"},
+    "switchable_scopes": [
+      {"tenant_id": "tnt-studio-a", "display_name": "工作室 A", "source": "membership"},
+      {"tenant_id": "tnt-studio-b", "display_name": null, "source": "membership"}
+    ],
+    "restored": true
+  },
+  "role": {"label": "owner", "source": "membership", "delegations": []},
+  "billing": {
+    "kind": "wallet",
+    "known": true,
+    "reason": null,
+    "payer_source": "personal",
+    "viewer_account_role": "owner",
+    "availability": "available",
+    "amount": {"value_minor": 12800, "unit": "cny_fen"},
+    "entry": "billing_center"
+  },
+  "return_context": {
+    "source_app_id": "orders",
+    "return_target_id": "ti-orders-web",
+    "label": "订单 #123 · 返回阶段成果",
+    "source_ref": "ord_123"
+  },
+  "capabilities": {"can_switch_app": true, "can_switch_tenant": true, "can_manage_members": true, "can_open_billing": true}
+}

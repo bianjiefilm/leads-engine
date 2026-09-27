@@ -25,6 +25,7 @@ import {
   type ServiceDraftHandoff,
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
+import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 商机详情(HUI-1693):阶段时间线(审计链)+ 金额来源标识 + 按权限显隐的
 // 阶段操作按钮。按钮显隐只是 UI 镜像;服务端对每次转换重新鉴权(非 assignee
@@ -62,6 +63,7 @@ const emptyAsset: AssetRow = { asset_ref: "", sha256: "", size_bytes: "", media_
 export default function OpportunityDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
+  const scope = useCrmScope();
   const [opp, setOpp] = useState<OpportunityDetail | null>(null);
   const [history, setHistory] = useState<StageEvent[]>([]);
   const [me, setMe] = useState<WhoamiBody | null>(null);
@@ -82,7 +84,7 @@ export default function OpportunityDetailPage() {
 
   const loadDraft = useCallback(async () => {
     try {
-      const res = await fetch(`/api/opportunities/${id}/service-draft`);
+      const res = await fetch(`/api/opportunities/${id}/service-draft`, scopeInit(scope.tenantId));
       if (res.ok) {
         const body = await res.json();
         setDraft(body.handoff ?? null);
@@ -92,19 +94,21 @@ export default function OpportunityDetailPage() {
     } catch {
       setDraft(null);
     }
-  }, [id]);
+  }, [id, scope.tenantId]);
 
   const load = useCallback(async () => {
     try {
       const [whoRes, oppRes, histRes] = await Promise.all([
-        fetch("/api/whoami"),
-        fetch(`/api/opportunities/${id}`),
-        fetch(`/api/opportunities/${id}/stage-history`),
+        fetch("/api/whoami", scopeInit(scope.tenantId)),
+        fetch(`/api/opportunities/${id}`, scopeInit(scope.tenantId)),
+        fetch(`/api/opportunities/${id}/stage-history`, scopeInit(scope.tenantId)),
       ]);
       if (whoRes.ok) setMe(await whoRes.json());
       const oppBody = await oppRes.json();
       if (!oppRes.ok) {
         setMsg(oppBody.message ?? `HTTP ${oppRes.status}`);
+        setOpp(null);
+        setHistory([]);
         return;
       }
       setOpp(oppBody);
@@ -115,11 +119,15 @@ export default function OpportunityDetailPage() {
     } catch (e) {
       setMsg((e as Error).message);
     }
-  }, [id]);
+  }, [id, scope.tenantId]);
 
   useEffect(() => {
+    setOpp(null);
+    setHistory([]);
+    setDraft(null);
+    setPreview(null);
     if (id) load();
-  }, [id, load]);
+  }, [id, load, scope.epoch]);
 
   useEffect(() => {
     if (id && draftAllowed) loadDraft();
@@ -129,11 +137,11 @@ export default function OpportunityDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/stage`, {
+      const res = await fetch(`/api/opportunities/${id}/stage`, scopeInit(scope.tenantId, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ to_stage: to }),
-      });
+      }));
       const body = await res.json();
       if (!res.ok) {
         setMsg(body.message ?? body.error ?? `HTTP ${res.status}`);
@@ -175,11 +183,11 @@ export default function OpportunityDetailPage() {
     setBusy(true);
     setDraftMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/service-draft${path}`, {
+      const res = await fetch(`/api/opportunities/${id}/service-draft${path}`, scopeInit(scope.tenantId, {
         method: init.method,
         headers: { "content-type": "application/json" },
         body: init.body,
-      });
+      }));
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setDraftMsg(body.message ?? body.error ?? `HTTP ${res.status}`);
