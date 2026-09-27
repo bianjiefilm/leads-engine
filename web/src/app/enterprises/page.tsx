@@ -195,15 +195,15 @@ export default function EnterprisesPage() {
       setConfirmText(String(body.message ?? body.error ?? `HTTP ${res.status}`));
       return;
     }
-    if (action === "confirm") {
-      setConfirmText(
-        `已进入本租户候选池。线索 ${String(body.lead_id ?? "")}。营销同意：否。外呼/短信/SOP：无。来源 ${String(body.source_app ?? "")}。`,
-      );
-    } else {
-      setConfirmText(action === "refuse" ? "已拒绝。同一来源再次导入这家企业不能恢复营销。" : "已删除。同一来源再次导入这家企业不能恢复营销。");
-    }
+    const done =
+      action === "confirm"
+        ? `已进入本租户候选池。线索 ${String(body.lead_id ?? "")}${body.duplicate ? "（重复，未新建）" : ""}。营销同意：否。外呼/短信/SOP：无。来源 ${String(body.source_app ?? "")}。`
+        : action === "refuse"
+          ? "已拒绝。同一来源再次导入这家企业不能恢复营销。"
+          : "已删除。同一来源再次导入这家企业不能恢复营销。";
     setPreview(null);
     await load(tenant);
+    setConfirmText(done);
   };
 
   return (
