@@ -44,6 +44,7 @@ func TestPermissionMatrix(t *testing.T) {
 		{"owner export", owner("m_owner"), nil, ActionExport, recA, true, "", false},
 		{"owner merge", owner("m_owner"), nil, ActionMerge, recA, true, "", false},
 		{"owner manage contact tags", owner("m_owner"), nil, ActionManageContactTags, recA, true, "", false},
+		{"owner manage reception", owner("m_owner"), nil, ActionManageReception, recA, true, "", false},
 
 		// sales on own assigned record
 		{"sales create", salesAssigned("m_sales"), nil, ActionCreate, recA, true, "", false},
@@ -52,6 +53,7 @@ func TestPermissionMatrix(t *testing.T) {
 		{"sales list", salesAssigned("m_sales"), nil, ActionReadList, recA, true, "", false},
 		{"sales merge denied", salesAssigned("m_sales"), nil, ActionMerge, recA, false, "forbidden", false},
 		{"sales manage contact tags denied", salesAssigned("m_sales"), nil, ActionManageContactTags, recA, false, ReasonForbidden, false},
+		{"sales manage reception denied", salesAssigned("m_sales"), nil, ActionManageReception, recA, false, ReasonForbidden, false},
 
 		{"agent manage contact tags denied", agentInA("m_agent"), grantA, ActionManageContactTags, recA, false, ReasonForbidden, false},
 

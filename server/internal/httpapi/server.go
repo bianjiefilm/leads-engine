@@ -26,6 +26,7 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/db"
 	"github.com/bianjiefilm/leads-engine/server/internal/handoffsender"
 	"github.com/bianjiefilm/leads-engine/server/internal/identity"
+	"github.com/bianjiefilm/leads-engine/server/internal/reception"
 	"github.com/bianjiefilm/leads-engine/server/internal/redact"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
 )
@@ -49,6 +50,13 @@ type Server struct {
 
 	formLimitOnce sync.Once
 	formLimit     *formRateLimiter
+
+	// ReceptionFacts is the authorized read-only price/inventory/order book.
+	// Nil means every lookup is missing. This server never bills a customer.
+	ReceptionFacts reception.FactBook
+	// ReceptionModelUp, when set and false, marks the generative model down.
+	// Grounded FAQ answers and human replies still work.
+	ReceptionModelUp func() bool
 }
 
 // New builds a Server over an opened database.
@@ -308,6 +316,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/forms/{id}/schema", s.requireSession(s.handleFormSchema))
 	mux.Handle("GET /api/v1/public/forms/{id}", s.requireInternal(s.handlePublicFormGet))
 	mux.Handle("POST /api/v1/public/forms/{id}/submissions", s.requireInternal(s.handlePublicFormSubmit))
+
+	// HUI-1688 统一接待。默认 off 时整组不注册。
+	s.mountReception(mux)
 
 	return s.withRequestLog(mux)
 }
