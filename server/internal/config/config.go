@@ -87,6 +87,10 @@ const (
 	// Default off: the route is not registered. On: a tenant may submit
 	// citations and receive a report. The handler does not write leads or costs.
 	EnvFeatureROI = "FEATURE_ROI"
+	// EnvFeatureSOPReach gates follow-up reminders, reply drafts, and human
+	// confirmation (HUI-1689). Default off. Unattended SMS, email, WeCom, and
+	// SOP stay closed; a balance or an AI score cannot open them.
+	EnvFeatureSOPReach = "FEATURE_SOP_REACH"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -190,6 +194,9 @@ type Config struct {
 	FeatureIntentGrade bool
 	// FeatureROI mounts HUI-1696 recalculation. Default off (route not registered).
 	FeatureROI bool
+	// FeatureSOPReach mounts HUI-1689 reminders, drafts, and human confirmation.
+	// Default off. This build has no live SMS, email, or WeCom connector.
+	FeatureSOPReach bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
@@ -283,6 +290,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureReception:           isTruthy(get(EnvFeatureReception)),
 		FeatureIntentGrade:         isTruthy(get(EnvFeatureIntentGrade)),
 		FeatureROI:                 isTruthy(get(EnvFeatureROI)),
+		FeatureSOPReach:            isTruthy(get(EnvFeatureSOPReach)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
@@ -351,6 +359,7 @@ func (c Config) Describe() string {
 		{"reception", c.FeatureReception},
 		{"intent_grade", c.FeatureIntentGrade},
 		{"roi", c.FeatureROI},
+		{"sop_reach", c.FeatureSOPReach},
 	} {
 		v := "off"
 		if f.on {

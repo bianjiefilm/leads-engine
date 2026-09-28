@@ -86,6 +86,8 @@ export default function Home() {
       <h1>我的工作</h1>
       <p>
         <Link href="/channel-interactions">授权互动</Link>
+        {" · "}
+        <Link href="/sop">跟进提醒</Link>
       </p>
       <div className="card">
         <label>

@@ -337,6 +337,8 @@ func (s *Server) Handler() http.Handler {
 
 	// HUI-1688 统一接待。默认 off 时整组不注册。
 	s.mountReception(mux)
+	// HUI-1689 跟进提醒、回复草稿、人工确认。默认 off。不发送、不扣费。
+	s.mountSOP(mux)
 	// HUI-1684 意向分级。默认 off 时整组不注册。
 	s.mountIntentGrade(mux)
 
