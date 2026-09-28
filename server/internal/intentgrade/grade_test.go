@@ -169,6 +169,13 @@ func TestWrongTenantAndPromptInjectionAreRefused(t *testing.T) {
 	if injected.Refusal != RefusalPromptInjection || injected.Grade != "" || injected.Suggestion.AutoCall || len(injected.Citations) != 0 {
 		t.Fatalf("injection = %+v", injected)
 	}
+	untagged := Score(Input{
+		TenantID: "tnt_a", SubjectKind: "lead", SubjectID: "lead_1", Now: now,
+		Evidence: []Evidence{{ID: "ev-x", Kind: "message", Text: "我们这周要采购 50 套，请发合同。", At: now}},
+	})
+	if untagged.Refusal != RefusalWrongTenant || untagged.Grade != "" || len(untagged.Citations) != 0 {
+		t.Fatalf("untagged evidence was scored: %+v", untagged)
+	}
 }
 
 func TestHumanConfirmationSurvivesRescoreAndStalesThePriorSnapshot(t *testing.T) {
@@ -259,6 +266,38 @@ func TestNewMessageRetractionAndExpiryMarkTheOldSnapshotStale(t *testing.T) {
 	})
 	if !expired.PriorStale || expired.PriorStaleReason != StaleExpired {
 		t.Fatalf("expiry = %v %s", expired.PriorStale, expired.PriorStaleReason)
+	}
+	partial := Score(Input{
+		TenantID: "tnt_a", SubjectKind: "lead", SubjectID: "lead_1", Now: now.Add(3 * time.Minute),
+		Evidence: []Evidence{
+			{ID: "ev-1", TenantID: "tnt_a", Kind: "message", Text: "想了解一下价格。", At: now, Retracted: true},
+			evidence("ev-2", "tnt_a", "先发份资料就好。", now.Add(3*time.Minute)),
+		},
+		Prior: &SnapshotRef{ID: "snap_1", Fingerprint: first.Fingerprint, FreshUntil: first.FreshUntil},
+	})
+	if partial.Grade == "" || !partial.PriorStale || partial.PriorStaleReason != StaleRetraction {
+		t.Fatalf("partial retraction = grade %s stale %v %s", partial.Grade, partial.PriorStale, partial.PriorStaleReason)
+	}
+}
+
+func TestSecondHumanCorrectionStalesTheLockedSnapshot(t *testing.T) {
+	now := fixedNow()
+	first := scoreText("tnt_a", "lead_1", "我们这周要采购 50 套，请发合同和报价。", now)
+	second := Score(Input{
+		TenantID: "tnt_a", SubjectKind: "lead", SubjectID: "lead_1", Now: now.Add(time.Hour),
+		Evidence: []Evidence{evidence("ev-1", "tnt_a", "我们这周要采购 50 套，请发合同和报价。", now)},
+		Human: &HumanConfirmation{
+			Grade: GradeMedium, Misjudgment: true, Disposition: DispositionRejected,
+			Reason: "销售改成中等，对方只是询价", Facts: []ConfirmedFact{{Field: "intent", Value: "asking"}},
+		},
+		Prior:      &SnapshotRef{ID: "snap_locked", Fingerprint: first.Fingerprint, FreshUntil: first.FreshUntil, HumanLocked: true},
+		Correction: true,
+	})
+	if second.Grade != GradeMedium || !second.HumanLocked || !second.PriorStale || second.PriorStaleReason != StaleHumanCorrection {
+		t.Fatalf("second correction = %+v", second)
+	}
+	if second.PreservedFacts[0].Value != "asking" {
+		t.Fatalf("facts = %+v", second.PreservedFacts)
 	}
 }
 

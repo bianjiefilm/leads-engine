@@ -104,7 +104,7 @@ func (s *Server) handleIntentGradeScore(w http.ResponseWriter, r *http.Request) 
 	if !s.intentSubjectAllowed(w, r, c, in.SubjectKind, in.SubjectID, authz.ActionReadRecord) {
 		return
 	}
-	evidence, ok := intentEvidence(w, c.Member.TenantID, in.Evidence)
+	evidence, ok := intentEvidence(w, in.Evidence)
 	if !ok {
 		return
 	}
@@ -162,8 +162,17 @@ func (s *Server) handleIntentGradeCorrect(w http.ResponseWriter, r *http.Request
 		fail(w, http.StatusInternalServerError, "internal", "stored evidence is unreadable")
 		return
 	}
-	evidence, ok := intentEvidence(w, c.Member.TenantID, stored)
+	evidence, ok := intentEvidence(w, stored)
 	if !ok {
+		return
+	}
+	latest, latestErr := s.St.LatestIntentSnapshot(c.Member.TenantID, current.SubjectKind, current.SubjectID)
+	if latestErr != nil && !errors.Is(latestErr, sql.ErrNoRows) {
+		fail(w, http.StatusInternalServerError, "internal", "intent grade lookup failed")
+		return
+	}
+	if latestErr == nil && latest.ID != current.ID {
+		fail(w, http.StatusConflict, "not_latest", "只能修正当前这条分级")
 		return
 	}
 	input := intentgrade.Input{
@@ -172,7 +181,7 @@ func (s *Server) handleIntentGradeCorrect(w http.ResponseWriter, r *http.Request
 		Human: &intentgrade.HumanConfirmation{
 			Grade: in.Grade, Misjudgment: in.Misjudgment, Disposition: in.Disposition, Reason: in.Reason, Facts: facts,
 		},
-		Prior: intentPrior(current),
+		Prior: intentPrior(current), Correction: true,
 	}
 	s.finishIntentScore(w, c, input, evidence)
 }
@@ -231,8 +240,8 @@ func (s *Server) finishIntentScore(w http.ResponseWriter, c *caller, input inten
 		fail(w, http.StatusInternalServerError, "internal", "intent grade save failed")
 		return
 	}
-	if res.PriorStale && input.Prior != nil {
-		if err := s.St.MarkIntentSnapshotStale(input.TenantID, input.Prior.ID, res.PriorStaleReason); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if res.PriorStale {
+		if err := s.St.SupersedeIntentSnapshots(input.TenantID, input.SubjectKind, input.SubjectID, saved.ID, res.PriorStaleReason); err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "intent grade stale mark failed")
 			return
 		}
@@ -291,7 +300,7 @@ func (s *Server) intentSubjectAllowed(w http.ResponseWriter, r *http.Request, c 
 	return s.requireAction(c, action, authz.RecordScope{TenantID: tenant, AssigneeMemberID: assignee}, w)
 }
 
-func intentEvidence(w http.ResponseWriter, tenantID string, in []intentEvidenceIn) ([]intentgrade.Evidence, bool) {
+func intentEvidence(w http.ResponseWriter, in []intentEvidenceIn) ([]intentgrade.Evidence, bool) {
 	out := make([]intentgrade.Evidence, 0, len(in))
 	for _, item := range in {
 		if strings.TrimSpace(item.ID) == "" {
@@ -307,10 +316,7 @@ func intentEvidence(w http.ResponseWriter, tenantID string, in []intentEvidenceI
 			}
 			at = parsed
 		}
-		tenant := item.TenantID
-		if tenant == "" {
-			tenant = tenantID
-		}
+		tenant := strings.TrimSpace(item.TenantID)
 		kind := item.Kind
 		if kind == "" {
 			kind = "message"

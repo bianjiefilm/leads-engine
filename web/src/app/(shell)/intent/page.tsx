@@ -165,7 +165,7 @@ export default function IntentGradePage() {
       body: JSON.stringify({
         subject_kind: subjectKind,
         subject_id: subjectId.trim(),
-        evidence: text.trim() ? [{ id: "ev-page", text: text.trim() }] : [],
+        evidence: text.trim() ? [{ id: "ev-page", tenant_id: tenant.trim(), text: text.trim() }] : [],
       }),
     });
     const body = (await res.json()) as ScoreResponse;

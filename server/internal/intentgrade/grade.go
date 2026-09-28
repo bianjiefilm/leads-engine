@@ -82,6 +82,8 @@ type Input struct {
 	Evidence    []Evidence
 	Human       *HumanConfirmation
 	Prior       *SnapshotRef
+	// Correction is a new sales correction. Reapplying a stored lock leaves it false.
+	Correction bool
 }
 
 // Citation quotes the evidence row that supported the grade.
@@ -223,7 +225,7 @@ func Score(in Input) Result {
 	res.Citations = cite(usable)
 	res.Suggestion = suggestion(kind, suggestionLabel(kind))
 	res.Fingerprint = fingerprint(in, lockedHuman(in.Human, locked))
-	applyPrior(&res, in, usable)
+	applyPrior(&res, in)
 	return res
 }
 
@@ -279,7 +281,7 @@ func chargeKey(tenant, kind, id string) string {
 
 func foreignTenant(in Input) bool {
 	for _, ev := range in.Evidence {
-		if ev.TenantID != "" && ev.TenantID != in.TenantID {
+		if ev.TenantID == "" || ev.TenantID != in.TenantID {
 			return true
 		}
 	}
@@ -456,15 +458,15 @@ func suggestionLabel(kind string) string {
 	}
 }
 
-func applyPrior(res *Result, in Input, usable []Evidence) {
+func applyPrior(res *Result, in Input) {
 	if in.Prior == nil {
 		return
 	}
 	switch {
-	case res.HumanLocked && !in.Prior.HumanLocked:
+	case res.HumanLocked && (in.Correction || !in.Prior.HumanLocked):
 		res.PriorStale = true
 		res.PriorStaleReason = StaleHumanCorrection
-	case res.Fingerprint != in.Prior.Fingerprint && hasRetracted(in.Evidence) && len(usable) == 0:
+	case res.Fingerprint != in.Prior.Fingerprint && hasRetracted(in.Evidence):
 		res.PriorStale = true
 		res.PriorStaleReason = StaleRetraction
 	case res.Fingerprint != in.Prior.Fingerprint:

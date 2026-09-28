@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 )
@@ -120,20 +119,12 @@ func (s *Store) LatestIntentSnapshot(tenantID, kind, subjectID string) (IntentSn
 	return scanIntentSnapshot(row)
 }
 
-// MarkIntentSnapshotStale records why the previous grade can no longer be used.
-func (s *Store) MarkIntentSnapshotStale(tenantID, id, reason string) error {
-	res, err := s.DB.Exec(`UPDATE intent_grade_snapshots SET stale=1, stale_reason=? WHERE id=? AND tenant_id=? AND stale=0`, reason, id, tenantID)
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
+// SupersedeIntentSnapshots marks every older fresh snapshot for the subject stale.
+// The snapshot just written stays current, so two live conclusions cannot coexist.
+func (s *Store) SupersedeIntentSnapshots(tenantID, kind, subjectID, keepID, reason string) error {
+	_, err := s.DB.Exec(`UPDATE intent_grade_snapshots SET stale=1, stale_reason=? WHERE tenant_id=? AND subject_kind=? AND subject_id=? AND id<>? AND stale=0`,
+		reason, tenantID, kind, subjectID, keepID)
+	return err
 }
 
 // EnsureIntentUsage inserts the single metering row for a subject.
