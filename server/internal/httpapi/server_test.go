@@ -30,6 +30,7 @@ const (
 	sessionDisabled = "sess-disabled-a"
 	sessionOwnerB   = "sess-owner-b"
 	sessionStranger = "sess-stranger"
+	sessionChannel  = "sess-channel"
 )
 
 const (
@@ -40,6 +41,7 @@ const (
 	principalDisabled = "usr_disabled_a"
 	principalOwnerB   = "usr_owner_b"
 	principalStranger = "usr_stranger"
+	principalChannel  = "usr_channel_admin"
 )
 
 func fakeIdentity(t *testing.T) *httptest.Server {
@@ -52,6 +54,7 @@ func fakeIdentity(t *testing.T) *httptest.Server {
 		sessionDisabled: principalDisabled,
 		sessionOwnerB:   principalOwnerB,
 		sessionStranger: principalStranger,
+		sessionChannel:  principalChannel,
 	}
 	accounts := map[string]bool{
 		"owner-a@example.com": true, "sales-a1@example.com": true, "sales-a2@example.com": true,

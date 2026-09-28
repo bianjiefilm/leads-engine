@@ -109,6 +109,7 @@ type caller struct {
 	Principal identity.Principal
 	Member    *store.Member
 	Grant     *store.AgentGrant // non-nil only for agents with a per-tenant grant
+	Operator  *store.ChannelOperator
 }
 
 type ctxKey int
@@ -329,6 +330,19 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /api/v1/admin/export", s.requireSession(s.handleExport))
 
+	// HUI-2054 CRM tenant isolation. Brand is source/display. Export download
+	// is a second authenticated request. Touch ingest stays on HUI-1680.
+	mux.Handle("POST /api/v1/brands", s.requireSession(s.handleBrandCreate))
+	mux.Handle("PATCH /api/v1/brands/{id}", s.requireSession(s.handleBrandRename))
+	mux.Handle("POST /api/v1/brands/{id}/lifecycle", s.requireSession(s.handleBrandLifecycle))
+	mux.Handle("POST /api/v1/admin/tenant-lifecycle", s.requireSession(s.handleTenantLifecycle))
+	mux.Handle("GET /api/v1/admin/tenant-lifecycle", s.requireSession(s.handleTenantLifecycleGet))
+	mux.Handle("POST /api/v1/admin/crm-delegations", s.requireSession(s.handleDelegationCreate))
+	mux.Handle("POST /api/v1/admin/crm-delegations/{id}/revoke", s.requireSession(s.handleDelegationRevoke))
+	mux.Handle("POST /api/v1/crm/exports", s.requireSession(s.handleCRMExportCreate))
+	mux.Handle("GET /api/v1/crm/exports/{id}/download", s.requireSession(s.handleCRMExportDownload))
+	mux.Handle("GET /api/v1/channel/tenant-status", s.requireSession(s.handleChannelTenantStatus))
+
 	// HUI-1679 / FEAT-0180 版本化留资表单:管理面(owner)与公共提交面(无会话)。
 	// 公共端点只挂 requireInternal:接收租户恒为表单归属,与会话/租户头无关。
 	mux.Handle("POST /api/v1/forms", s.requireSession(s.handleFormCreate))
@@ -432,6 +446,9 @@ func (s *Server) requireSession(next http.HandlerFunc) http.Handler {
 
 		member, err := s.St.GetMemberByPrincipal(tenantID, principal.ID)
 		if errors.Is(err, sql.ErrNoRows) {
+			if s.serveChannelOperator(w, r, next, principal, tenantID) {
+				return
+			}
 			// 身份纪律:principal 无成员行 -> 拒绝,绝不自动入租户/开户
 			fail(w, http.StatusForbidden, authz.ReasonNotMember, "principal is not a member of this tenant")
 			return

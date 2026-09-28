@@ -68,6 +68,8 @@ export async function proxyToServer(
   // against membership (an unknown/foreign tenant can only ever yield 403)
   const tenant = req.headers.get("x-tenant-id");
   if (tenant) headers.set("x-tenant-id", tenant);
+  const confirm = req.headers.get("x-export-confirm");
+  if (confirm) headers.set("x-export-confirm", confirm);
   headers.set("x-internal-token", env.internalToken);
   headers.set("x-forwarded-for-origin", incoming.origin);
 
