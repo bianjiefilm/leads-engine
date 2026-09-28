@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { NARROW_ACTIONS, sourceText, statusLine, type StatusFacts } from "@/lib/workbench";
+import { LightCopyPanel } from "@/components/LightCopyPanel";
 
 interface TimelineEvent {
   at: string;
@@ -142,6 +143,7 @@ export default function LeadDeskPage() {
               ))}
             </ol>
           </div>
+          {id ? <LightCopyPanel subjectKind="campaign" subjectId={id} /> : null}
           <form
             className="card stack-form"
             onSubmit={(e) => {

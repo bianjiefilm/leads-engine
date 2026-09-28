@@ -339,6 +339,8 @@ func (s *Server) Handler() http.Handler {
 	s.mountReception(mux)
 	// HUI-1689 跟进提醒、回复草稿、人工确认。默认 off。不发送、不扣费。
 	s.mountSOP(mux)
+	// HUI-1682 场景内轻文案。默认 off。无模型时生成失败，不发送，不建制作工程。
+	s.mountLightCopy(mux)
 	// HUI-1684 意向分级。默认 off 时整组不注册。
 	s.mountIntentGrade(mux)
 
