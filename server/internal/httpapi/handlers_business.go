@@ -11,15 +11,16 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
 	"github.com/bianjiefilm/leads-engine/server/internal/redact"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
+	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
 )
 
 // ---- shared validation -------------------------------------------------------
 
 var (
-	validCategories = map[string]bool{"merchant_customer": true, "creative_service": true}
+	validCategories  = map[string]bool{"merchant_customer": true, "creative_service": true}
 	validSourceTypes = map[string]bool{"manual": true, "form": true, "touch_campaign": true}
-	validConsent    = map[string]bool{"pending": true, "granted": true, "denied": true}
-	validLeadStatus = map[string]bool{"new": true, "in_progress": true, "converted": true, "closed": true}
+	validConsent     = map[string]bool{"pending": true, "granted": true, "denied": true}
+	validLeadStatus  = map[string]bool{"new": true, "in_progress": true, "converted": true, "closed": true}
 	// HUI-1693 最小阶段集:open/qualified/proposal/negotiation/won/closed_lost。
 	// won 仅表示人工标记成交,绝不表示已支付/已收款。
 	validOppStage = map[string]bool{
@@ -160,8 +161,13 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		Tags             string       `json:"tags"`
 		AssignedMemberID string       `json:"assigned_member_id"`
 		Source           *sourceInput `json:"source"`
+		PrincipalRef     string       `json:"principal_ref"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if strings.TrimSpace(in.PrincipalRef) != "" || subscription.PlatformSideEffect(subscription.ContactIdentity{Phone: in.Phone, Email: in.Email}).Principals != 0 {
+		fail(w, http.StatusBadRequest, "contact_not_principal", "a CRM contact is not a platform account")
 		return
 	}
 	if in.Name == "" {
@@ -382,8 +388,13 @@ func (s *Server) handleLeadCreate(w http.ResponseWriter, r *http.Request) {
 		Status           string       `json:"status"`
 		AssignedMemberID string       `json:"assigned_member_id"`
 		Source           *sourceInput `json:"source"`
+		PrincipalRef     string       `json:"principal_ref"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if strings.TrimSpace(in.PrincipalRef) != "" {
+		fail(w, http.StatusBadRequest, "lead_not_principal", "a CRM lead is not a platform account")
 		return
 	}
 	if in.ContactID == "" {
@@ -666,12 +677,12 @@ func (s *Server) handleOppPatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Title            *string        `json:"title"`
-		Stage            *string        `json:"stage"`
-		AmountCents      jsonOptInt     `json:"amount_cents"`
-		Probability      *int           `json:"probability"`
-		ExpectedCloseAt  jsonOptString  `json:"expected_close_at"`
-		AssignedMemberID *string        `json:"assigned_member_id"`
+		Title            *string       `json:"title"`
+		Stage            *string       `json:"stage"`
+		AmountCents      jsonOptInt    `json:"amount_cents"`
+		Probability      *int          `json:"probability"`
+		ExpectedCloseAt  jsonOptString `json:"expected_close_at"`
+		AssignedMemberID *string       `json:"assigned_member_id"`
 	}
 	if !decodeBody(w, r, &in) {
 		return

@@ -182,6 +182,12 @@ func (s *Server) Handler() http.Handler {
 
 	// authenticated business surface
 	mux.Handle("GET /api/v1/whoami", s.requireSession(s.handleWhoami))
+	mux.Handle("GET /api/v1/subscription", s.requireSession(s.handleSubscriptionGet))
+	mux.Handle("PUT /api/v1/subscription/cache", s.requireSession(s.handleSubscriptionCache))
+	mux.Handle("POST /api/v1/subscription/usage", s.requireSession(s.handleSubscriptionUsage))
+	mux.Handle("POST /api/v1/ai-usage/quotes", s.requireSession(s.handleAIQuote))
+	mux.Handle("POST /api/v1/ai-usage/quotes/{id}/requote", s.requireSession(s.handleAIRequote))
+	mux.Handle("POST /api/v1/ai-usage/quotes/{id}/commit", s.requireSession(s.handleAICommit))
 
 	mux.Handle("POST /api/v1/contacts", s.requireSession(s.handleContactCreate))
 	mux.Handle("GET /api/v1/contacts", s.requireSession(s.handleContactList))
@@ -406,7 +412,7 @@ func (s *Server) requireSession(next http.HandlerFunc) http.Handler {
 		principal, err := s.ID.ResolveSession(r.Context(), sessionToken)
 		if err != nil {
 			switch {
-			case errors.Is(err, identity.ErrUnauthenticated):
+			case errors.Is(err, identity.ErrUnauthenticated), errors.Is(err, identity.ErrWrongApp):
 				fail(w, http.StatusUnauthorized, "unauthenticated", "session rejected by identity")
 			default:
 				// transport/config failure: explicit 503, never fake a session

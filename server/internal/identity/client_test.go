@@ -90,6 +90,19 @@ func TestResolveSessionFailClosed(t *testing.T) {
 	})
 }
 
+func TestResolveSessionRejectsOtherApp(t *testing.T) {
+	client, _ := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"authenticated": true,
+			"app_id":        "other-app",
+			"session":       map[string]any{"principal_id": "usr_123", "email": "alice@example.com"},
+		})
+	}))
+	if _, err := client.ResolveSession(context.Background(), "sess-token"); !errors.Is(err, ErrWrongApp) {
+		t.Fatalf("other app session = %v, want ErrWrongApp", err)
+	}
+}
+
 func TestRefreshCarriesAppID(t *testing.T) {
 	var body map[string]string
 	client, _ := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

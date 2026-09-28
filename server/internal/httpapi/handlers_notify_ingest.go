@@ -20,6 +20,7 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/config"
 	"github.com/bianjiefilm/leads-engine/server/internal/notifyingest"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
+	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
 )
 
 const notifyIngestMaxBody = 64 << 10
@@ -39,6 +40,10 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 	src, ok := matchIngestSignature(s.Cfg.IngestSources, r.Header.Get("X-Notify-Signature"), body)
 	if !ok {
 		fail(w, http.StatusUnauthorized, "bad_signature", "signature does not match a registered source")
+		return
+	}
+	if !subscription.VisitorLeadAllowed(true, "") {
+		fail(w, http.StatusForbidden, "visitor_account_required", "an authorized visitor does not need a platform account")
 		return
 	}
 	delivery, err := notifyingest.ParseDelivery(body)

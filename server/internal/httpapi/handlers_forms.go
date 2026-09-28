@@ -27,6 +27,9 @@ func (s *Server) handleFormCreate(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionManageForms, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
+	if s.blockIfAdvancedExpired(w, c.Member.TenantID, "extra_form") {
+		return
+	}
 	var req struct {
 		FormKey         string  `json:"form_key"`
 		StoreID         string  `json:"store_id"`
