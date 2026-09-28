@@ -214,6 +214,15 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /api/v1/leads/{id}/follow-ups", s.requireSession(s.handleLeadFollowUpPageList))
 	}
 
+	// HUI-1681 授权评论/私信。无真实渠道凭证，验证状态保持未验证。
+	mux.Handle("GET /api/v1/channel-interactions/capability", s.requireSession(s.handleChannelCapability))
+	mux.Handle("GET /api/v1/channel-interactions", s.requireSession(s.handleChannelList))
+	mux.Handle("POST /api/v1/channel-interactions", s.requireSession(s.handleChannelIngest))
+	mux.Handle("POST /api/v1/channel-grants", s.requireSession(s.handleChannelGrantSave))
+	mux.Handle("POST /api/v1/channel-grants/revoke", s.requireSession(s.handleChannelGrantRevoke))
+	mux.Handle("POST /api/v1/channel-floor", s.requireSession(s.handleChannelFloor))
+	mux.Handle("POST /api/v1/channel-candidates/{id}/confirm", s.requireSession(s.handleChannelConfirm))
+
 	mux.Handle("POST /api/v1/leads", s.requireSession(s.handleLeadCreate))
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
 	mux.Handle("GET /api/v1/leads/{id}", s.requireSession(s.handleLeadGet))
