@@ -25,6 +25,9 @@ func TestDefaults(t *testing.T) {
 	if cfg.FeatureChannelAnalytics {
 		t.Errorf("FEATURE_CHANNEL_ANALYTICS must default to off (routes not registered)")
 	}
+	if cfg.FeatureROI {
+		t.Errorf("FEATURE_ROI must default to off (routes not registered)")
+	}
 }
 
 // HUI-1694 / FEAT-0195: the full-funnel analysis surface is gated by

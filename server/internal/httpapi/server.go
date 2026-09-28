@@ -260,6 +260,11 @@ func (s *Server) Handler() http.Handler {
 	if s.Cfg.FeatureChannelAnalytics {
 		mux.Handle("GET /api/v1/funnel/channels", s.requireSession(s.handleFunnelChannels))
 	}
+	// HUI-1696 受限来源链复算。默认 off。只读引用，不写线索、费用或收入事实，
+	// 也不建第二套可改写这些事实的库。可关联不是因果提升。
+	if s.Cfg.FeatureROI {
+		mux.Handle("POST /api/v1/roi/recalculate", s.requireSession(s.handleROIRecalculate))
+	}
 	// HUI-1690 / FEAT-0191 客户画像标签体系:FEATURE_CONTACT_TAGS 闸控,默认
 	// off -> 路由族整体不注册(404 不可见);on ->
 	//   人工标签定义 CRUD(owner 专属 manage_contact_tags)+ 联系人打标/去标

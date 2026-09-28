@@ -144,6 +144,7 @@ type harnessOpts struct {
 	featureEnterpriseDir    bool // FEATURE_ENTERPRISE_DIRECTORY=on (HUI-1678)
 	featureReception        bool // FEATURE_RECEPTION=on (HUI-1688)
 	featureIntentGrade      bool // FEATURE_INTENT_GRADE=on (HUI-1684)
+	featureROI              bool // FEATURE_ROI=on (HUI-1696)
 	omitVisitorPepper       bool // reception routes fail closed without RECEPTION_VISITOR_PEPPER
 	ingestFetchBase         string
 	ingestSecret            string
@@ -235,6 +236,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 		case "FEATURE_INTENT_GRADE":
 			if opts.featureIntentGrade {
 				return "on"
+			}
+			return ""
+		case "FEATURE_ROI":
+			if opts.featureROI {
+				return "true"
 			}
 			return ""
 		case "RECEPTION_VISITOR_PEPPER":

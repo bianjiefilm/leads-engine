@@ -83,6 +83,10 @@ const (
 	// tenant's own lead or session and only suggest a next step. There is
 	// no calibrated model and no outbound call, SMS, group, or order.
 	EnvFeatureIntentGrade = "FEATURE_INTENT_GRADE"
+	// EnvFeatureROI gates restricted source-chain recalculation (HUI-1696).
+	// Default off: the route is not registered. On: a tenant may submit
+	// citations and receive a report. The handler does not write leads or costs.
+	EnvFeatureROI = "FEATURE_ROI"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -184,6 +188,8 @@ type Config struct {
 	FeatureReception bool
 	// FeatureIntentGrade mounts HUI-1684. Default off (routes not registered).
 	FeatureIntentGrade bool
+	// FeatureROI mounts HUI-1696 recalculation. Default off (route not registered).
+	FeatureROI bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
@@ -276,6 +282,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureEnterpriseDirectory: isTruthy(get(EnvFeatureEnterpriseDirectory)),
 		FeatureReception:           isTruthy(get(EnvFeatureReception)),
 		FeatureIntentGrade:         isTruthy(get(EnvFeatureIntentGrade)),
+		FeatureROI:                 isTruthy(get(EnvFeatureROI)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
@@ -343,6 +350,7 @@ func (c Config) Describe() string {
 		{"enterprise_directory", c.FeatureEnterpriseDirectory},
 		{"reception", c.FeatureReception},
 		{"intent_grade", c.FeatureIntentGrade},
+		{"roi", c.FeatureROI},
 	} {
 		v := "off"
 		if f.on {
