@@ -88,6 +88,8 @@ export default function Home() {
         <Link href="/channel-interactions">授权互动</Link>
         {" · "}
         <Link href="/sop">跟进提醒</Link>
+        {" · "}
+        <Link href="/outbound">外呼安全门</Link>
       </p>
       <div className="card">
         <label>

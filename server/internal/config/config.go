@@ -95,6 +95,10 @@ const (
 	// drafts (HUI-1682). Default off. There is no text model in this process,
 	// so generation fails closed. Saving and editing a draft does not.
 	EnvFeatureLightCopy = "FEATURE_LIGHT_COPY"
+	// EnvFeatureOutbound gates the HUI-1687 call safety checks. Default off.
+	// On still does not place a call: this process has no phone line, and
+	// production auto-dial stays closed.
+	EnvFeatureOutbound = "FEATURE_OUTBOUND_CALL"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -204,6 +208,9 @@ type Config struct {
 	// FeatureLightCopy mounts HUI-1682 in-scene drafts and optional handoff.
 	// Default off. This build has no text model and no professional-tool engine.
 	FeatureLightCopy bool
+	// FeatureOutbound mounts HUI-1687 call gates. Default off. There is no
+	// live line, so isolation runs stay simulated and nothing is charged.
+	FeatureOutbound bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
@@ -299,6 +306,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureROI:                 isTruthy(get(EnvFeatureROI)),
 		FeatureSOPReach:            isTruthy(get(EnvFeatureSOPReach)),
 		FeatureLightCopy:           isTruthy(get(EnvFeatureLightCopy)),
+		FeatureOutbound:            isTruthy(get(EnvFeatureOutbound)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
@@ -369,6 +377,7 @@ func (c Config) Describe() string {
 		{"roi", c.FeatureROI},
 		{"sop_reach", c.FeatureSOPReach},
 		{"light_copy", c.FeatureLightCopy},
+		{"outbound_call", c.FeatureOutbound},
 	} {
 		v := "off"
 		if f.on {
