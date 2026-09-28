@@ -218,6 +218,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/leads", s.requireSession(s.handleLeadList))
 	mux.Handle("GET /api/v1/leads/{id}", s.requireSession(s.handleLeadGet))
 	mux.Handle("PATCH /api/v1/leads/{id}", s.requireSession(s.handleLeadPatch))
+	// HUI-1893 销售工作台。只读分类和人工跟进，不因分数外呼、发消息或建单。
+	mux.Handle("GET /api/v1/workbench", s.requireSession(s.handleWorkbench))
+	mux.Handle("GET /api/v1/leads/{id}/timeline", s.requireSession(s.handleLeadTimeline))
+	mux.Handle("POST /api/v1/leads/{id}/follow-through", s.requireSession(s.handleLeadFollowThrough))
 	// HUI-1685 / FEAT-0186 线索自动分配配置面:FEATURE_LEADS_ASSIGN 闸控,默认
 	// off -> 路由不注册(404 不可见)且 intake 行为与既往逐字节一致;on ->
 	// owner 专属池配置 CRUD(服务端单点判定) + intake 首投确定性加权轮询。

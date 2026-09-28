@@ -1,75 +1,168 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import {
+  BUCKETS,
+  BUCKET_LABELS,
+  acceptDesk,
+  centsText,
+  moneyView,
+  sourceText,
+  type BucketKey,
+  type DeskItem,
+  type MoneyFacts,
+} from "@/lib/workbench";
 
-// L0 页面骨架:只打本站 /api/*(BFF),绝不直连 Go 服务或平台服务。
-// 客户档案、商机与线索列表打本站 BFF。销售工作台(HUI-1893)不在本页。
-
-interface Whoami {
-  principal_ref?: string;
-  email?: string;
-  tenant_id?: string;
-  role?: string;
-  enabled?: boolean;
-  agent_grant?: boolean;
+interface DeskResponse {
+  scope?: string;
+  buckets?: Partial<Record<BucketKey, DeskItem[]>>;
+  money?: MoneyFacts;
+  billing?: { ordinary_crm_charge_cents?: number };
+  automation?: { auto_call?: boolean; auto_message?: boolean; create_order?: boolean };
+  message?: string;
   error?: string;
 }
 
+const EMPTY_MONEY: MoneyFacts = {
+  customer_deal_cents: null,
+  painuo_service_order_cents: null,
+  platform_tool_spend_cents: null,
+};
+
 export default function Home() {
-  const [me, setMe] = useState<Whoami | null>(null);
-  const [err, setErr] = useState<string>("");
+  const scope = useCrmScope();
+  const [tenant, setTenant] = useState("");
+  const [reload, setReload] = useState(0);
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [buckets, setBuckets] = useState<Record<BucketKey, DeskItem[]> | null>(null);
+  const [money, setMoney] = useState<MoneyFacts>(EMPTY_MONEY);
+  const [scopeLabel, setScopeLabel] = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
-    fetch("/api/whoami")
+    setTenant(scope.tenantId ?? "");
+    setLoadedFor(null);
+    setBuckets(null);
+    setMoney(EMPTY_MONEY);
+    if (!scope.tenantId) {
+      setErr("先填写当前租户");
+      setBuckets(acceptDesk(null, null));
+      setLoadedFor("");
+      return;
+    }
+    const tenantId = scope.tenantId;
+    let cancelled = false;
+    fetch("/api/workbench", { headers: { "x-tenant-id": tenantId } })
       .then(async (res) => {
-        const body = await res.json();
+        const body = (await res.json()) as DeskResponse;
+        if (cancelled) return;
         if (!res.ok) {
           setErr(body.message ?? body.error ?? `HTTP ${res.status}`);
-        } else {
-          setMe(body);
+          setBuckets(acceptDesk(tenantId, null));
+          setLoadedFor(tenantId);
+          return;
         }
+        setErr("");
+        setScopeLabel(body.scope === "tenant" ? "全租户" : "我的范围");
+        setBuckets(acceptDesk(tenantId, body.buckets ?? null));
+        setMoney(body.money ?? EMPTY_MONEY);
+        setLoadedFor(tenantId);
       })
-      .catch((e: Error) => setErr(e.message));
-  }, []);
+      .catch((e: Error) => {
+        if (!cancelled) setErr(e.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [scope.epoch, scope.tenantId, reload]);
+
+  const visible = loadedFor === (scope.tenantId ?? "") ? buckets : null;
+  const lines = moneyView(visible ? money : EMPTY_MONEY);
 
   return (
     <main>
-      <h1>数海获客 · 独立商家 CRM</h1>
+      <h1>我的工作</h1>
       <div className="card">
-        <h2>会话状态</h2>
-        {err ? (
-          <p className="muted">未登录或会话不可用:{err}</p>
-        ) : me ? (
-          <ul>
-            <li>
-              成员:<code>{me.principal_ref}</code>({me.email})
-            </li>
-            <li>
-              租户:<code>{me.tenant_id}</code> · 角色:<code>{me.role}</code>
-            </li>
-            <li>
-              agent 逐租户授权:{me.agent_grant ? "有" : "无"}
-            </li>
-          </ul>
-        ) : (
-          <p className="muted">加载中…</p>
-        )}
-      </div>
-      <div className="card">
-        <h2>L0 底座范围</h2>
+        <label>
+          当前租户{" "}
+          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
+        </label>{" "}
+        <button
+          type="button"
+          onClick={() => {
+            const value = tenant.trim();
+            if (!value) {
+              setErr("先填写当前租户");
+              setBuckets(null);
+              setLoadedFor(null);
+              return;
+            }
+            if (value === scope.tenantId) {
+              setLoadedFor(null);
+              setBuckets(null);
+              setMoney(EMPTY_MONEY);
+              setReload((n) => n + 1);
+              return;
+            }
+            commitCrmTenant(value);
+          }}
+        >
+          加载
+        </button>
         <p className="muted">
-          本应用是独立商家 CRM:不内嵌接单数据库、不做平台全局客户库。
-          平台登录经 platform-identity。Notify 授权线索进入
-          <a href="/leads">线索列表（来源与待分配原因可见）</a>。
-          企业资料筛选(HUI-1678)只接受客户有权导入的资料，官方公开库未接入：
-          <a href="/enterprises">进入企业资料筛选</a>。
-          客户档案(HUI-1691)已就绪:<a href="/contacts">进入客户档案(授权按来源保留、撤销不可恢复)</a>。
-          商机管理(HUI-1693)已就绪:
-          <a href="/opportunities">进入商机管理(按 商家经营销售 / 创意服务 类别隔离)</a>。
-          统一接待(HUI-1688):<a href="/reception">接待工作台</a>。
-          意向分级(HUI-1684):<a href="/intent">查看规则评分与人工修正</a>。只给下一步建议，不自动触达。
+          {scopeLabel ? `当前视图：${scopeLabel}。` : ""}
+          手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。普通线索入库、查看和人工跟进不逐条扣费。
+          意向分级只给下一步建议，不自动触达。
         </p>
       </div>
+      {err ? <p className="muted">{err}</p> : null}
+      <div className="card">
+        <h2>金额分开看</h2>
+        <ul className="money-lines">
+          {lines.lines.map((line) => (
+            <li key={line.key}>
+              {line.label}：{centsText(line.cents)}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {visible === null ? (
+        <p className="muted">加载中…</p>
+      ) : (
+        BUCKETS.map((key) => (
+          <section className="card" key={key}>
+            <h2>
+              {BUCKET_LABELS[key]}（{visible[key].length}）
+            </h2>
+            {visible[key].length === 0 ? (
+              <p className="muted">没有待办。</p>
+            ) : (
+              <ul className="desk-list">
+                {visible[key].map((item) => (
+                  <li key={`${key}-${item.id}`}>
+                    <p>{sourceText(item.source)}</p>
+                    <p>{item.next?.label || "安排下一次跟进"}</p>
+                    {item.reason ? <p className="muted">{item.reason}</p> : null}
+                    <div className="queue-actions">
+                      {item.lead_id ? <Link href={`/leads/${item.lead_id}`}>查看新线索</Link> : null}
+                      {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
+                      {item.show_service_draft && item.opportunity_id ? (
+                        <Link href={`/opportunities/${item.opportunity_id}`}>创建服务需求草稿</Link>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))
+      )}
+      <p className="muted">
+        <Link href="/leads">线索</Link> · <Link href="/contacts">客户档案</Link> · <Link href="/opportunities">商机</Link> ·{" "}
+        <Link href="/reception">接待</Link> · <Link href="/intent">意向分级</Link>
+      </p>
     </main>
   );
 }
