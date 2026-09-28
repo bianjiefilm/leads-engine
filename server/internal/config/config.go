@@ -78,6 +78,11 @@ const (
 	// FAQ knowledge, and human takeover. The visitor-key pepper is separate
 	// from the intake pepper and is required by those routes (503 if empty).
 	EnvFeatureReception = "FEATURE_RECEPTION"
+	// EnvFeatureIntentGrade gates explainable intent grades (HUI-1684).
+	// Default off: routes are not registered. On: versioned rules score a
+	// tenant's own lead or session and only suggest a next step. There is
+	// no calibrated model and no outbound call, SMS, group, or order.
+	EnvFeatureIntentGrade = "FEATURE_INTENT_GRADE"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -177,6 +182,8 @@ type Config struct {
 	FeatureEnterpriseDirectory bool
 	// FeatureReception mounts HUI-1688. Default off (routes not registered).
 	FeatureReception bool
+	// FeatureIntentGrade mounts HUI-1684. Default off (routes not registered).
+	FeatureIntentGrade bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
@@ -268,6 +275,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureNotifyIngest:        isTruthy(get(EnvFeatureNotifyIngest)),
 		FeatureEnterpriseDirectory: isTruthy(get(EnvFeatureEnterpriseDirectory)),
 		FeatureReception:           isTruthy(get(EnvFeatureReception)),
+		FeatureIntentGrade:         isTruthy(get(EnvFeatureIntentGrade)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
@@ -334,6 +342,7 @@ func (c Config) Describe() string {
 		{"notify_ingest", c.FeatureNotifyIngest},
 		{"enterprise_directory", c.FeatureEnterpriseDirectory},
 		{"reception", c.FeatureReception},
+		{"intent_grade", c.FeatureIntentGrade},
 	} {
 		v := "off"
 		if f.on {

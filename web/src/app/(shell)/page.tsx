@@ -67,6 +67,7 @@ export default function Home() {
           商机管理(HUI-1693)已就绪:
           <a href="/opportunities">进入商机管理(按 商家经营销售 / 创意服务 类别隔离)</a>。
           统一接待(HUI-1688):<a href="/reception">接待工作台</a>。
+          意向分级(HUI-1684):<a href="/intent">查看规则评分与人工修正</a>。只给下一步建议，不自动触达。
         </p>
       </div>
     </main>
