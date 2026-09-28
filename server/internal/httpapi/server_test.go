@@ -143,6 +143,7 @@ type harnessOpts struct {
 	featureNotifyIngest     bool // FEATURE_NOTIFY_INGEST=on (HUI-1680)
 	featureEnterpriseDir    bool // FEATURE_ENTERPRISE_DIRECTORY=on (HUI-1678)
 	featureReception        bool // FEATURE_RECEPTION=on (HUI-1688)
+	featureIntentGrade      bool // FEATURE_INTENT_GRADE=on (HUI-1684)
 	omitVisitorPepper       bool // reception routes fail closed without RECEPTION_VISITOR_PEPPER
 	ingestFetchBase         string
 	ingestSecret            string
@@ -228,6 +229,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return "test-dedup-pepper"
 		case "FEATURE_RECEPTION":
 			if opts.featureReception {
+				return "on"
+			}
+			return ""
+		case "FEATURE_INTENT_GRADE":
+			if opts.featureIntentGrade {
 				return "on"
 			}
 			return ""

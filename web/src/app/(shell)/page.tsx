@@ -114,6 +114,7 @@ export default function Home() {
         <p className="muted">
           {scopeLabel ? `当前视图：${scopeLabel}。` : ""}
           手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。普通线索入库、查看和人工跟进不逐条扣费。
+          意向分级只给下一步建议，不自动触达。
         </p>
       </div>
       {err ? <p className="muted">{err}</p> : null}
@@ -160,7 +161,7 @@ export default function Home() {
       )}
       <p className="muted">
         <Link href="/leads">线索</Link> · <Link href="/contacts">客户档案</Link> · <Link href="/opportunities">商机</Link> ·{" "}
-        <Link href="/reception">接待</Link>
+        <Link href="/reception">接待</Link> · <Link href="/intent">意向分级</Link>
       </p>
     </main>
   );
