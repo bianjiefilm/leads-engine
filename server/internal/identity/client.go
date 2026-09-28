@@ -28,6 +28,8 @@ var (
 	// ErrNoPrincipal means the session resolved but carried no principal id;
 	// we refuse to fabricate an identity (fail-closed).
 	ErrNoPrincipal = errors.New("identity: session resolved without principal_id")
+	// ErrWrongApp means the session is scoped to a different application.
+	ErrWrongApp = errors.New("identity: session is not scoped to this app")
 )
 
 // Principal is the resolved platform identity of a session.
@@ -109,6 +111,9 @@ func (c *Client) ResolveSession(ctx context.Context, sessionToken string) (Princ
 	}
 	if !rr.Authenticated {
 		return Principal{}, ErrUnauthenticated
+	}
+	if strings.TrimSpace(rr.AppID) != "" && rr.AppID != c.AppID {
+		return Principal{}, ErrWrongApp
 	}
 	p := Principal{}
 	if v, ok := sessionString(rr.Session, "principal_id", "user_id"); ok {

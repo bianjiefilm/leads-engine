@@ -29,6 +29,9 @@ func (s *Server) handleFunnel(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionReadList, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
+	if s.blockIfAdvancedExpired(w, c.Member.TenantID, "analytics") {
+		return
+	}
 	query := r.URL.Query()
 
 	// 窗口必填且合法:RFC3339 解析失败/缺省即 400,规范化为 UTC 秒精度

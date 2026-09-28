@@ -51,6 +51,9 @@ func (s *Server) handleAssignPoolCreate(w http.ResponseWriter, r *http.Request) 
 	if !s.requireAction(c, authz.ActionManageAssignPool, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
+	if s.blockIfAdvancedExpired(w, c.Member.TenantID, "auto_assign") {
+		return
+	}
 	var in struct {
 		MemberID string  `json:"member_id"`
 		Weight   *int    `json:"weight"`

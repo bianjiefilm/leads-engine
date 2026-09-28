@@ -13,6 +13,7 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
 	"github.com/bianjiefilm/leads-engine/server/internal/channelix"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
+	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
 )
 
 const channelMaxBody = 64 << 10
@@ -34,6 +35,9 @@ func (s *Server) handleChannelCapability(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleChannelGrantSave(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
 	if !s.requireAction(c, authz.ActionCreate, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
+		return
+	}
+	if s.blockIfAdvancedExpired(w, c.Member.TenantID, "advanced_channel") {
 		return
 	}
 	var in store.ChannelGrantIn
@@ -98,6 +102,10 @@ func (s *Server) handleChannelIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	var in store.ChannelEventIn
 	if !readChannelJSON(w, r, &in) {
+		return
+	}
+	if !subscription.VisitorLeadAllowed(true, "") {
+		fail(w, http.StatusForbidden, "visitor_account_required", "an authorized visitor does not need a platform account")
 		return
 	}
 	result, err := s.St.IngestChannelEvent(c.Member.TenantID, in)

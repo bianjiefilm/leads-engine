@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
+	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
 )
 
 const (
@@ -219,6 +220,10 @@ func (s *Server) handlePublicFormSubmit(w http.ResponseWriter, r *http.Request) 
 	if !s.formLimiter().allow(clientIP(r)+"|"+formID, time.Now()) {
 		fail(w, http.StatusTooManyRequests, "rate_limited",
 			"too many submissions from this address for this form; retry in a minute")
+		return
+	}
+	if !subscription.VisitorLeadAllowed(true, "") {
+		fail(w, http.StatusForbidden, "visitor_account_required", "an authorized visitor does not need a platform account")
 		return
 	}
 
