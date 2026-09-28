@@ -74,8 +74,13 @@ func (s *Server) handleFollowUpCreate(w http.ResponseWriter, r *http.Request) {
 		LeadID         string  `json:"lead_id"`
 		Note           string  `json:"note"`
 		NextFollowUpAt *string `json:"next_follow_up_at"`
+		TenantID       string  `json:"tenant_id"`
+		BrandID        string  `json:"brand_id"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
 		return
 	}
 	if in.ContactID == "" {

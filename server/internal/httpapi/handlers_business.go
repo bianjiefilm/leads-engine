@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
+	"github.com/bianjiefilm/leads-engine/server/internal/crmtenant"
 	"github.com/bianjiefilm/leads-engine/server/internal/redact"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
 	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
@@ -162,8 +163,13 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		AssignedMemberID string       `json:"assigned_member_id"`
 		Source           *sourceInput `json:"source"`
 		PrincipalRef     string       `json:"principal_ref"`
+		TenantID         string       `json:"tenant_id"`
+		BrandID          string       `json:"brand_id"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
 		return
 	}
 	if strings.TrimSpace(in.PrincipalRef) != "" || subscription.PlatformSideEffect(subscription.ContactIdentity{Phone: in.Phone, Email: in.Email}).Principals != 0 {
@@ -225,6 +231,13 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "contact create failed")
 		return
 	}
+	if in.BrandID != "" && !crmtenant.BindPlatformPrincipal(in.Phone) {
+		if err := s.St.SetContactOrigin(created.ID, created.TenantID, in.BrandID); err != nil {
+			fail(w, http.StatusInternalServerError, "internal", "contact origin failed")
+			return
+		}
+		created.OriginBrandID = in.BrandID
+	}
 	// 日志只带掩码形态与标签个数;手机号/邮箱明文、备注与标签内容一律不入日志。
 	s.Log.Printf("contact created id=%s %s %s", created.ID,
 		redact.Person(created.Name, created.Phone, created.Email), redact.TagSummary(created.Tags))
@@ -274,6 +287,7 @@ func (s *Server) handleContactList(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []store.Contact{}
 	}
+	s.St.FillContactOrigins(c.Member.TenantID, items)
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
@@ -303,6 +317,7 @@ func (s *Server) handleContactGet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	rec.OriginBrandID = s.St.ContactOriginBrand(rec.ID, rec.TenantID)
 	writeJSON(w, http.StatusOK, rec)
 }
 
@@ -389,8 +404,13 @@ func (s *Server) handleLeadCreate(w http.ResponseWriter, r *http.Request) {
 		AssignedMemberID string       `json:"assigned_member_id"`
 		Source           *sourceInput `json:"source"`
 		PrincipalRef     string       `json:"principal_ref"`
+		TenantID         string       `json:"tenant_id"`
+		BrandID          string       `json:"brand_id"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
 		return
 	}
 	if strings.TrimSpace(in.PrincipalRef) != "" {
@@ -537,8 +557,13 @@ func (s *Server) handleOppCreate(w http.ResponseWriter, r *http.Request) {
 		Probability      *int    `json:"probability"`
 		ExpectedCloseAt  *string `json:"expected_close_at"`
 		AssignedMemberID string  `json:"assigned_member_id"`
+		TenantID         string  `json:"tenant_id"`
+		BrandID          string  `json:"brand_id"`
 	}
 	if !decodeBody(w, r, &in) {
+		return
+	}
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
 		return
 	}
 	if in.ContactID == "" || in.Title == "" {

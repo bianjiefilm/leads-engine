@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
+	"github.com/bianjiefilm/leads-engine/server/internal/crmtenant"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
 	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
 )
@@ -37,9 +38,9 @@ func (s *Server) handleSubscriptionCache(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	switch in.Status {
-	case "active", "expired", "missing":
+	case "active", "expired", "missing", "downgraded":
 	default:
-		fail(w, http.StatusBadRequest, "bad_request", "status must be active, expired or missing")
+		fail(w, http.StatusBadRequest, "bad_request", "status must be active, expired, missing or downgraded")
 		return
 	}
 	if strings.TrimSpace(in.Plan) == "" || strings.TrimSpace(in.OrgBillingAccountID) == "" {
@@ -89,6 +90,21 @@ func (s *Server) handleAIQuote(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAction(c, authz.ActionCreate, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
 		return
 	}
+	cache, _ := s.St.GetEntitlementCache(c.Member.TenantID)
+	quotaKnown, quota, qerr := s.St.ChannelAIQuota(c.Member.TenantID)
+	if qerr != nil {
+		fail(w, http.StatusInternalServerError, "internal", "quota lookup failed")
+		return
+	}
+	if !crmtenant.NewPaidAIAllowed(cache.Status, quotaKnown, quota) {
+		kept := crmtenant.HistoryKept("contact")
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error": "paid_ai_stopped", "execute": false, "live_charge": int64(0),
+			"history_retained": kept.Readable && !kept.Deleted && !kept.Hidden,
+			"data_lost":        kept.Deleted || kept.Hidden,
+		})
+		return
+	}
 	var in struct {
 		Action         string `json:"action"`
 		PayerKind      string `json:"payer_kind"`
@@ -98,7 +114,7 @@ func (s *Server) handleAIQuote(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &in) {
 		return
 	}
-	cache, _ := s.St.GetEntitlementCache(c.Member.TenantID)
+	cache, _ = s.St.GetEntitlementCache(c.Member.TenantID)
 	price := subscription.Price(in.Action)
 	decision := subscription.DecideAI(subscription.AIInput{
 		Action: in.Action, PayerKind: in.PayerKind, PayerAccountID: in.PayerAccountID,

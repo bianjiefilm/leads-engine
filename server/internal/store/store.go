@@ -255,8 +255,11 @@ func (s *Store) GetSourceRef(id, tenantID string) (SourceRef, error) {
 // delete). Phone/email are stored server-side and must never appear in logs,
 // URLs or shared context unmasked.
 type Contact struct {
-	ID               string `json:"id"`
-	TenantID         string `json:"tenant_id"`
+	ID       string `json:"id"`
+	TenantID string `json:"tenant_id"`
+	// OriginBrandID is the source brand captured with the contact. Renaming
+	// that brand does not change this id, and it is not the tenant.
+	OriginBrandID    string `json:"origin_brand_id,omitempty"`
 	Name             string `json:"name"`
 	Phone            string `json:"phone"`
 	Email            string `json:"email"`
@@ -414,11 +417,11 @@ func (s *Store) UpdateContact(id, tenantID string, p ContactPatch) (Contact, err
 }
 
 type Lead struct {
-	ID               string `json:"id"`
-	TenantID         string `json:"tenant_id"`
-	ContactID        string `json:"contact_id"`
-	SourceRefID      string `json:"source_ref_id,omitempty"`
-	Status           string `json:"status"`
+	ID          string `json:"id"`
+	TenantID    string `json:"tenant_id"`
+	ContactID   string `json:"contact_id"`
+	SourceRefID string `json:"source_ref_id,omitempty"`
+	Status      string `json:"status"`
 	// FilterReason carries the machine reason code when the deterministic
 	// intake filter marked this lead filtered (HUI-1686 / FEAT-0187, e.g.
 	// invalid_phone). Machine codes only — never a contact fact. Empty for
