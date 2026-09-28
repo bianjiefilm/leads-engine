@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { MODE_TEXT, PENDING_TEXT } from "@/lib/reception";
+import SessionPanel from "./session-panel";
 
 // 接待工作台（HUI-1688 → HUI-1893 可读）。只展示负责人、待处理原因、人工待办和下一次跟进。
 
@@ -23,6 +24,7 @@ export default function ReceptionDeskPage() {
   const [tenant, setTenant] = useState("");
   const [items, setItems] = useState<DeskItem[] | null>(null);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState("");
 
   useEffect(() => {
     setTenant(window.localStorage.getItem(TENANT_KEY) ?? "");
@@ -73,6 +75,7 @@ export default function ReceptionDeskPage() {
               <th>待处理</th>
               <th>人工待办</th>
               <th>下一次跟进</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -84,10 +87,18 @@ export default function ReceptionDeskPage() {
                 <td>{item.pending_reason ? (PENDING_TEXT[item.pending_reason] ?? item.pending_reason) : "无"}</td>
                 <td>{item.human_todo ? "是" : "否"}</td>
                 <td>{item.next_follow_up_at || "未安排"}</td>
+                <td>
+                  <button type="button" onClick={() => setSelected(item.session_id)}>
+                    {selected === item.session_id ? "处理中" : "处理"}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      ) : null}
+      {selected && tenant.trim() ? (
+        <SessionPanel tenant={tenant.trim()} sessionId={selected} onChanged={() => { void load(tenant); }} />
       ) : null}
     </main>
   );

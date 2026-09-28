@@ -65,17 +65,25 @@ export default function ReceptionH5Page() {
     return created;
   }, [widgetID]);
 
-  const loadTranscript = useCallback(async (sessionID: string, key: string) => {
+  const loadTranscript = useCallback(async (sessionID: string, key: string, quiet = false) => {
     const res = await fetch(`/api/public/reception/sessions/${sessionID}?visitor_key=${encodeURIComponent(key)}`);
     const body = await res.json();
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      if (!quiet) setError(body.message ?? body.error ?? `HTTP ${res.status}`);
       return;
     }
     setSession(body.session);
     setMessages(body.messages ?? []);
     setReplies(body.replies ?? []);
   }, []);
+
+  useEffect(() => {
+    if (!session?.id) return;
+    const timer = window.setInterval(() => {
+      void loadTranscript(session.id, visitorKey(), true).catch(() => undefined);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [session?.id, visitorKey, loadTranscript]);
 
   useEffect(() => {
     if (!widgetID) return;
@@ -180,6 +188,16 @@ export default function ReceptionH5Page() {
         />
         <button className="primary" type="submit" disabled={sending || !session}>
           {sending ? "发送中" : "发送"}
+        </button>
+        <button
+          type="button"
+          disabled={!session}
+          onClick={() => {
+            if (!session) return;
+            void loadTranscript(session.id, visitorKey()).catch((e: Error) => setError(e.message));
+          }}
+        >
+          刷新对话
         </button>
       </form>
     </main>

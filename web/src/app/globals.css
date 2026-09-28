@@ -213,7 +213,8 @@ button.primary:disabled {
 .queue-actions a,
 .stack-form button,
 .stack-form textarea,
-.stack-form input {
+.stack-form input,
+.stack-form select {
   font: inherit;
 }
 
@@ -225,10 +226,17 @@ button.primary:disabled {
 }
 
 .stack-form textarea,
-.stack-form input {
+.stack-form input,
+.stack-form select {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.65rem 0.75rem;
+  background: #fff;
+}
+
+.stack-form input[type="checkbox"] {
+  width: auto;
+  padding: 0;
 }
 
 @media (max-width: 720px) {
@@ -244,6 +252,7 @@ button.primary:disabled {
   .queue-actions button,
   .stack-form textarea,
   .stack-form input,
+  .stack-form select,
   .stack-form button {
     width: 100%;
   }
