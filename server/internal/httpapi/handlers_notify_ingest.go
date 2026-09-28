@@ -68,10 +68,13 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "event_skew", "occurred_at is too far in the future")
 		return
 	}
-	if _, err := s.St.GetTenant(delivery.TenantID); err != nil {
+	sourceTenant := delivery.TenantID
+	storeTenant, ok := s.storeTenantForEvent(sourceTenant)
+	if !ok {
 		fail(w, http.StatusNotFound, "unknown_tenant", "target tenant is not provisioned")
 		return
 	}
+	delivery.TenantID = storeTenant
 	bodySHA := notifyingest.BodySHA256(body)
 	if existing, err := s.St.GetNotifyInboxByEvent(delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventID); err == nil {
 		if existing.BodySHA256 != bodySHA {
@@ -93,7 +96,7 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rec, err := notifyingest.FetchRecord(r.Context(), src.FetchBase, src.FetchToken, delivery.TenantID, delivery.Profile.SourceRef)
+	rec, err := notifyingest.FetchRecord(r.Context(), src.FetchBase, src.FetchToken, sourceTenant, delivery.Profile.SourceRef)
 	if err != nil {
 		s.Log.Printf("notify ingest fetch failed tenant=%s source=%s event=%s", delivery.TenantID, src.AppID, delivery.Profile.EventID)
 		fail(w, http.StatusServiceUnavailable, "source_unavailable", "authorized submission could not be fetched; not accepted")

@@ -106,6 +106,10 @@ const (
 	// Each app reads LEADS_INGEST_<APP>_SECRET / _FETCH_BASE / _FETCH_TOKEN,
 	// where <APP> is the app id uppercased with '-' replaced by '_'.
 	EnvIngestSources = "LEADS_INGEST_SOURCES"
+	// EnvTenantBindings maps an event tenant that this database does not
+	// have onto a tenant that is already provisioned. It does not create
+	// tenants. Example: touchAppTenant=leadsAppTenant.
+	EnvTenantBindings = "LEADS_TENANT_BINDINGS"
 )
 
 // Eco handoff deployment keys (HUI-1749; required only when
@@ -215,6 +219,10 @@ type Config struct {
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
 	IngestSources []IngestSource
+	// TenantBindings is an operator map from an event tenant id that is not
+	// in this database to a tenant that already exists. Empty means an
+	// unknown event tenant stays unknown.
+	TenantBindings map[string]string
 }
 
 // IngestSource is one registered Notify sender (HUI-1680). The fetch base is
@@ -309,6 +317,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureOutbound:            isTruthy(get(EnvFeatureOutbound)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
+		TenantBindings:             parseTenantBindings(get(EnvTenantBindings)),
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -435,6 +444,29 @@ func parseIngestSources(get func(string) string) []IngestSource {
 
 func ingestEnvKey(appID string) string {
 	return strings.ToUpper(strings.ReplaceAll(appID, "-", "_"))
+}
+
+// parseTenantBindings reads source=target pairs. A pair is kept only when
+// both ids are non-empty and different. The first pair for a source wins.
+// This never inserts a tenant.
+func parseTenantBindings(raw string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(raw, ",") {
+		source, target, ok := strings.Cut(strings.TrimSpace(part), "=")
+		source = strings.TrimSpace(source)
+		target = strings.TrimSpace(target)
+		if !ok || source == "" || target == "" || source == target {
+			continue
+		}
+		if _, exists := out[source]; exists {
+			continue
+		}
+		out[source] = target
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // IngestGate lists fail-closed problems for the Notify receiver. An empty
