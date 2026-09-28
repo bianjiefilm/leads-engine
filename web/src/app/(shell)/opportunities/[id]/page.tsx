@@ -26,6 +26,7 @@ import {
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { LightCopyPanel } from "@/components/LightCopyPanel";
 
 // 商机详情(HUI-1693):阶段时间线(审计链)+ 金额来源标识 + 按权限显隐的
 // 阶段操作按钮。按钮显隐只是 UI 镜像;服务端对每次转换重新鉴权(非 assignee
@@ -356,6 +357,8 @@ export default function OpportunityDetailPage() {
           {draftMsg ? <p className="muted">{draftMsg}</p> : null}
         </div>
       ) : null}
+
+      {id ? <LightCopyPanel subjectKind="opportunity" subjectId={id} /> : null}
 
       {msg ? <p className="muted">{msg}</p> : null}
 

@@ -91,6 +91,10 @@ const (
 	// confirmation (HUI-1689). Default off. Unattended SMS, email, WeCom, and
 	// SOP stay closed; a balance or an AI score cannot open them.
 	EnvFeatureSOPReach = "FEATURE_SOP_REACH"
+	// EnvFeatureLightCopy gates in-scene reply, email, and marketing-brief
+	// drafts (HUI-1682). Default off. There is no text model in this process,
+	// so generation fails closed. Saving and editing a draft does not.
+	EnvFeatureLightCopy = "FEATURE_LIGHT_COPY"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -197,6 +201,9 @@ type Config struct {
 	// FeatureSOPReach mounts HUI-1689 reminders, drafts, and human confirmation.
 	// Default off. This build has no live SMS, email, or WeCom connector.
 	FeatureSOPReach bool
+	// FeatureLightCopy mounts HUI-1682 in-scene drafts and optional handoff.
+	// Default off. This build has no text model and no professional-tool engine.
+	FeatureLightCopy bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
@@ -291,6 +298,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureIntentGrade:         isTruthy(get(EnvFeatureIntentGrade)),
 		FeatureROI:                 isTruthy(get(EnvFeatureROI)),
 		FeatureSOPReach:            isTruthy(get(EnvFeatureSOPReach)),
+		FeatureLightCopy:           isTruthy(get(EnvFeatureLightCopy)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
 		EcoHandoff: EcoHandoffConfig{
@@ -360,6 +368,7 @@ func (c Config) Describe() string {
 		{"intent_grade", c.FeatureIntentGrade},
 		{"roi", c.FeatureROI},
 		{"sop_reach", c.FeatureSOPReach},
+		{"light_copy", c.FeatureLightCopy},
 	} {
 		v := "off"
 		if f.on {
