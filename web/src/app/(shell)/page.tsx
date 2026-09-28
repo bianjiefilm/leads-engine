@@ -84,6 +84,9 @@ export default function Home() {
   return (
     <main>
       <h1>我的工作</h1>
+      <p>
+        <Link href="/channel-interactions">授权互动</Link>
+      </p>
       <div className="card">
         <label>
           当前租户{" "}
