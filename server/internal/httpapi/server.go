@@ -157,6 +157,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
+	// Restricted follow-up counts for another app. No session and no contact fields.
+	mux.Handle("GET /internal/v1/campaign-follow-ups", s.requireInternal(s.handleCampaignFollowUps))
 
 	// HUI-1680: registered Notify receiver. No browser session — HMAC is the
 	// credential. Flag off → route not mounted (404).

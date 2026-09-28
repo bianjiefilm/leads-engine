@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/workbench"
@@ -180,7 +181,7 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 		SELECT l.id, l.contact_id, l.status, l.filter_reason, COALESCE(l.assigned_member_id,''),
 		       l.created_at, l.updated_at,
 		       c.phone, c.source_type, c.consent_status,
-		       COALESCE(sr.source_app,''), COALESCE(sr.source_ref,''), COALESCE(sr.created_at,'')
+		       COALESCE(sr.source_app,''), COALESCE(sr.source_ref,''), COALESCE(sr.auth_scope_snapshot,''), COALESCE(sr.created_at,'')
 		FROM leads l
 		JOIN contacts c ON c.id = l.contact_id AND c.tenant_id = l.tenant_id AND c.deleted_at IS NULL
 		LEFT JOIN source_refs sr ON sr.id = l.source_ref_id AND sr.tenant_id = l.tenant_id
@@ -194,13 +195,17 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 	contacts := map[string]contactSnap{}
 	for rows.Next() {
 		var lead workbench.LeadView
-		var phone, sourceType, consent, app, ref, refAt string
+		var phone, sourceType, consent, app, ref, snapshot, refAt string
 		if err := rows.Scan(&lead.ID, &lead.ContactID, &lead.Status, &lead.FilterReason, &lead.Assignee,
-			&lead.CreatedAt, &lead.UpdatedAt, &phone, &sourceType, &consent, &app, &ref, &refAt); err != nil {
+			&lead.CreatedAt, &lead.UpdatedAt, &phone, &sourceType, &consent, &app, &ref, &snapshot, &refAt); err != nil {
 			return nil, nil, err
 		}
 		lead.TenantID = tenantID
+		lead.SourceSubmission = ref
 		lead.SourceActivity = ref
+		if campaign := campaignRefFromSnapshot(snapshot); campaign != "" {
+			lead.SourceActivity = campaign
+		}
 		if refAt != "" {
 			lead.SourceAt = refAt
 		}
@@ -410,6 +415,20 @@ func applyConsentFacts(lead *workbench.LeadView, rows []consentSnap) {
 	}
 }
 
+func campaignRefFromSnapshot(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	var doc struct {
+		CampaignRef string `json:"campaign_ref"`
+	}
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(doc.CampaignRef)
+}
+
 func sourceChannelLabel(sourceType string) string {
 	switch sourceType {
 	case "manual":
@@ -430,6 +449,9 @@ func sourceSummary(lead workbench.LeadView) string {
 	}
 	if lead.SourceActivity != "" {
 		parts = append(parts, "活动 "+lead.SourceActivity)
+	}
+	if lead.SourceSubmission != "" && lead.SourceSubmission != lead.SourceActivity {
+		parts = append(parts, "提交 "+lead.SourceSubmission)
 	}
 	if lead.SourceChannel != "" {
 		parts = append(parts, lead.SourceChannel)

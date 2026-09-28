@@ -44,6 +44,7 @@ type LeadView struct {
 	Purpose              string
 	SourceForm           string
 	SourceActivity       string
+	SourceSubmission     string
 	SourceChannel        string
 	SourceAt             string
 	CreatedAt            string
