@@ -314,6 +314,10 @@ func recordSHA(name, phone, wechat string) string {
 }
 
 func ingestEvent(tenant, eventID, sourceRef string, version int, eventType, channel string, revoked bool, name, phone, wechat string) []byte {
+	return ingestEventApp("touch-engine", tenant, eventID, sourceRef, version, eventType, channel, revoked, name, phone, wechat)
+}
+
+func ingestEventApp(app, tenant, eventID, sourceRef string, version int, eventType, channel string, revoked bool, name, phone, wechat string) []byte {
 	sha := recordSHA(name, phone, wechat)
 	payload := map[string]any{
 		"campaign_ref": "camp-1", "store_ref": "store-1", "channel": channel,
@@ -325,7 +329,7 @@ func ingestEvent(tenant, eventID, sourceRef string, version int, eventType, chan
 		"profile_version": "directed-event/v1",
 		"event_id":        eventID,
 		"event_type":      eventType,
-		"source_app":      "touch-engine",
+		"source_app":      app,
 		"target_app":      "leads-engine",
 		"tenant_scope":    tenant,
 		"source_ref":      sourceRef,
@@ -336,7 +340,7 @@ func ingestEvent(tenant, eventID, sourceRef string, version int, eventType, chan
 	data, _ := json.Marshal(map[string]any{"event_profile": profile, "payload": payload})
 	env := map[string]any{
 		"id": "nev_" + eventID, "type": eventType, "schema_version": 1,
-		"app_id": "touch-engine", "tenant_id": tenant,
+		"app_id": app, "tenant_id": tenant,
 		"occurred_at":     time.Now().UTC().Format(time.RFC3339),
 		"idempotency_key": "dir_" + eventID,
 		"data":            json.RawMessage(data),
@@ -366,11 +370,12 @@ func (h *harness) contactCount(session, tenant string) int {
 }
 
 type recordSource struct {
-	url   string
-	mu    sync.Mutex
-	recs  map[string]string
-	fail  bool
-	token string
+	url     string
+	mu      sync.Mutex
+	recs    map[string]string
+	fail    bool
+	token   string
+	tenants []string
 }
 
 func newRecordSource(t *testing.T) *recordSource {
@@ -386,6 +391,9 @@ func newRecordSource(t *testing.T) *recordSource {
 		if s.fail {
 			http.Error(w, "down", http.StatusBadGateway)
 			return
+		}
+		if got := strings.TrimSpace(r.Header.Get("X-Leads-Tenant")); got != "" {
+			s.tenants = append(s.tenants, got)
 		}
 		ref := strings.TrimPrefix(r.URL.Path, "/internal/v1/lead-records/")
 		raw, ok := s.recs[ref]
@@ -405,4 +413,12 @@ func (s *recordSource) put(ref, raw string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.recs[ref] = raw
+}
+
+func (s *recordSource) fetchedTenants() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.tenants))
+	copy(out, s.tenants)
+	return out
 }

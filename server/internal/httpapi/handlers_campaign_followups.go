@@ -15,9 +15,9 @@ func (s *Server) handleCampaignFollowUps(w http.ResponseWriter, r *http.Request)
 		fail(w, http.StatusBadRequest, "tenant_required", "header "+tenantHeader+" selects the workspace tenant")
 		return
 	}
-	storeTenant, ok := s.storeTenantForEvent(tenantID)
-	if !ok {
-		fail(w, http.StatusNotFound, "unknown_tenant", "target tenant is not provisioned")
+	storeTenant, err := s.followUpStoreTenant(tenantID, strings.TrimSpace(r.URL.Query().Get("source_app")))
+	if err != nil {
+		writeTenantMapError(w, err)
 		return
 	}
 	tenantID = storeTenant
@@ -58,26 +58,4 @@ func (s *Server) handleCampaignFollowUps(w http.ResponseWriter, r *http.Request)
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"known": true, "campaigns": campaigns})
-}
-
-// storeTenantForEvent returns the tenant that already exists for this event.
-// An operator binding can point an app-local source tenant at that existing
-// row. It does not create a tenant and does not rewrite a tenant that is
-// already provisioned here.
-func (s *Server) storeTenantForEvent(eventTenant string) (string, bool) {
-	eventTenant = strings.TrimSpace(eventTenant)
-	if eventTenant == "" {
-		return "", false
-	}
-	if _, err := s.St.GetTenant(eventTenant); err == nil {
-		return eventTenant, true
-	}
-	target := strings.TrimSpace(s.Cfg.TenantBindings[eventTenant])
-	if target == "" || target == eventTenant {
-		return "", false
-	}
-	if _, err := s.St.GetTenant(target); err != nil {
-		return "", false
-	}
-	return target, true
 }

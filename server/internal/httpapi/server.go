@@ -57,6 +57,11 @@ type Server struct {
 	// ReceptionModelUp, when set and false, marks the generative model down.
 	// Grounded FAQ answers and human replies still work.
 	ReceptionModelUp func() bool
+
+	// mapLookupFn replaces the tenants-table read used only to resolve a map.
+	// Nil uses Store.GetTenant. A failure other than a missing row must not
+	// be treated as absence.
+	mapLookupFn func(id string) (exists bool, err error)
 }
 
 // New builds a Server over an opened database.
