@@ -3,6 +3,7 @@ package workbench
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -225,6 +226,135 @@ func TestTimelineHidesPlaintextWithoutPermission(t *testing.T) {
 	shown := AssembleTimeline(events, true)
 	if shown[0].ContactPlaintext != "13800000000" {
 		t.Fatal("authorized reader lost the business-domain plaintext")
+	}
+}
+
+func TestFollowThroughKeyStableAndDistinct(t *testing.T) {
+	a := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1")
+	b := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1")
+	if a == "" || a != b {
+		t.Fatalf("same follow-up changed key: %q %q", a, b)
+	}
+	other := FollowThroughKey("lead_1", "另一条", "2026-09-29T02:00:00Z", "", false, "mem_1")
+	if other == a {
+		t.Fatal("a different note reused the same fact key")
+	}
+}
+
+func TestUnknownSyncIsNotZeroOrFollowed(t *testing.T) {
+	sync := ProjectSync("")
+	if sync.CRM != "unknown" {
+		t.Fatalf("sync = %+v", sync)
+	}
+	raw, _ := json.Marshal(sync)
+	if bytes.Contains(raw, []byte("0")) || bytes.Contains(raw, []byte("已跟进")) {
+		t.Fatalf("unknown sync was numeric or followed: %s", raw)
+	}
+	status := ProjectStatus(LeadView{ID: "lead_1"}, nil, false)
+	if status.Followed {
+		t.Fatal("missing receipt was stored as followed")
+	}
+	got := ProjectSync("2026-09-29T00:00:00Z")
+	if got.CRM != "received" {
+		t.Fatalf("receipt sync = %+v", got)
+	}
+}
+
+func TestNoMarketingPermitHasNoSuccessClaim(t *testing.T) {
+	if OutreachLabel(false, true) != "" || OutreachLabel(true, false) != "" {
+		t.Fatal("success claim without both a permit and a send receipt")
+	}
+	if OutreachLabel(true, true) != "自动触达已成功" {
+		t.Fatal("label drifted")
+	}
+	notice := OutreachNotice(false, false)
+	if notice == "" || strings.Contains(notice, "自动触达已成功") {
+		t.Fatalf("notice = %q", notice)
+	}
+	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
+	desk := Build(Scope{Role: "sales", MemberID: "sales1"}, now, []LeadView{{
+		ID: "lead_m", Status: "new", Assignee: "sales1", MarketingSMSOrPhone: true,
+	}}, nil, nil)
+	raw, _ := json.Marshal(desk)
+	if bytes.Contains(raw, []byte("自动触达已成功")) {
+		t.Fatalf("desk claimed success: %s", raw)
+	}
+}
+
+func TestOrdinarySalesHideUnconfirmedServiceDraft(t *testing.T) {
+	sales := DecideServiceDraft("sales", "creative_service", true, false)
+	if sales.Present || sales.Enabled {
+		t.Fatalf("sales saw the draft button: %+v", sales)
+	}
+	if !strings.Contains(sales.Reason, "人工确认") {
+		t.Fatalf("reason = %q", sales.Reason)
+	}
+	store := DecideServiceDraft("sales", "merchant_customer", true, true)
+	if store.Present || store.Enabled {
+		t.Fatal("store sales grew a service draft")
+	}
+	owner := DecideServiceDraft("owner", "creative_service", true, false)
+	if !owner.Present || owner.Enabled || owner.Reason == "" {
+		t.Fatalf("owner affordance = %+v", owner)
+	}
+	if strings.Contains(owner.Reason, "自动触达已成功") {
+		t.Fatal("draft reason claimed outreach")
+	}
+}
+
+func TestDeskRowShowsOwnerPermissionAndNext(t *testing.T) {
+	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
+	res := Build(Scope{Role: "owner", MemberID: "owner"}, now, []LeadView{
+		{
+			ID: "mine", Status: "new", Assignee: "sales1", OwnerLabel: "Sales A1",
+			SourceChannel: "手工录入", SourceAt: now.Format(time.RFC3339),
+		},
+		{ID: "pool", Status: "new", Assignee: ""},
+	}, []OpportunityView{{
+		ID: "creative", Stage: "open", Category: "creative_service", Assignee: "sales1",
+		UpdatedAt: now.Format(time.RFC3339),
+	}}, nil)
+	var mine Item
+	for _, item := range res.Buckets[BucketUnprocessed] {
+		if item.LeadID == "mine" {
+			mine = item
+		}
+	}
+	if mine.OwnerLabel != "Sales A1" || mine.Source.Channel != "手工录入" || mine.Next.Kind == "" {
+		t.Fatalf("desk row = %+v", mine)
+	}
+	if len(mine.AllowedContacts) != 0 || mine.Sync.CRM != "unknown" || mine.ModelAdvice != "真实模型未完成" {
+		t.Fatalf("facts = %+v", mine)
+	}
+	if !hasID(res, BucketAssignmentException, "pool") {
+		t.Fatal("unassigned lead disappeared")
+	}
+	for _, item := range res.Buckets[BucketAssignmentException] {
+		if item.LeadID == "pool" && item.AssignmentReason != "待分配" {
+			t.Fatalf("assignment = %+v", item)
+		}
+	}
+	var creative Item
+	for _, item := range res.Buckets[BucketNeedsSchedule] {
+		if item.OpportunityID == "creative" {
+			creative = item
+		}
+	}
+	if !creative.ShowServiceDraft || !creative.ServiceDraft.Present || creative.ServiceDraft.Enabled || creative.ServiceDraft.Reason == "" {
+		t.Fatalf("owner creative affordance = %+v", creative.ServiceDraft)
+	}
+	sales := Build(Scope{Role: "sales", MemberID: "sales1"}, now, nil, []OpportunityView{{
+		ID: "creative", Stage: "open", Category: "creative_service", Assignee: "sales1",
+		UpdatedAt: now.Format(time.RFC3339),
+	}}, nil)
+	for _, item := range sales.Buckets[BucketNeedsSchedule] {
+		if item.OpportunityID == "creative" && (item.ServiceDraft.Present || item.ServiceDraft.Enabled) {
+			t.Fatalf("sales creative affordance = %+v", item.ServiceDraft)
+		}
+	}
+	permitted := AllowedContacts(LeadView{MarketingSMSOrPhone: true, ChannelReplyAllowed: true, ChannelIdentity: "wechat_dm"})
+	if len(permitted) != 3 || permitted[0] != "sms" || permitted[1] != "phone" || permitted[2] != "channel" {
+		t.Fatalf("contacts = %v", permitted)
 	}
 }
 

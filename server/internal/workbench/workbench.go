@@ -6,6 +6,8 @@
 package workbench
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"sort"
 	"strings"
 	"time"
@@ -55,6 +57,8 @@ type LeadView struct {
 	ManualNextAt         string
 	ManualNextKind       string
 	AIScore              int
+	OwnerLabel           string
+	CRMReceiptAt         string
 }
 
 // OpportunityView is one native opportunity. AmountKind keeps the three
@@ -136,21 +140,43 @@ type Automation struct {
 
 // Item is one row in a desk bucket.
 type Item struct {
-	ID               string      `json:"id"`
-	TenantID         string      `json:"tenant_id,omitempty"`
-	Bucket           string      `json:"bucket"`
-	Kind             string      `json:"kind"`
-	LeadID           string      `json:"lead_id,omitempty"`
-	OpportunityID    string      `json:"opportunity_id,omitempty"`
-	SessionID        string      `json:"session_id,omitempty"`
-	Assignee         string      `json:"assignee,omitempty"`
-	Reason           string      `json:"reason,omitempty"`
-	Next             NextAction  `json:"next"`
-	Source           SourceLine  `json:"source"`
-	Statuses         StatusFacts `json:"statuses"`
-	ForceOpportunity bool        `json:"force_opportunity"`
-	ShowServiceDraft bool        `json:"show_service_draft"`
-	FilterReason     string      `json:"filter_reason,omitempty"`
+	ID               string           `json:"id"`
+	TenantID         string           `json:"tenant_id,omitempty"`
+	Bucket           string           `json:"bucket"`
+	Kind             string           `json:"kind"`
+	LeadID           string           `json:"lead_id,omitempty"`
+	OpportunityID    string           `json:"opportunity_id,omitempty"`
+	SessionID        string           `json:"session_id,omitempty"`
+	Assignee         string           `json:"assignee,omitempty"`
+	Reason           string           `json:"reason,omitempty"`
+	Next             NextAction       `json:"next"`
+	Source           SourceLine       `json:"source"`
+	Statuses         StatusFacts      `json:"statuses"`
+	ForceOpportunity bool             `json:"force_opportunity"`
+	ShowServiceDraft bool             `json:"show_service_draft"`
+	FilterReason     string           `json:"filter_reason,omitempty"`
+	OwnerLabel       string           `json:"owner_label,omitempty"`
+	AssignmentReason string           `json:"assignment_reason,omitempty"`
+	AllowedContacts  []string         `json:"allowed_contacts,omitempty"`
+	Sync             SyncFact         `json:"sync"`
+	OutreachNotice   string           `json:"outreach_notice,omitempty"`
+	ModelAdvice      string           `json:"model_advice,omitempty"`
+	ServiceDraft     ServiceDraftDesk `json:"service_draft"`
+}
+
+// SyncFact is the external receipt. It has no count. Unknown is not zero
+// and it is not a follow-up.
+type SyncFact struct {
+	CRM string `json:"crm"`
+}
+
+// ServiceDraftDesk is the workbench control. Present is false for ordinary
+// sales until category, permission, and human confirmation all hold.
+// Enabled never means this process handed a draft to another engine.
+type ServiceDraftDesk struct {
+	Present bool   `json:"present"`
+	Enabled bool   `json:"enabled"`
+	Reason  string `json:"reason,omitempty"`
 }
 
 // TimelineEvent is one authoritative moment. ContactPlaintext is filled
@@ -270,6 +296,79 @@ func channelEligible(lead LeadView) bool {
 	return strings.TrimSpace(lead.Phone) == "" && strings.TrimSpace(lead.ChannelIdentity) != "" && lead.ChannelReplyAllowed
 }
 
+// FollowThroughKey identifies one saved follow-up. The same normalized
+// facts always hash to the same key; a different note does not.
+func FollowThroughKey(leadID, note, nextAt, channel string, complete bool, createdBy string) string {
+	bit := "0"
+	if complete {
+		bit = "1"
+	}
+	sum := sha256.Sum256([]byte(strings.Join([]string{
+		leadID, note, nextAt, channel, bit, createdBy,
+	}, "\x1f")))
+	return hex.EncodeToString(sum[:])
+}
+
+// ProjectSync reads a receipt timestamp. Empty means unknown, never a count.
+func ProjectSync(receiptAt string) SyncFact {
+	if strings.TrimSpace(receiptAt) == "" {
+		return SyncFact{CRM: "unknown"}
+	}
+	return SyncFact{CRM: "received"}
+}
+
+// AllowedContacts lists stored permits only. A phone number on the contact
+// is not itself a permit, and the raw identity is not returned.
+func AllowedContacts(lead LeadView) []string {
+	out := []string{}
+	if lead.MarketingSMSOrPhone {
+		out = append(out, "sms", "phone")
+	}
+	if strings.TrimSpace(lead.ChannelIdentity) != "" && lead.ChannelReplyAllowed {
+		out = append(out, "channel")
+	}
+	return out
+}
+
+// OutreachLabel is the success sentence. It exists only when a marketing
+// permit and a send receipt are both already stored.
+func OutreachLabel(marketingAllowed, sendReceipt bool) string {
+	if marketingAllowed && sendReceipt {
+		return "自动触达已成功"
+	}
+	return ""
+}
+
+// OutreachNotice explains the gap without using the success sentence.
+func OutreachNotice(marketingAllowed, sendReceipt bool) string {
+	if marketingAllowed && sendReceipt {
+		return OutreachLabel(true, true)
+	}
+	if !marketingAllowed {
+		return "没有营销许可"
+	}
+	return "没有触达回执"
+}
+
+// ServiceDraftDesk decides whether the draft control is on screen.
+// Ordinary sales do not see it until every gate holds. This round never
+// treats Enabled as a handoff that already happened.
+func DecideServiceDraft(role, category string, canUpdate, humanConfirmed bool) ServiceDraftDesk {
+	if category != "creative_service" {
+		return ServiceDraftDesk{Reason: "只有创意服务类别才有这个动作"}
+	}
+	if (role == "sales" || role == "agent") && (!canUpdate || !humanConfirmed) {
+		return ServiceDraftDesk{Reason: "门店销售需类别、权限和人工确认同时成立"}
+	}
+	if !canUpdate {
+		return ServiceDraftDesk{Present: true, Reason: "没有更新权限"}
+	}
+	if !humanConfirmed {
+		return ServiceDraftDesk{Present: true, Enabled: false, Reason: "需要人工确认，本轮不会把草稿交给接单应用"}
+	}
+	return ServiceDraftDesk{Present: true, Enabled: true, Reason: "本轮不提交草稿"}
+}
+
 // ProjectStatus reads submitted/received/assigned/followed/won/paid off the
 // facts given to it. Won does not imply paid.
 func ProjectStatus(lead LeadView, opps []OpportunityView, paymentFact bool) StatusFacts {
@@ -362,10 +461,12 @@ func Build(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView,
 		if !activeStage(opp.Stage) || opp.HasManualNext {
 			continue
 		}
+		canUpdate := scope.Role == "owner" || (opp.Assignee != "" && opp.Assignee == scope.MemberID)
 		item := Item{
 			ID: opp.ID, TenantID: opp.TenantID, Bucket: BucketNeedsSchedule, Kind: "opportunity",
 			OpportunityID: opp.ID, Assignee: opp.Assignee,
 			ShowServiceDraft: ShowServiceDraft(opp.Category),
+			ServiceDraft:     DecideServiceDraft(scope.Role, opp.Category, canUpdate, false),
 			ForceOpportunity: false,
 			Next:             safeAction("suggest_schedule", "suggestion", ""),
 		}
@@ -409,12 +510,24 @@ func InScope(scope Scope, assignee string) bool {
 }
 
 func leadItem(lead LeadView, opps []OpportunityView) Item {
+	label := strings.TrimSpace(lead.OwnerLabel)
+	if lead.Assignee != "" && label == "" {
+		label = "已分配"
+	}
 	item := Item{
 		ID: lead.ID, TenantID: lead.TenantID, Kind: "lead", LeadID: lead.ID, Assignee: lead.Assignee,
-		Next:         ResolveNext(lead, time.Time{}),
-		Source:       SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
-		Statuses:     ProjectStatus(lead, opps, false),
-		FilterReason: DisplayFilterReason(lead),
+		Next:            ResolveNext(lead, time.Time{}),
+		Source:          SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
+		Statuses:        ProjectStatus(lead, opps, false),
+		FilterReason:    DisplayFilterReason(lead),
+		OwnerLabel:      label,
+		AllowedContacts: AllowedContacts(lead),
+		Sync:            ProjectSync(lead.CRMReceiptAt),
+		OutreachNotice:  OutreachNotice(lead.MarketingSMSOrPhone, false),
+		ModelAdvice:     "真实模型未完成",
+	}
+	if lead.Assignee == "" {
+		item.AssignmentReason = "待分配"
 	}
 	if RefuseSalesPush(lead.Purpose) {
 		item.Reason = "不推进销售商机"
