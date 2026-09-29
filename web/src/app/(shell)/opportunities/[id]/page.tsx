@@ -26,6 +26,7 @@ import {
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { IntentOnOpportunity } from "@/components/IntentOnOpportunity";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
 
 // 商机详情(HUI-1693):阶段时间线(审计链)+ 金额来源标识 + 按权限显隐的
@@ -46,6 +47,7 @@ interface OpportunityDetail {
   probability: number;
   expected_close_at: string | null;
   assigned_member_id?: string;
+  contact_id?: string;
 }
 
 interface WhoamiBody extends CallerView {
@@ -268,6 +270,8 @@ export default function OpportunityDetailPage() {
       ) : (
         <p className="muted">无阶段操作权限(仅记录负责人或租户 owner 可转换阶段)。</p>
       )}
+
+      {id ? <IntentOnOpportunity contactId={opp.contact_id} tenantId={scope.tenantId} /> : null}
 
       {draftAllowed ? (
         <div>
