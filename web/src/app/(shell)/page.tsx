@@ -10,18 +10,23 @@ import {
   allowedContactText,
   billingCaption,
   centsText,
+  jointChainLine,
   modelAdviceLine,
   moneyView,
-  nextLine,
-  ownerLine,
+  renderLeadFacts,
+  scopeCaption,
   serviceDraftClick,
   serviceDraftControl,
-  sourceText,
-  syncLine,
+  visibleOutreach,
   type BucketKey,
   type DeskItem,
   type MoneyFacts,
 } from "@/lib/workbench";
+
+interface JointChain {
+  status?: string;
+  label?: string;
+}
 
 interface DeskResponse {
   scope?: string;
@@ -29,6 +34,8 @@ interface DeskResponse {
   money?: MoneyFacts;
   billing?: { ordinary_crm_charge_cents?: number };
   automation?: { auto_call?: boolean; auto_message?: boolean; create_order?: boolean };
+  joint_chain?: JointChain;
+  outreach_submitted?: boolean;
   message?: string;
   error?: string;
 }
@@ -47,6 +54,7 @@ export default function Home() {
   const [buckets, setBuckets] = useState<Record<BucketKey, DeskItem[]> | null>(null);
   const [money, setMoney] = useState<MoneyFacts>(EMPTY_MONEY);
   const [scopeLabel, setScopeLabel] = useState("");
+  const [jointChain, setJointChain] = useState<JointChain | null>(null);
   const [err, setErr] = useState("");
   const [draftMsg, setDraftMsg] = useState("");
 
@@ -55,6 +63,7 @@ export default function Home() {
     setLoadedFor(null);
     setBuckets(null);
     setMoney(EMPTY_MONEY);
+    setJointChain(null);
     if (!scope.tenantId) {
       setErr("先填写当前租户");
       setBuckets(acceptDesk(null, null));
@@ -70,13 +79,15 @@ export default function Home() {
         if (!res.ok) {
           setErr(body.message ?? body.error ?? `HTTP ${res.status}`);
           setBuckets(acceptDesk(tenantId, null));
+          setJointChain(body.joint_chain ?? null);
           setLoadedFor(tenantId);
           return;
         }
         setErr("");
-        setScopeLabel(body.scope === "tenant" ? "全租户" : "我的范围");
+        setScopeLabel(scopeCaption(body.scope));
         setBuckets(acceptDesk(tenantId, body.buckets ?? null));
         setMoney(body.money ?? EMPTY_MONEY);
+        setJointChain(body.joint_chain ?? null);
         setLoadedFor(tenantId);
       })
       .catch((e: Error) => {
@@ -113,12 +124,14 @@ export default function Home() {
               setErr("先填写当前租户");
               setBuckets(null);
               setLoadedFor(null);
+              setJointChain(null);
               return;
             }
             if (value === scope.tenantId) {
               setLoadedFor(null);
               setBuckets(null);
               setMoney(EMPTY_MONEY);
+              setJointChain(null);
               setReload((n) => n + 1);
               return;
             }
@@ -132,6 +145,7 @@ export default function Home() {
           手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。{billingCaption()}。
           {modelAdviceLine()}。意向分级只给下一步建议，不自动触达。
         </p>
+        <p data-joint-chain="incomplete">{jointChainLine(jointChain)}</p>
       </div>
       {err ? <p className="muted">{err}</p> : null}
       {draftMsg ? <p className="muted">{draftMsg}</p> : null}
@@ -159,14 +173,18 @@ export default function Home() {
               <ul className="desk-list">
                 {visible[key].map((item) => {
                   const draft = serviceDraftControl(item.service_draft);
+                  const facts = renderLeadFacts(item, jointChain);
+                  const outreach = visibleOutreach(item.outreach_notice);
                   return (
                   <li key={`${key}-${item.id}`}>
-                    <p>来源：{sourceText(item.source)}</p>
-                    <p>负责人：{ownerLine(item.owner_label, item.assignment_reason)}</p>
+                    <p>来源：{facts.source}</p>
+                    <p>负责人：{facts.owner}</p>
+                    <p>状态：{facts.state}</p>
                     <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
-                    <p>下一步：{nextLine(item.next)}</p>
-                    <p>{syncLine(item.sync)}</p>
-                    {item.outreach_notice ? <p className="muted">{item.outreach_notice}</p> : null}
+                    <p>下一步：{facts.next}</p>
+                    <p>{facts.sync}</p>
+                    <p data-joint-chain="incomplete">{facts.chain}</p>
+                    {outreach ? <p className="muted">{outreach}</p> : null}
                     <p className="muted">{modelAdviceLine()}</p>
                     {item.reason ? <p className="muted">{item.reason}</p> : null}
                     <div className="queue-actions">

@@ -117,6 +117,16 @@ export function showServiceDraft(category: string): boolean {
   return category === "creative_service";
 }
 
+export function scopeCaption(scope?: string): string {
+  if (scope === "tenant") return "全租户";
+  if (scope === "own") return "我的范围";
+  return "";
+}
+
+export function salesScopeIsNotOwner(sales?: string, owner?: string): boolean {
+  return sales === "own" && owner === "tenant";
+}
+
 export function statusLine(facts: StatusFacts): string {
   const parts: string[] = [];
   if (facts.submitted) parts.push("已提交");
@@ -137,6 +147,69 @@ export function sourceText(source?: DeskItem["source"]): string {
 export function syncLine(sync?: { crm?: string } | null): string {
   if (sync?.crm === "received") return "CRM已接收";
   return "同步：未知";
+}
+
+export function deskState(statuses?: StatusFacts | null, sync?: { crm?: string } | null): string {
+  const followed = statuses?.followed === true;
+  const line = statusLine({ ...(statuses ?? {}), followed });
+  if (followed) return line || "尚无权威状态";
+  // An unknown CRM sync is not a follow-up, so it cannot add 「已跟进」.
+  if (sync?.crm === "unknown" || !followed) {
+    const parts = line.split(" · ").filter((part) => part !== "已跟进" && part !== "");
+    return parts.join(" · ") || "尚无权威状态";
+  }
+  return line || "尚无权威状态";
+}
+
+export const JOINT_CHAIN_INCOMPLETE = "联合经营链未完成";
+
+export function jointChainLine(chain?: { status?: string; label?: string } | null): string {
+  if (
+    chain?.status === "complete" &&
+    chain.label &&
+    chain.label !== "已跟进" &&
+    !chain.label.includes("自动触达已成功")
+  ) {
+    return chain.label;
+  }
+  return JOINT_CHAIN_INCOMPLETE;
+}
+
+export function visibleOutreach(notice?: string): string {
+  if (!notice || notice.includes("自动触达已成功")) return "";
+  return notice;
+}
+
+export interface RenderedLead {
+  id: string;
+  source: string;
+  owner: string;
+  state: string;
+  next: string;
+  sync: string;
+  chain: string;
+  outreachSubmitted: false;
+}
+
+export function renderLeadFacts(
+  item: DeskItem,
+  chain?: { status?: string; label?: string } | null,
+): RenderedLead {
+  return {
+    id: item.id,
+    source: sourceText(item.source),
+    owner: ownerLine(item.owner_label, item.assignment_reason),
+    state: deskState(item.statuses, item.sync),
+    next: nextLine(item.next),
+    sync: syncLine(item.sync),
+    chain: jointChainLine(chain),
+    outreachSubmitted: false,
+  };
+}
+
+export function refreshedLead(before: { id: string }, after: { id: string }): { id: string } | null {
+  if (!before.id || before.id !== after.id) return null;
+  return after;
 }
 
 export function allowedContactText(channels?: string[]): string {
@@ -175,6 +248,6 @@ export function serviceDraftControl(draft?: { present?: boolean; enabled?: boole
   return { present: true, enabled: !!draft.enabled, reason: draft.reason ?? "" };
 }
 
-export function serviceDraftClick(): { submitted: false; message: string } {
-  return { submitted: false, message: "本轮不提交草稿" };
+export function serviceDraftClick(): { submitted: false; outreach: false; message: string } {
+  return { submitted: false, outreach: false, message: "本轮不提交草稿" };
 }
