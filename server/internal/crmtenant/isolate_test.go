@@ -18,6 +18,23 @@ func TestBrandDoesNotReplaceTenant(t *testing.T) {
 	}
 }
 
+func TestTargetTenantIgnoresSourceAndCampaign(t *testing.T) {
+	got, err := TargetTenant("tnt_a", "camp_alias", "camp_alias", "camp_alias", "camp_alias")
+	if err != nil || got != "tnt_a" {
+		t.Fatalf("alias tenant = %q err=%v", got, err)
+	}
+	got, err = TargetTenant("tnt_a", "", "brand_white", "tnt_b", "camp_from_b")
+	if err != nil || got != "tnt_a" {
+		t.Fatalf("source tag changed tenant: %q err=%v", got, err)
+	}
+	if _, err := TargetTenant("tnt_a", " tnt_b ", "brand_white", "src", "camp"); err == nil {
+		t.Fatal("a foreign body tenant was accepted")
+	}
+	if _, err := TargetTenant("  ", "brand_white", "brand_white", "src", "camp"); err == nil {
+		t.Fatal("an empty member tenant was filled from brand or campaign")
+	}
+}
+
 func TestSamePhoneDoesNotCrossMergeOrBind(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -39,12 +56,12 @@ func TestSamePhoneDoesNotCrossMergeOrBind(t *testing.T) {
 
 func TestBrandRenameKeepsContactHistory(t *testing.T) {
 	before := ContactAnchor{
-		TenantID:      "tnt_a",
-		BrandID:       "brand_white",
-		ConsentSource: "sub-1",
+		TenantID:       "tnt_a",
+		BrandID:        "brand_white",
+		ConsentSource:  "sub-1",
 		ConsentChannel: "landing",
-		OpportunityID: "opp_1",
-		Stage:         "open",
+		OpportunityID:  "opp_1",
+		Stage:          "open",
 	}
 	after := AfterBrandRename(before, "新品牌名")
 	if after.TenantID != before.TenantID || after.BrandID != before.BrandID ||

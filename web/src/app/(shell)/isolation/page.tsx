@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { brandIsDisplayOnly, exportConfirmHeader } from "@/lib/crmIsolation";
+import { WHITE_LABEL_CHAIN_UNVERIFIED, brandIsDisplayOnly, exportConfirmHeader, sourceStaysOnTenant } from "@/lib/crmIsolation";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 
 // 本租户导出与隔离说明。品牌只展示来源。下载在已有会话上再带确认头，
@@ -11,6 +11,8 @@ import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 export default function IsolationPage() {
   const scope = useCrmScope();
   const [brand, setBrand] = useState("白标品牌");
+  const [sourceTag, setSourceTag] = useState("门店活动");
+  const [campaignId, setCampaignId] = useState("camp_local");
   const [jobId, setJobId] = useState("");
   const [message, setMessage] = useState("");
   const [payload, setPayload] = useState("");
@@ -61,7 +63,18 @@ export default function IsolationPage() {
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
         />
+        <input
+          aria-label="来源标签"
+          value={sourceTag}
+          onChange={(e) => setSourceTag(e.target.value)}
+        />
+        <input
+          aria-label="活动"
+          value={campaignId}
+          onChange={(e) => setCampaignId(e.target.value)}
+        />
         <p data-testid="brand-role">{brandIsDisplayOnly(brand)}</p>
+        <p data-testid="source-stays">{sourceStaysOnTenant(sourceTag, brand, campaignId)}</p>
         <p className="muted">改品牌名称不会改已有联系人的租户、同意来源和商机历史。</p>
       </section>
       <section className="card">
@@ -73,8 +86,11 @@ export default function IsolationPage() {
         {message ? <p data-testid="export-message">{message}</p> : null}
         {payload ? <pre data-testid="export-payload">{payload}</pre> : null}
       </section>
+      <p className="muted" data-testid="pause-quota">
+        租户暂停和品牌暂停分开。恢复不会自动恢复已撤销的成员、营销同意或旧授权。额度不足只停止新增收费 AI，不隐藏已有联系人和跟进。
+      </p>
       <p className="muted" data-testid="touch-unverified">
-        Touch 到 Leads 的真实留资链仍未验证。这里没有用模拟接收器宣称白标经营链已完成。
+        {WHITE_LABEL_CHAIN_UNVERIFIED}
       </p>
       <p className="muted">
         <Link href="/">返回工作台</Link> · <Link href="/contacts">客户档案</Link>

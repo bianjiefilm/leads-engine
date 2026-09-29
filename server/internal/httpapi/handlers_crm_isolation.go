@@ -67,7 +67,7 @@ func (s *Server) writeDelegatedContacts(w http.ResponseWriter, r *http.Request, 
 			fail(w, http.StatusInternalServerError, "internal", "contact lookup failed")
 			return
 		}
-		item.OriginBrandID = s.St.ContactOriginBrand(item.ID, tenantID)
+		s.St.ApplyContactOrigin(&item)
 		writeJSON(w, http.StatusOK, item)
 		return
 	}
@@ -83,13 +83,13 @@ func (s *Server) writeDelegatedContacts(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-func (s *Server) bindWriteTenant(w http.ResponseWriter, c *caller, bodyTenant, brandID string) bool {
+func (s *Server) bindWriteTenant(w http.ResponseWriter, c *caller, bodyTenant, brandID, sourceTag, campaignID string) bool {
 	if c == nil || c.Member == nil {
 		fail(w, http.StatusForbidden, authz.ReasonNotMember, "principal is not a member of this tenant")
 		return false
 	}
-	if _, err := crmtenant.AuthorityTenant(c.Member.TenantID, bodyTenant, brandID); err != nil {
-		fail(w, http.StatusBadRequest, authz.ReasonCrossTenant, "brand is a source, not a tenant")
+	if _, err := crmtenant.TargetTenant(c.Member.TenantID, bodyTenant, brandID, sourceTag, campaignID); err != nil {
+		fail(w, http.StatusBadRequest, authz.ReasonCrossTenant, "brand, source tag, and campaign are not a tenant")
 		return false
 	}
 	if s.St.TenantLifecycle(c.Member.TenantID) == "suspended" {

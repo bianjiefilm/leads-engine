@@ -4,7 +4,10 @@
 // and it is not a tenant.
 package crmtenant
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 var (
 	ErrTenantRequired = errors.New("tenant required")
@@ -20,6 +23,30 @@ func AuthorityTenant(memberTenant, bodyTenant, brandID string) (string, error) {
 	}
 	// A brand id placed in the tenant field is display context, not a move.
 	if bodyTenant != "" && bodyTenant != memberTenant && bodyTenant != brandID {
+		return "", ErrCrossTenant
+	}
+	return memberTenant, nil
+}
+
+// TargetTenant returns the membership tenant. A brand id, source tag, or
+// campaign id never selects a different tenant.
+func TargetTenant(memberTenant, bodyTenant, brandID, sourceTag, campaignID string) (string, error) {
+	memberTenant = strings.TrimSpace(memberTenant)
+	bodyTenant = strings.TrimSpace(bodyTenant)
+	brandID = strings.TrimSpace(brandID)
+	sourceTag = strings.TrimSpace(sourceTag)
+	campaignID = strings.TrimSpace(campaignID)
+	chosen, err := AuthorityTenant(memberTenant, bodyTenant, brandID)
+	if err != nil {
+		return "", err
+	}
+	if chosen != memberTenant {
+		return "", ErrCrossTenant
+	}
+	if sourceTag != "" && chosen == sourceTag && chosen != memberTenant {
+		return "", ErrCrossTenant
+	}
+	if campaignID != "" && chosen == campaignID && chosen != memberTenant {
 		return "", ErrCrossTenant
 	}
 	return memberTenant, nil

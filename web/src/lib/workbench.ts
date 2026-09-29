@@ -173,20 +173,24 @@ export function deskState(statuses?: StatusFacts | null, sync?: { crm?: string }
 
 export const JOINT_CHAIN_INCOMPLETE = "联合经营链未完成";
 
+function refusedChainLabel(label: string): boolean {
+  return (
+    label === "已跟进" ||
+    label.includes("自动触达已成功") ||
+    label.includes("销售已收到") ||
+    label.includes("白标经营链")
+  );
+}
+
 export function jointChainLine(chain?: { status?: string; label?: string } | null): string {
-  if (
-    chain?.status === "complete" &&
-    chain.label &&
-    chain.label !== "已跟进" &&
-    !chain.label.includes("自动触达已成功")
-  ) {
+  if (chain?.status === "complete" && chain.label && !refusedChainLabel(chain.label)) {
     return chain.label;
   }
   return JOINT_CHAIN_INCOMPLETE;
 }
 
 export function visibleOutreach(notice?: string): string {
-  if (!notice || notice.includes("自动触达已成功")) return "";
+  if (!notice || notice.includes("自动触达已成功") || notice.includes("销售已收到")) return "";
   return notice;
 }
 

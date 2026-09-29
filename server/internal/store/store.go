@@ -259,7 +259,11 @@ type Contact struct {
 	TenantID string `json:"tenant_id"`
 	// OriginBrandID is the source brand captured with the contact. Renaming
 	// that brand does not change this id, and it is not the tenant.
-	OriginBrandID    string `json:"origin_brand_id,omitempty"`
+	OriginBrandID string `json:"origin_brand_id,omitempty"`
+	// SourceTag and CampaignID are source context captured with the contact.
+	// They are not a tenant id.
+	SourceTag        string `json:"source_tag,omitempty"`
+	CampaignID       string `json:"campaign_id,omitempty"`
 	Name             string `json:"name"`
 	Phone            string `json:"phone"`
 	Email            string `json:"email"`
