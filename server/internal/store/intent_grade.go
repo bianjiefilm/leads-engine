@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
 // IntentCitation quotes one evidence row on a stored grade.
@@ -185,3 +186,70 @@ func scanIntentSnapshot(sc interface{ Scan(...any) error }) (IntentSnapshot, err
 
 // ErrIntentNotFound is reserved for callers that want a stable miss.
 var ErrIntentNotFound = errors.New("intent snapshot not found")
+
+// IntentModelAttempt is the local receipt for one subject.
+// It never stores a model grade, task id, cost, or conclusion.
+type IntentModelAttempt struct {
+	ID             string
+	TenantID       string
+	SubjectKind    string
+	SubjectID      string
+	AttemptState   string
+	BillingVerdict string
+	TaskID         string
+	CostCents      int
+	Conclusion     string
+	CreatedAt      string
+	UpdatedAt      string
+}
+
+// SaveIntentModelAttempt inserts the single receipt for a subject.
+// A repeated subject does not add a row. PASS, a task id, a cost, or a conclusion is refused.
+func (s *Store) SaveIntentModelAttempt(row IntentModelAttempt) (IntentModelAttempt, error) {
+	if row.BillingVerdict != "not_completed" || row.CostCents != 0 || strings.TrimSpace(row.TaskID) != "" || strings.TrimSpace(row.Conclusion) != "" {
+		return IntentModelAttempt{}, errors.New("intent model attempt cannot store a model conclusion")
+	}
+	switch row.AttemptState {
+	case "missing_credentials", "unknown", "recovered":
+	default:
+		return IntentModelAttempt{}, errors.New("intent model attempt state refused")
+	}
+	if row.SubjectKind != "lead" && row.SubjectKind != "session" {
+		return IntentModelAttempt{}, errors.New("intent model attempt subject refused")
+	}
+	if row.ID == "" {
+		row.ID = newID("ima_")
+	}
+	stamp := now()
+	row.CreatedAt = stamp
+	row.UpdatedAt = stamp
+	_, err := s.DB.Exec(`INSERT INTO intent_model_attempts(id,tenant_id,subject_kind,subject_id,attempt_state,billing_verdict,task_id,cost_cents,conclusion,created_at,updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id, subject_kind, subject_id) DO NOTHING`,
+		row.ID, row.TenantID, row.SubjectKind, row.SubjectID, row.AttemptState, "not_completed", "", 0, "", stamp, stamp)
+	if err != nil {
+		return IntentModelAttempt{}, err
+	}
+	return s.GetIntentModelAttempt(row.TenantID, row.SubjectKind, row.SubjectID)
+}
+
+// GetIntentModelAttempt loads the one receipt for a subject.
+func (s *Store) GetIntentModelAttempt(tenantID, kind, subjectID string) (IntentModelAttempt, error) {
+	var row IntentModelAttempt
+	err := s.DB.QueryRow(`SELECT id,tenant_id,subject_kind,subject_id,attempt_state,billing_verdict,task_id,cost_cents,conclusion,created_at,updated_at
+		FROM intent_model_attempts WHERE tenant_id=? AND subject_kind=? AND subject_id=?`, tenantID, kind, subjectID).Scan(
+		&row.ID, &row.TenantID, &row.SubjectKind, &row.SubjectID, &row.AttemptState, &row.BillingVerdict,
+		&row.TaskID, &row.CostCents, &row.Conclusion, &row.CreatedAt, &row.UpdatedAt)
+	return row, err
+}
+
+// MarkIntentModelAttemptRecovered closes an unknown receipt without keeping a model result.
+func (s *Store) MarkIntentModelAttemptRecovered(tenantID, kind, subjectID string) (IntentModelAttempt, error) {
+	_, err := s.DB.Exec(`UPDATE intent_model_attempts
+		SET attempt_state='recovered', billing_verdict='not_completed', task_id='', cost_cents=0, conclusion='', updated_at=?
+		WHERE tenant_id=? AND subject_kind=? AND subject_id=? AND attempt_state='unknown'`,
+		now(), tenantID, kind, subjectID)
+	if err != nil {
+		return IntentModelAttempt{}, err
+	}
+	return s.GetIntentModelAttempt(tenantID, kind, subjectID)
+}
