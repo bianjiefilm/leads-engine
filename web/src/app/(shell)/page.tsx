@@ -7,9 +7,17 @@ import {
   BUCKETS,
   BUCKET_LABELS,
   acceptDesk,
+  allowedContactText,
+  billingCaption,
   centsText,
+  modelAdviceLine,
   moneyView,
+  nextLine,
+  ownerLine,
+  serviceDraftClick,
+  serviceDraftControl,
   sourceText,
+  syncLine,
   type BucketKey,
   type DeskItem,
   type MoneyFacts,
@@ -40,6 +48,7 @@ export default function Home() {
   const [money, setMoney] = useState<MoneyFacts>(EMPTY_MONEY);
   const [scopeLabel, setScopeLabel] = useState("");
   const [err, setErr] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
 
   useEffect(() => {
     setTenant(scope.tenantId ?? "");
@@ -120,11 +129,12 @@ export default function Home() {
         </button>
         <p className="muted">
           {scopeLabel ? `当前视图：${scopeLabel}。` : ""}
-          手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。普通线索入库、查看和人工跟进不逐条扣费。
-          意向分级只给下一步建议，不自动触达。
+          手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。{billingCaption()}。
+          {modelAdviceLine()}。意向分级只给下一步建议，不自动触达。
         </p>
       </div>
       {err ? <p className="muted">{err}</p> : null}
+      {draftMsg ? <p className="muted">{draftMsg}</p> : null}
       <div className="card">
         <h2>金额分开看</h2>
         <ul className="money-lines">
@@ -147,20 +157,31 @@ export default function Home() {
               <p className="muted">没有待办。</p>
             ) : (
               <ul className="desk-list">
-                {visible[key].map((item) => (
+                {visible[key].map((item) => {
+                  const draft = serviceDraftControl(item.service_draft);
+                  return (
                   <li key={`${key}-${item.id}`}>
-                    <p>{sourceText(item.source)}</p>
-                    <p>{item.next?.label || "安排下一次跟进"}</p>
+                    <p>来源：{sourceText(item.source)}</p>
+                    <p>负责人：{ownerLine(item.owner_label, item.assignment_reason)}</p>
+                    <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
+                    <p>下一步：{nextLine(item.next)}</p>
+                    <p>{syncLine(item.sync)}</p>
+                    {item.outreach_notice ? <p className="muted">{item.outreach_notice}</p> : null}
+                    <p className="muted">{modelAdviceLine()}</p>
                     {item.reason ? <p className="muted">{item.reason}</p> : null}
                     <div className="queue-actions">
-                      {item.lead_id ? <Link href={`/leads/${item.lead_id}`}>查看新线索</Link> : null}
+                      {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action="查看新线索">查看新线索</Link> : null}
                       {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
-                      {item.show_service_draft && item.opportunity_id ? (
-                        <Link href={`/opportunities/${item.opportunity_id}`}>创建服务需求草稿</Link>
+                      {draft.present ? (
+                        <button type="button" disabled={!draft.enabled} onClick={() => setDraftMsg(serviceDraftClick().message)}>
+                          创建服务需求草稿
+                        </button>
                       ) : null}
                     </div>
+                    {draft.present && !draft.enabled ? <p className="muted">{draft.reason}</p> : null}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>
