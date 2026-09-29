@@ -398,8 +398,11 @@ func (s *Store) loadDeskStageHistory(tenantID string) (map[string][]histSnap, er
 
 func (s *Store) loadDeskReception(tenantID string) ([]workbench.ReceptionView, error) {
 	rows, err := s.DB.Query(`
-		SELECT id, COALESCE(lead_id,''), COALESCE(owner_member_id,''), COALESCE(pending_reason,''), mode
-		FROM reception_sessions WHERE tenant_id=? AND status='open'`, tenantID)
+		SELECT s.id, COALESCE(s.lead_id,''), COALESCE(s.owner_member_id,''), COALESCE(s.pending_reason,''),
+		       s.mode, s.epoch, s.version, COALESCE(m.display_name,'')
+		FROM reception_sessions s
+		LEFT JOIN members m ON m.id = s.owner_member_id AND m.tenant_id = s.tenant_id
+		WHERE s.tenant_id=? AND s.status='open'`, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -407,13 +410,12 @@ func (s *Store) loadDeskReception(tenantID string) ([]workbench.ReceptionView, e
 	var out []workbench.ReceptionView
 	for rows.Next() {
 		var item workbench.ReceptionView
-		var mode string
-		if err := rows.Scan(&item.SessionID, &item.LeadID, &item.Assignee, &item.PendingReason, &mode); err != nil {
+		if err := rows.Scan(&item.SessionID, &item.LeadID, &item.Assignee, &item.PendingReason, &item.Mode, &item.Epoch, &item.Version, &item.OwnerLabel); err != nil {
 			return nil, err
 		}
 		item.TenantID = tenantID
 		item.WaitingReply = item.PendingReason == "waiting_reply" || item.PendingReason == "awaiting_customer"
-		item.HumanTodo = mode == "human" || item.PendingReason == "clarify_or_handoff" || item.PendingReason == "awaiting_approval" || item.PendingReason == "model_unavailable" || item.PendingReason == "human_takeover"
+		item.HumanTodo = item.Mode == "human" || item.PendingReason == "clarify_or_handoff" || item.PendingReason == "awaiting_approval" || item.PendingReason == "model_unavailable" || item.PendingReason == "human_takeover"
 		out = append(out, item)
 	}
 	return out, rows.Err()

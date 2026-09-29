@@ -739,6 +739,257 @@ func TestPhraseRecordsSucceededTaskWithoutVisitorText(t *testing.T) {
 	}
 }
 
+func TestReceptionCitedChainShowsOwnerOnWorkbench(t *testing.T) {
+	h := newHarnessOpts(t, harnessOpts{featureReception: true})
+	tenantA, tenantB, _ := h.seed()
+	h.provision("grant", tenantA, principalAgentA)
+	agentID := h.memberID(tenantA, principalAgentA)
+	var leadsBefore, oppsBefore, contactsBefore, membersBefore int
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM leads WHERE tenant_id=?`, tenantA).Scan(&leadsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM opportunities WHERE tenant_id=?`, tenantA).Scan(&oppsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE tenant_id=?`, tenantA).Scan(&contactsBefore); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM members`).Scan(&membersBefore); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	h.api.ReceptionFacts = kindFactBook{tenantA: {
+		"price":     {value: "现价100元整", expires: now.Add(-time.Hour)},
+		"inventory": {value: "现货 2 件", expires: now.Add(time.Hour)},
+	}}
+	widget := h.mustDo("POST", "/api/v1/reception/widgets", sessionOwnerA, tenantA, `{"default_mode":"ai","persona_wording":"一口价只要9元","language":"zh"}`, 201)
+	faq := h.mustDo("POST", "/api/v1/reception/knowledge", sessionOwnerA, tenantA, `{"question":"营业时间","answer":"每天 9:00 到 18:00"}`, 201)
+	h.mustDo("POST", "/api/v1/reception/knowledge", sessionOwnerA, tenantA, `{"question":"库存","answer":"文档里还有 9 件"}`, 201)
+	h.mustDo("POST", "/api/v1/reception/knowledge", sessionOwnerB, tenantB, `{"question":"营业时间","answer":"租户B机密口令XYZ"}`, 201)
+	opened := h.mustDo("POST", "/api/v1/public/reception/widgets/"+widget["id"].(string)+"/sessions", "", "", `{"visitor_key":"visitor-key-r3chain1"}`, 201)
+	sid := opened["session"].(map[string]any)["id"].(string)
+	before := h.mustDo("GET", "/api/v1/reception/sessions/"+sid, sessionAgentA, tenantA, "", 200)
+	msg := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-faq","text":"请问营业时间"}`, 200)
+	reply := msg["reply"].(map[string]any)
+	if reply["body"] != "每天 9:00 到 18:00" || reply["status"] != "sent" {
+		t.Fatalf("faq = %v", reply)
+	}
+	cites, _ := reply["citations"].([]any)
+	if len(cites) != 1 || cites[0].(map[string]any)["source_id"] != faq["id"] || cites[0].(map[string]any)["kind"] != "faq" {
+		t.Fatalf("citation = %v", cites)
+	}
+	sessionBefore := before["session"].(map[string]any)
+	if int(reply["epoch"].(float64)) != int(sessionBefore["epoch"].(float64)) || int(reply["session_version"].(float64)) != int(sessionBefore["version"].(float64)) {
+		t.Fatalf("reply epoch/version drifted at birth: reply %v session %v", reply, sessionBefore)
+	}
+	bornEpoch := int(reply["epoch"].(float64))
+	bornVersion := int(reply["session_version"].(float64))
+	replyID := reply["id"].(string)
+	model, _ := msg["model"].(map[string]any)
+	if model["billing_verdict"] != "not_completed" || model["cost_cents"].(float64) != 0 || strings.Contains(mustJSON(msg), "PASS") {
+		t.Fatalf("model = %v", model)
+	}
+
+	stock := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-stock","text":"还有货吗"}`, 200)
+	stockReply := stock["reply"].(map[string]any)
+	if stockReply["body"] != "现货 2 件" || strings.Contains(stockReply["body"].(string), "9 件") || strings.Contains(stockReply["body"].(string), "100") {
+		t.Fatalf("stock = %v", stockReply)
+	}
+	order := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-order","text":"订单状态"}`, 200)
+	orderBody := order["reply"].(map[string]any)["body"].(string)
+	if strings.Contains(orderBody, "2 件") || strings.Contains(orderBody, "9 件") || strings.Contains(orderBody, "100") || order["reply"].(map[string]any)["status"] == "sent" {
+		t.Fatalf("order invented: %v", order["reply"])
+	}
+	price := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-price","text":"价格多少钱"}`, 200)
+	priceBody := price["reply"].(map[string]any)["body"].(string)
+	if strings.Contains(priceBody, "100") || strings.Contains(priceBody, "2 件") || strings.Contains(priceBody, "9元") || price["reply"].(map[string]any)["status"] == "sent" {
+		t.Fatalf("expired price invented: %v", price["reply"])
+	}
+	writeMsg := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-write","text":"我要取消订单"}`, 200)
+	if writeMsg["reply"].(map[string]any)["status"] == "sent" {
+		t.Fatalf("order write was sent: %v", writeMsg["reply"])
+	}
+	var leadsMid, oppsMid, contactsMid int
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM leads WHERE tenant_id=?`, tenantA).Scan(&leadsMid)
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM opportunities WHERE tenant_id=?`, tenantA).Scan(&oppsMid)
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE tenant_id=?`, tenantA).Scan(&contactsMid)
+	if leadsMid != leadsBefore || oppsMid != oppsBefore || contactsMid != contactsBefore {
+		t.Fatalf("ordinary answers wrote leads %d->%d opps %d->%d contacts %d->%d", leadsBefore, leadsMid, oppsBefore, oppsMid, contactsBefore, contactsMid)
+	}
+	if h.doStatus("POST", "/api/v1/reception/refunds", sessionOwnerA, tenantA, `{}`) != 404 {
+		t.Fatal("refund route exists")
+	}
+	if h.doStatus("POST", "/api/v1/reception/orders", sessionOwnerA, tenantA, `{}`) != 404 {
+		t.Fatal("order route exists")
+	}
+
+	assisted := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/assist", sessionAgentA, tenantA, `{"epoch":1}`, 200)
+	if assisted["mode"] != "assist" || int(assisted["epoch"].(float64)) != 2 {
+		t.Fatalf("assist = %v", assisted)
+	}
+	draftMsg := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-draft","text":"营业时间"}`, 200)
+	if draftMsg["reply"] != nil {
+		t.Fatalf("assist draft reached the visitor: %v", draftMsg["reply"])
+	}
+	staff := h.mustDo("GET", "/api/v1/reception/sessions/"+sid, sessionAgentA, tenantA, "", 200)
+	var draftID string
+	for _, item := range staff["replies"].([]any) {
+		row := item.(map[string]any)
+		if row["status"] == "generated" {
+			draftID = row["id"].(string)
+			cites, _ := row["citations"].([]any)
+			if len(cites) != 1 || cites[0].(map[string]any)["source_id"] != faq["id"] {
+				t.Fatalf("draft citation = %v", row)
+			}
+		}
+	}
+	if draftID == "" {
+		t.Fatal("assist draft missing")
+	}
+	approved := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/replies/"+draftID+"/approve", sessionAgentA, tenantA, `{}`, 200)
+	if approved["reply"].(map[string]any)["status"] != "approved" {
+		t.Fatalf("approve = %v", approved["reply"])
+	}
+	taken := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/takeover", sessionAgentA, tenantA, `{"epoch":2}`, 200)
+	if taken["mode"] != "human" || int(taken["epoch"].(float64)) != 3 || taken["owner_member_id"] != agentID {
+		t.Fatalf("takeover = %v", taken)
+	}
+	var gotEpoch, gotVersion int
+	var gotStatus string
+	if err := h.api.St.DB.QueryRow(`SELECT epoch, session_version, status FROM reception_replies WHERE id=?`, replyID).Scan(&gotEpoch, &gotVersion, &gotStatus); err != nil {
+		t.Fatal(err)
+	}
+	if gotEpoch != bornEpoch || gotVersion != bornVersion || gotStatus != "sent" {
+		t.Fatalf("old reply moved: epoch %d->%d version %d->%d status %s", bornEpoch, gotEpoch, bornVersion, gotVersion, gotStatus)
+	}
+	lateDraft, _, _ := h.do("POST", "/api/v1/reception/sessions/"+sid+"/replies/"+draftID+"/send", sessionAgentA, tenantA, `{"receipt_id":"r3-late-draft"}`)
+	if lateDraft != 409 {
+		t.Fatalf("approved draft send after takeover = %d", lateDraft)
+	}
+	againOld := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/replies/"+replyID+"/send", sessionAgentA, tenantA, `{"receipt_id":"r3-old-again"}`, 200)
+	if againOld["duplicate"] != true {
+		t.Fatalf("old AI reply sent again: %v", againOld)
+	}
+	pres, praw, _ := h.doRaw("GET", "/api/v1/reception/sessions/"+sid+"/presentation", sessionAgentA, tenantA, "")
+	presText := string(praw)
+	if pres != 200 || strings.Contains(presText, `"text":true`) || strings.Contains(presText, `"audio":true`) || strings.Contains(presText, "visitor-key-r3chain1") || strings.Contains(presText, "XYZ") || strings.Contains(presText, "一口价") {
+		t.Fatalf("presentation after takeover = %d %s", pres, presText)
+	}
+	if h.doStatus("POST", "/api/v1/reception/sessions/"+sid+"/takeover", sessionSalesA2, tenantA, `{"epoch":2}`) == 200 {
+		t.Fatal("old epoch stole the session")
+	}
+	still, err := h.api.St.GetReceptionSession(tenantA, sid)
+	if err != nil || still.Epoch != 3 || still.OwnerMemberID != agentID {
+		t.Fatalf("epoch after lost grab = %+v %v", still, err)
+	}
+	if statusB := h.doStatus("GET", "/api/v1/reception/sessions/"+sid, sessionOwnerB, tenantB, ""); statusB != 404 && statusB != 403 {
+		t.Fatalf("tenant B read = %d", statusB)
+	}
+
+	agentDesk := h.mustDo("GET", "/api/v1/workbench", sessionAgentA, tenantA, "", 200)
+	ownerDesk := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", 200)
+	otherDesk := h.mustDo("GET", "/api/v1/workbench", sessionSalesA2, tenantA, "", 200)
+	foreignDesk := h.mustDo("GET", "/api/v1/workbench", sessionOwnerB, tenantB, "", 200)
+	if agentDesk["scope"] != "own" || ownerDesk["scope"] != "tenant" || agentDesk["scope"] == ownerDesk["scope"] {
+		t.Fatalf("scopes agent=%v owner=%v", agentDesk["scope"], ownerDesk["scope"])
+	}
+	agentItem := findItem(agentDesk, "session_id", sid)
+	ownerItem := findItem(ownerDesk, "session_id", sid)
+	if agentItem == nil || ownerItem == nil || findItem(otherDesk, "session_id", sid) != nil || findItem(foreignDesk, "session_id", sid) != nil {
+		t.Fatalf("desk visibility agent=%v owner=%v other=%v foreign=%v", agentItem != nil, ownerItem != nil, findItem(otherDesk, "session_id", sid) != nil, findItem(foreignDesk, "session_id", sid) != nil)
+	}
+	fact, _ := agentItem["reception"].(map[string]any)
+	ownerFact, _ := ownerItem["reception"].(map[string]any)
+	if fact == nil || fact["takeover"] != true || fact["label"] != "人工接管" || fact["owner_label"] != "Agent A" || fact["owner_label"] == agentID || int(fact["epoch"].(float64)) != int(taken["epoch"].(float64)) || int(fact["version"].(float64)) != int(taken["version"].(float64)) {
+		t.Fatalf("agent fact = %v taken = %v", fact, taken)
+	}
+	if ownerFact["owner_label"] != "Agent A" || ownerFact["takeover"] != true {
+		t.Fatalf("owner fact = %v", ownerFact)
+	}
+	next, _ := agentItem["next"].(map[string]any)
+	if next["create_order"] == true || next["auto_call"] == true || next["auto_message"] == true || agentItem["force_opportunity"] == true {
+		t.Fatalf("desk armed a side effect: %v", agentItem)
+	}
+	for _, desk := range []map[string]any{agentDesk, ownerDesk} {
+		chain, _ := desk["joint_chain"].(map[string]any)
+		raw := wbJSON(desk)
+		if chain["label"] != "联合经营链未完成" || chain["touch_delivered"] != false || desk["outreach_submitted"] != false || strings.Contains(raw, "自动触达已成功") || strings.Contains(raw, "每天 9:00 到 18:00") || strings.Contains(raw, "visitor-key-r3chain1") || strings.Contains(raw, "一口价") || strings.Contains(raw, "XYZ") || strings.Contains(raw, "13900001111") {
+			t.Fatalf("desk leaked or finished the chain: %s", raw)
+		}
+	}
+
+	released := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/release", sessionAgentA, tenantA, `{"epoch":3}`, 200)
+	if released["mode"] != "ai" || int(released["epoch"].(float64)) != 4 || released["owner_member_id"] != nil && released["owner_member_id"] != "" {
+		t.Fatalf("release = %v", released)
+	}
+	if h.doStatus("POST", "/api/v1/reception/sessions/"+sid+"/replies", sessionAgentA, tenantA, `{"client_reply_id":"r3-human-after","body":"交回后不该由人工再答"}`) != 409 {
+		t.Fatal("human reply accepted after release")
+	}
+	back := h.mustDo("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "",
+		`{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-back","text":"请问营业时间"}`, 200)
+	backReply := back["reply"].(map[string]any)
+	backCites, _ := backReply["citations"].([]any)
+	if backReply["status"] != "sent" || backReply["body"] != "每天 9:00 到 18:00" || len(backCites) != 1 || backCites[0].(map[string]any)["source_id"] != faq["id"] {
+		t.Fatalf("ai after release = %v", backReply)
+	}
+	afterRelease := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", 200)
+	if item := findItem(afterRelease, "session_id", sid); item != nil {
+		gone, _ := item["reception"].(map[string]any)
+		if gone["takeover"] == true {
+			t.Fatalf("released session still a takeover: %v", item)
+		}
+	}
+
+	var leadsAuthorized int
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM leads WHERE tenant_id=?`, tenantA).Scan(&leadsAuthorized)
+	lead := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/lead", sessionSalesA1, tenantA,
+		`{"purpose":"sales_followup","allow_contact":true,"notice_version":"reception-notice-v1","contact_name":"周敏","phone":"13900001111","marketing_allowed":true}`, 200)
+	var marketing int
+	if err := h.api.St.DB.QueryRow(`SELECT marketing_allowed FROM contact_consents WHERE contact_id=?`, lead["contact_id"]).Scan(&marketing); err != nil || marketing != 0 {
+		t.Fatalf("marketing = %d %v", marketing, err)
+	}
+	var leadsAfter, oppsAfter, contactsAfter int
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM leads WHERE tenant_id=?`, tenantA).Scan(&leadsAfter)
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM opportunities WHERE tenant_id=?`, tenantA).Scan(&oppsAfter)
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM contacts WHERE tenant_id=?`, tenantA).Scan(&contactsAfter)
+	if leadsAfter != leadsAuthorized+1 || oppsAfter != oppsBefore || contactsAfter != contactsBefore+1 {
+		t.Fatalf("authorization wrote leads %d->%d opps %d->%d contacts %d->%d", leadsAuthorized, leadsAfter, oppsBefore, oppsAfter, contactsBefore, contactsAfter)
+	}
+	closed := h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/close", sessionAgentA, tenantA, `{}`, 200)
+	if closed["status"] != "closed" || int(closed["epoch"].(float64)) != 4 {
+		t.Fatalf("close = %v", closed)
+	}
+	var leadsClosed int
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM leads WHERE tenant_id=?`, tenantA).Scan(&leadsClosed)
+	if leadsClosed != leadsAfter {
+		t.Fatalf("close created a lead: %d -> %d", leadsAfter, leadsClosed)
+	}
+	if h.doStatus("POST", "/api/v1/public/reception/sessions/"+sid+"/messages", "", "", `{"visitor_key":"visitor-key-r3chain1","client_msg_id":"r3-closed","text":"营业时间"}`) != 409 {
+		t.Fatal("visitor answered after close")
+	}
+	if h.doStatus("POST", "/api/v1/reception/sessions/"+sid+"/assist", sessionAgentA, tenantA, `{"epoch":4}`) != 409 {
+		t.Fatal("assist accepted after close")
+	}
+	if h.doStatus("POST", "/api/v1/reception/sessions/"+sid+"/takeover", sessionAgentA, tenantA, `{"epoch":4}`) != 409 {
+		t.Fatal("takeover accepted after close")
+	}
+	var membersAfter int
+	_ = h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM members`).Scan(&membersAfter)
+	if membersAfter != membersBefore {
+		t.Fatalf("members %d -> %d", membersBefore, membersAfter)
+	}
+	seen := h.mustDo("GET", "/api/v1/public/reception/sessions/"+sid+"?visitor_key=visitor-key-r3chain1", "", "", "", 200)
+	if strings.Contains(mustJSON(seen), "XYZ") || strings.Contains(mustJSON(seen), "一口价只要9元") {
+		t.Fatalf("transcript leaked: %s", mustJSON(seen))
+	}
+}
+
 func (h *harness) doStatus(method, path, session, tenant, body string) int {
 	h.t.Helper()
 	status, _, _ := h.do(method, path, session, tenant, body)
@@ -754,6 +1005,24 @@ type receptionFact struct {
 	value   string
 	expires time.Time
 	code    string
+}
+
+type kindFactBook map[string]map[string]receptionFact
+
+func (b kindFactBook) Lookup(tenantID, kind string, now time.Time) (string, time.Time, string) {
+	_ = now
+	kinds, ok := b[tenantID]
+	if !ok {
+		return "", time.Time{}, "missing"
+	}
+	row, ok := kinds[kind]
+	if !ok {
+		return "", time.Time{}, "missing"
+	}
+	if row.code != "" {
+		return "", time.Time{}, row.code
+	}
+	return row.value, row.expires, ""
 }
 
 type receptionFactBook map[string]receptionFact
