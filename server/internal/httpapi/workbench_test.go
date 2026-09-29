@@ -314,6 +314,81 @@ func TestWorkbenchHonestDesk(t *testing.T) {
 	}
 }
 
+func TestWorkbenchLocalLeadRefresh(t *testing.T) {
+	h := newHarness(t)
+	tenantA, tenantB, contactA1 := h.seed()
+	lead := h.mustDo("POST", "/api/v1/leads", sessionSalesA1, tenantA,
+		fmt.Sprintf(`{"contact_id":%q,"status":"new"}`, contactA1), http.StatusCreated)
+	leadID, _ := lead["id"].(string)
+
+	sales := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	item := findLeadItem(sales, leadID)
+	if item == nil {
+		t.Fatal("tenant-local lead missing from the sales desk")
+	}
+	source, _ := item["source"].(map[string]any)
+	next, _ := item["next"].(map[string]any)
+	statuses, _ := item["statuses"].(map[string]any)
+	if source["channel"] != "手工录入" || item["owner_label"] != "Sales A1" {
+		t.Fatalf("identity = %v", item)
+	}
+	if statuses == nil || statuses["followed"] == true {
+		t.Fatalf("state = %v", statuses)
+	}
+	if next["label"] == "" || next["label"] == nil {
+		t.Fatalf("next = %v", next)
+	}
+	assertSyncUnknown(t, item["sync"])
+	chain, _ := sales["joint_chain"].(map[string]any)
+	if chain["status"] != "incomplete" || chain["label"] != "联合经营链未完成" || chain["touch_delivered"] != false {
+		t.Fatalf("chain = %v", sales["joint_chain"])
+	}
+	if sales["outreach_submitted"] != false {
+		t.Fatalf("outreach = %v", sales["outreach_submitted"])
+	}
+	if sales["scope"] != "own" {
+		t.Fatalf("sales scope = %v", sales["scope"])
+	}
+	raw := wbJSON(sales)
+	if strings.Contains(raw, "自动触达已成功") || strings.Contains(raw, "Touch已投递") {
+		t.Fatalf("desk claimed a delivery: %s", raw)
+	}
+
+	again := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	if findLeadItem(again, leadID) == nil {
+		t.Fatal("refresh lost the same lead")
+	}
+	owner := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", http.StatusOK)
+	if owner["scope"] == sales["scope"] || owner["scope"] != "tenant" || findLeadItem(owner, leadID) == nil {
+		t.Fatalf("owner scope = %v", owner["scope"])
+	}
+	timeline := h.mustDo("GET", "/api/v1/leads/"+leadID+"/timeline", sessionSalesA1, tenantA, "", http.StatusOK)
+	tlChain, _ := timeline["joint_chain"].(map[string]any)
+	tlStatus, _ := timeline["statuses"].(map[string]any)
+	if tlChain["label"] != "联合经营链未完成" || tlStatus["followed"] == true || timeline["outreach_submitted"] != false {
+		t.Fatalf("timeline = %v", timeline)
+	}
+
+	clearAssignee(t, h, leadID)
+	ownerPool := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", http.StatusOK)
+	pool := findLeadItem(ownerPool, leadID)
+	if pool == nil || pool["assignment_reason"] != "待分配" {
+		t.Fatalf("unassigned = %v", pool)
+	}
+	poolStatus, _ := pool["statuses"].(map[string]any)
+	if poolStatus["followed"] == true {
+		t.Fatal("unassigned unknown sync was shown as followed")
+	}
+	salesGone := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	if findLeadItem(salesGone, leadID) != nil {
+		t.Fatal("sales scope included an unassigned lead")
+	}
+	foreign := h.mustDo("GET", "/api/v1/workbench", sessionOwnerB, tenantB, "", http.StatusOK)
+	if findLeadItem(foreign, leadID) != nil || strings.Contains(wbJSON(foreign), leadID) {
+		t.Fatal("another tenant saw the lead")
+	}
+}
+
 func assertSyncUnknown(t *testing.T, raw any) {
 	t.Helper()
 	sync, _ := raw.(map[string]any)

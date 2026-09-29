@@ -1,0 +1,60 @@
+{
+  "note": "本仓工程夹具，不是 Touch 投递",
+  "touch_delivered": false,
+  "tenant_id": "tnt_fixture",
+  "other_tenant_id": "tnt_other",
+  "scopes": { "sales": "own", "owner": "tenant" },
+  "joint_chain": {
+    "status": "incomplete",
+    "label": "联合经营链未完成",
+    "touch_delivered": false
+  },
+  "lead": {
+    "id": "lead_fixture_local",
+    "tenant_id": "tnt_fixture",
+    "kind": "lead",
+    "lead_id": "lead_fixture_local",
+    "source": { "channel": "手工录入", "at": "2026-09-29T01:00:00Z" },
+    "owner_label": "Sales A1",
+    "statuses": {
+      "submitted": false,
+      "received": true,
+      "assigned": true,
+      "followed": false,
+      "won": false,
+      "paid": false
+    },
+    "next": { "kind": "suggest_schedule", "source": "suggestion", "label": "安排下一次跟进" },
+    "sync": { "crm": "unknown" },
+    "outreach_notice": "没有营销许可"
+  },
+  "unassigned": {
+    "id": "lead_pool",
+    "tenant_id": "tnt_fixture",
+    "kind": "lead",
+    "lead_id": "lead_pool",
+    "source": { "channel": "手工录入", "at": "2026-09-29T01:00:00Z" },
+    "assignment_reason": "待分配",
+    "statuses": {
+      "submitted": false,
+      "received": true,
+      "assigned": false,
+      "followed": false,
+      "won": false,
+      "paid": false
+    },
+    "next": { "kind": "suggest_schedule", "source": "suggestion", "label": "安排下一次跟进" },
+    "sync": { "crm": "unknown" }
+  },
+  "other_tenant_lead": {
+    "id": "lead_other",
+    "tenant_id": "tnt_other",
+    "kind": "lead",
+    "lead_id": "lead_other",
+    "source": { "channel": "手工录入", "at": "2026-09-29T01:00:00Z" },
+    "owner_label": "Other",
+    "statuses": { "received": true, "followed": false },
+    "next": { "kind": "suggest_schedule", "source": "suggestion", "label": "安排下一次跟进" },
+    "sync": { "crm": "unknown" }
+  }
+}

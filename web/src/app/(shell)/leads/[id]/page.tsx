@@ -7,12 +7,14 @@ import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import {
   NARROW_ACTIONS,
   allowedContactText,
+  deskState,
+  jointChainLine,
   modelAdviceLine,
   nextLine,
   ownerLine,
   sourceText,
-  statusLine,
   syncLine,
+  visibleOutreach,
   type StatusFacts,
 } from "@/lib/workbench";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
@@ -34,6 +36,7 @@ interface TimelineResponse {
   allowed_contacts?: string[];
   sync?: { crm?: string };
   outreach_notice?: string;
+  joint_chain?: { status?: string; label?: string };
   message?: string;
   error?: string;
 }
@@ -141,9 +144,10 @@ export default function LeadDeskPage() {
             <p>来源：{sourceText(visible.source)}</p>
             <p>负责人：{ownerLine(visible.owner_label, visible.assignment_reason)}</p>
             <p>允许的联系方式：{allowedContactText(visible.allowed_contacts)}</p>
-            <p>状态：{statusLine(visible.statuses ?? {}) || "尚无权威状态"}</p>
+            <p>状态：{deskState(visible.statuses, visible.sync)}</p>
             <p>{syncLine(visible.sync)}</p>
-            {visible.outreach_notice ? <p className="muted">{visible.outreach_notice}</p> : null}
+            <p data-joint-chain="incomplete">{jointChainLine(visible.joint_chain)}</p>
+            {visibleOutreach(visible.outreach_notice) ? <p className="muted">{visibleOutreach(visible.outreach_notice)}</p> : null}
             <p>下一步：{nextLine(visible.next)}</p>
             <p className="muted">{modelAdviceLine()}</p>
             {visible.next?.at ? <p className="muted">时间 {visible.next.at}</p> : null}

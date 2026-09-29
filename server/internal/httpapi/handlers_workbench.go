@@ -44,13 +44,15 @@ func (s *Server) handleLeadTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body := map[string]any{
-		"lead_id":    lead.ID,
-		"events":     workbench.AssembleTimeline(facts.Events[lead.ID], true),
-		"source":     workbench.SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
-		"statuses":   workbench.ProjectStatus(lead, oppsForContact(facts.Opps, lead.ContactID), false),
-		"next":       workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), 0),
-		"billing":    workbench.Billing{OrdinaryCRMChargeCents: workbench.OrdinaryCRMChargeCents("view")},
-		"automation": workbench.Automation{},
+		"lead_id":            lead.ID,
+		"events":             workbench.AssembleTimeline(facts.Events[lead.ID], true),
+		"source":             workbench.SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
+		"statuses":           workbench.ProjectStatus(lead, oppsForContact(facts.Opps, lead.ContactID), false),
+		"next":               workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), 0),
+		"billing":            workbench.Billing{OrdinaryCRMChargeCents: workbench.OrdinaryCRMChargeCents("view")},
+		"automation":         workbench.Automation{},
+		"joint_chain":        workbench.ProjectJointChain(),
+		"outreach_submitted": workbench.DeskSubmittedOutreach(),
 	}
 	for k, v := range leadReadout(lead) {
 		body[k] = v

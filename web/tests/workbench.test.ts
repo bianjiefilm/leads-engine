@@ -6,15 +6,23 @@ import {
   acceptDesk,
   allowedContactText,
   billingCaption,
+  deskState,
+  jointChainLine,
   modelAdviceLine,
   moneyView,
   narrowWorkbenchFlow,
+  refreshedLead,
+  renderLeadFacts,
+  salesScopeIsNotOwner,
+  scopeCaption,
   serviceDraftClick,
   serviceDraftControl,
   showServiceDraft,
   statusLine,
   syncLine,
+  visibleOutreach,
 } from "@/lib/workbench";
+import fixture from "./fixtures/hui-1893-local-lead.json";
 
 describe("sales desk", () => {
   it("keeps the three narrow-screen actions available", () => {
@@ -98,6 +106,61 @@ describe("sales desk", () => {
     expect(disabled.enabled).toBe(false);
     expect(disabled.reason).toContain("人工确认");
     expect(serviceDraftClick().submitted).toBe(false);
+    expect(serviceDraftClick().outreach).toBe(false);
     expect(serviceDraftClick().message).not.toContain("已成交");
+    expect(serviceDraftClick().message).not.toContain("自动触达已成功");
+  });
+
+  it("shows one tenant-local fixture lead and does not paint unknown sync as followed-up", () => {
+    expect(fixture.touch_delivered).toBe(false);
+    expect(fixture.note).toContain("不是 Touch");
+    expect(salesScopeIsNotOwner(fixture.scopes.sales, fixture.scopes.owner)).toBe(true);
+    expect(salesScopeIsNotOwner("tenant", "tenant")).toBe(false);
+    expect(scopeCaption("own")).toBe("我的范围");
+    expect(scopeCaption("tenant")).toBe("全租户");
+    expect(scopeCaption("own")).not.toBe(scopeCaption("tenant"));
+
+    const kept = acceptDesk(fixture.tenant_id, {
+      unprocessed: [fixture.lead, fixture.other_tenant_lead],
+    });
+    expect(kept.unprocessed.map((row) => row.id)).toEqual([fixture.lead.id]);
+    const refreshed = acceptDesk(fixture.tenant_id, {
+      unprocessed: [fixture.lead, fixture.other_tenant_lead],
+    });
+    const first = renderLeadFacts(kept.unprocessed[0], fixture.joint_chain);
+    const second = renderLeadFacts(refreshed.unprocessed[0], fixture.joint_chain);
+    expect(refreshedLead(first, second)?.id).toBe(fixture.lead.id);
+    expect(first).toMatchObject({
+      source: "手工录入 · 2026-09-29T01:00:00Z",
+      owner: "Sales A1",
+      state: "已接收 · 已分配",
+      next: "不是模型输出 · 安排下一次跟进",
+      sync: "同步：未知",
+      chain: "联合经营链未完成",
+      outreachSubmitted: false,
+    });
+    expect(first.state).not.toContain("已跟进");
+    expect(first.sync).not.toBe("已跟进");
+    expect(first.chain).not.toContain("已跟进");
+    expect(deskState(fixture.lead.statuses, fixture.lead.sync)).not.toContain("已跟进");
+    expect(jointChainLine(fixture.joint_chain)).toBe("联合经营链未完成");
+    expect(jointChainLine({ status: "incomplete", label: "已跟进" })).toBe("联合经营链未完成");
+    expect(visibleOutreach("自动触达已成功")).toBe("");
+    expect(visibleOutreach("没有营销许可")).toBe("没有营销许可");
+
+    const pool = renderLeadFacts(fixture.unassigned, fixture.joint_chain);
+    expect(pool.owner).toBe("待分配");
+    expect(pool.state).not.toContain("已跟进");
+
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    const leadPage = readFileSync("src/app/(shell)/leads/[id]/page.tsx", "utf8");
+    expect(home).toContain("renderLeadFacts");
+    expect(home).toContain("状态：");
+    expect(home).toContain("jointChainLine");
+    expect(home).toContain("visibleOutreach");
+    expect(home).not.toContain("自动触达已成功");
+    expect(leadPage).toContain("jointChainLine");
+    expect(leadPage).toContain("deskState");
+    expect(leadPage).not.toContain("自动触达已成功");
   });
 });
