@@ -165,11 +165,13 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		PrincipalRef     string       `json:"principal_ref"`
 		TenantID         string       `json:"tenant_id"`
 		BrandID          string       `json:"brand_id"`
+		SourceTag        string       `json:"source_tag"`
+		CampaignID       string       `json:"campaign_id"`
 	}
 	if !decodeBody(w, r, &in) {
 		return
 	}
-	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID, in.SourceTag, in.CampaignID) {
 		return
 	}
 	if strings.TrimSpace(in.PrincipalRef) != "" || subscription.PlatformSideEffect(subscription.ContactIdentity{Phone: in.Phone, Email: in.Email}).Principals != 0 {
@@ -231,12 +233,12 @@ func (s *Server) handleContactCreate(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "contact create failed")
 		return
 	}
-	if in.BrandID != "" && !crmtenant.BindPlatformPrincipal(in.Phone) {
-		if err := s.St.SetContactOrigin(created.ID, created.TenantID, in.BrandID); err != nil {
+	if (strings.TrimSpace(in.BrandID) != "" || strings.TrimSpace(in.SourceTag) != "" || strings.TrimSpace(in.CampaignID) != "") && !crmtenant.BindPlatformPrincipal(in.Phone) {
+		if err := s.St.SetContactOrigin(created.ID, created.TenantID, strings.TrimSpace(in.BrandID), strings.TrimSpace(in.SourceTag), strings.TrimSpace(in.CampaignID)); err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "contact origin failed")
 			return
 		}
-		created.OriginBrandID = in.BrandID
+		s.St.ApplyContactOrigin(&created)
 	}
 	// 日志只带掩码形态与标签个数;手机号/邮箱明文、备注与标签内容一律不入日志。
 	s.Log.Printf("contact created id=%s %s %s", created.ID,
@@ -317,7 +319,7 @@ func (s *Server) handleContactGet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rec.OriginBrandID = s.St.ContactOriginBrand(rec.ID, rec.TenantID)
+	s.St.ApplyContactOrigin(&rec)
 	writeJSON(w, http.StatusOK, rec)
 }
 
@@ -406,11 +408,13 @@ func (s *Server) handleLeadCreate(w http.ResponseWriter, r *http.Request) {
 		PrincipalRef     string       `json:"principal_ref"`
 		TenantID         string       `json:"tenant_id"`
 		BrandID          string       `json:"brand_id"`
+		SourceTag        string       `json:"source_tag"`
+		CampaignID       string       `json:"campaign_id"`
 	}
 	if !decodeBody(w, r, &in) {
 		return
 	}
-	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID, in.SourceTag, in.CampaignID) {
 		return
 	}
 	if strings.TrimSpace(in.PrincipalRef) != "" {
@@ -559,11 +563,13 @@ func (s *Server) handleOppCreate(w http.ResponseWriter, r *http.Request) {
 		AssignedMemberID string  `json:"assigned_member_id"`
 		TenantID         string  `json:"tenant_id"`
 		BrandID          string  `json:"brand_id"`
+		SourceTag        string  `json:"source_tag"`
+		CampaignID       string  `json:"campaign_id"`
 	}
 	if !decodeBody(w, r, &in) {
 		return
 	}
-	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID) {
+	if !s.bindWriteTenant(w, c, in.TenantID, in.BrandID, in.SourceTag, in.CampaignID) {
 		return
 	}
 	if in.ContactID == "" || in.Title == "" {

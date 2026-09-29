@@ -98,37 +98,60 @@ func (s *Store) SetBrandStatus(id, status string) (Brand, error) {
 	return s.GetBrand(id)
 }
 
-func (s *Store) SetContactOrigin(contactID, tenantID, brandID string) error {
-	_, err := s.DB.Exec(`INSERT INTO contact_origins(contact_id,tenant_id,brand_id,created_at) VALUES(?,?,?,?)
-		ON CONFLICT(contact_id) DO UPDATE SET brand_id=excluded.brand_id`,
-		contactID, tenantID, brandID, now())
+func (s *Store) SetContactOrigin(contactID, tenantID, brandID, sourceTag, campaignID string) error {
+	_, err := s.DB.Exec(`INSERT INTO contact_origins(contact_id,tenant_id,brand_id,source_tag,campaign_id,created_at) VALUES(?,?,?,?,?,?)
+		ON CONFLICT(contact_id) DO UPDATE SET brand_id=excluded.brand_id, source_tag=excluded.source_tag, campaign_id=excluded.campaign_id`,
+		contactID, tenantID, brandID, sourceTag, campaignID, now())
 	return err
 }
 
+func (s *Store) ApplyContactOrigin(c *Contact) {
+	if c == nil {
+		return
+	}
+	var brand, tag, campaign string
+	err := s.DB.QueryRow(`SELECT brand_id, source_tag, campaign_id FROM contact_origins WHERE contact_id=? AND tenant_id=?`, c.ID, c.TenantID).
+		Scan(&brand, &tag, &campaign)
+	if err != nil {
+		return
+	}
+	c.OriginBrandID = brand
+	c.SourceTag = tag
+	c.CampaignID = campaign
+}
+
 func (s *Store) ContactOriginBrand(contactID, tenantID string) string {
-	var brand string
-	_ = s.DB.QueryRow(`SELECT brand_id FROM contact_origins WHERE contact_id=? AND tenant_id=?`, contactID, tenantID).Scan(&brand)
-	return brand
+	c := Contact{ID: contactID, TenantID: tenantID}
+	s.ApplyContactOrigin(&c)
+	return c.OriginBrandID
 }
 
 func (s *Store) FillContactOrigins(tenantID string, items []Contact) {
 	if len(items) == 0 {
 		return
 	}
-	rows, err := s.DB.Query(`SELECT contact_id, brand_id FROM contact_origins WHERE tenant_id=?`, tenantID)
+	rows, err := s.DB.Query(`SELECT contact_id, brand_id, source_tag, campaign_id FROM contact_origins WHERE tenant_id=?`, tenantID)
 	if err != nil {
 		return
 	}
 	defer rows.Close()
-	brands := map[string]string{}
+	type origin struct{ brand, tag, campaign string }
+	facts := map[string]origin{}
 	for rows.Next() {
-		var id, brand string
-		if err := rows.Scan(&id, &brand); err == nil {
-			brands[id] = brand
+		var id string
+		var fact origin
+		if err := rows.Scan(&id, &fact.brand, &fact.tag, &fact.campaign); err == nil {
+			facts[id] = fact
 		}
 	}
 	for i := range items {
-		items[i].OriginBrandID = brands[items[i].ID]
+		fact, ok := facts[items[i].ID]
+		if !ok {
+			continue
+		}
+		items[i].OriginBrandID = fact.brand
+		items[i].SourceTag = fact.tag
+		items[i].CampaignID = fact.campaign
 	}
 }
 
@@ -265,8 +288,8 @@ func (s *Store) TenantExport(tenantID string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	sources, err := s.listExportRows(`SELECT contact_id,tenant_id,brand_id,created_at FROM contact_origins WHERE tenant_id=?`, tenantID,
-		[]string{"contact_id", "tenant_id", "brand_id", "created_at"})
+	sources, err := s.listExportRows(`SELECT contact_id,tenant_id,brand_id,source_tag,campaign_id,created_at FROM contact_origins WHERE tenant_id=?`, tenantID,
+		[]string{"contact_id", "tenant_id", "brand_id", "source_tag", "campaign_id", "created_at"})
 	if err != nil {
 		return nil, err
 	}

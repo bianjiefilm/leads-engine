@@ -201,5 +201,13 @@ describe("sales desk", () => {
     expect(home).toContain('href="/reception"');
     expect(home).not.toContain("自动触达已成功");
     expect(jointChainLine({ status: "incomplete", label: "联合经营链未完成" })).toBe("联合经营链未完成");
+    expect(jointChainLine({ status: "complete", label: "白标经营链完成" })).toBe("联合经营链未完成");
+    expect(jointChainLine({ status: "complete", label: "白标经营链已完成" })).toBe("联合经营链未完成");
+    expect(jointChainLine({ status: "complete", label: "销售已收到" })).toBe("联合经营链未完成");
+    expect(visibleOutreach("销售已收到")).toBe("");
+    const desk = readFileSync("src/lib/workbench.ts", "utf8");
+    expect(desk).toContain("自动触达已成功");
+    expect(desk).toContain("销售已收到");
+    expect(desk).toContain("白标经营链");
   });
 });
