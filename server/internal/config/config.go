@@ -221,6 +221,11 @@ type Config struct {
 	FeatureOutbound bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
+	// TaskBaseURL, TaskToken, and TaskAccountID are optional. Reception calls
+	// the platform task API only when all three are set. They are not a gate.
+	TaskBaseURL   string
+	TaskToken     string
+	TaskAccountID string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
 	IngestSources []IngestSource
 	// TenantBindings is the operator map. Empty means no explicit binding.
@@ -322,6 +327,9 @@ func fromEnv(get func(string) string) Config {
 		FeatureLightCopy:           isTruthy(get(EnvFeatureLightCopy)),
 		FeatureOutbound:            isTruthy(get(EnvFeatureOutbound)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
+		TaskBaseURL:                get("PLATFORM_TASK_BASE_URL"),
+		TaskToken:                  get("PLATFORM_TASK_TOKEN"),
+		TaskAccountID:              get("PLATFORM_TASK_ACCOUNT_ID"),
 		IngestSources:              parseIngestSources(get),
 		TenantBindings:             bindings,
 		TenantBindingProblems:      bindingProblems,

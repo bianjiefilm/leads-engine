@@ -5,6 +5,7 @@ import {
   MODE_TEXT,
   REPLY_STATUS_TEXT,
   approveCall,
+  assistCall,
   closeCall,
   followUpCall,
   followUpSubmitAllowed,
@@ -26,6 +27,7 @@ interface SessionView {
   id: string;
   mode: string;
   epoch: number;
+  version: number;
   status: string;
   owner_member_id?: string;
   lead_id?: string;
@@ -36,10 +38,17 @@ interface SessionView {
 interface ReplyView {
   id: string;
   epoch: number;
+  session_version?: number;
   kind: string;
   body: string;
   status: string;
   created_at?: string;
+}
+
+interface ModelView {
+  task_id?: string;
+  cost_cents?: number;
+  billing_verdict?: string;
 }
 
 interface MessageView {
@@ -68,6 +77,7 @@ export default function SessionPanel({
   const [session, setSession] = useState<SessionView | null>(null);
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [replies, setReplies] = useState<ReplyView[]>([]);
+  const [model, setModel] = useState<ModelView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [humanText, setHumanText] = useState("");
@@ -88,6 +98,7 @@ export default function SessionPanel({
     setSession(body.session);
     setMessages(body.messages ?? []);
     setReplies(body.replies ?? []);
+    setModel(body.model ?? null);
   }, [sessionId, tenant]);
 
   useEffect(() => {
@@ -188,7 +199,7 @@ export default function SessionPanel({
     <section className="card" aria-label="会话操作">
       <h2>会话 <code>{session.id}</code></h2>
       <p className="muted">
-        {MODE_TEXT[session.mode] ?? session.mode} · 轮次 {session.epoch} · {session.status === "open" ? "进行中" : "已结案"}
+        {MODE_TEXT[session.mode] ?? session.mode} · 轮次 {session.epoch} · 版本 {session.version} · {session.status === "open" ? "进行中" : "已结案"}
         {session.owner_member_id ? ` · 负责人 ${session.owner_member_id}` : ""}
         {session.lead_id ? ` · 线索 ${session.lead_id}` : " · 尚未受权留资"}
       </p>
@@ -203,7 +214,8 @@ export default function SessionPanel({
           return (
             <li key={reply.id}>
               <span>{REPLY_STATUS_TEXT[reply.status] ?? reply.status}</span>
-              {stale ? <span> · 旧轮次，不能再发送</span> : null}
+              <span> · 轮次 {reply.epoch} · 版本 {reply.session_version ?? ""}</span>
+              {stale ? <span> · 旧轮次，文本和音频都不能再发送</span> : null}
               <div className="queue-actions">
                 {replyApprovable(session.mode, reply.epoch, session.epoch, reply.status) ? (
                   <button type="button" disabled={busy} onClick={() => void run(approveCall(session.id, reply.id), "不能批准")}>批准</button>
@@ -216,7 +228,15 @@ export default function SessionPanel({
           );
         })}
       </ul>
+      <p className="muted">
+        {model?.billing_verdict === "recorded" && model.task_id
+          ? `任务 ${model.task_id} · 成本 ${model.cost_cents ?? 0} 分`
+          : "文本降级，真实模型未完成"}
+      </p>
       <div className="queue-actions">
+        {open && session.mode === "ai" ? (
+          <button type="button" disabled={busy} onClick={() => void run(assistCall(session.id, session.epoch), "还没有服务端轮次")}>改为协助</button>
+        ) : null}
         {open && session.mode !== "human" ? (
           <button className="primary" type="button" disabled={busy} onClick={() => void run(takeoverCall(session.id, session.epoch), "还没有服务端轮次")}>接管</button>
         ) : null}

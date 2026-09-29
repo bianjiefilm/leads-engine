@@ -119,7 +119,7 @@ export default function ReceptionH5Page() {
   }, [widgetID, visitorKey, loadTranscript]);
 
   const send = async () => {
-    if (!session || !text.trim()) return;
+    if (!session || session.status === "closed" || !text.trim()) return;
     setSending(true);
     setError("");
     try {
@@ -156,6 +156,7 @@ export default function ReceptionH5Page() {
       <p className="muted">{widget?.greeting || RECEPTION_GREETING}</p>
       <div className="chat-meta">
         <span className="badge">{MODE_TEXT[mode] ?? mode}</span>
+        {session?.status === "closed" ? <span className="badge">已结案</span> : null}
         {session?.pending_reason ? <span className="badge warn">{PENDING_TEXT[session.pending_reason] ?? session.pending_reason}</span> : null}
       </div>
       {error ? <p className="error">{error}</p> : null}
@@ -185,8 +186,9 @@ export default function ReceptionH5Page() {
           placeholder="输入问题"
           aria-label="输入问题"
           maxLength={2000}
+          disabled={session?.status === "closed"}
         />
-        <button className="primary" type="submit" disabled={sending || !session}>
+        <button className="primary" type="submit" disabled={sending || !session || session.status === "closed"}>
           {sending ? "发送中" : "发送"}
         </button>
         <button

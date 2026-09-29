@@ -76,7 +76,8 @@ cd web && npm run build
 - Notify 接收入口:`FEATURE_NOTIFY_INGEST`(默认 off)。只收已登记来源,联系方式不进事件;
   off 或缺专用 token 时调用返回显式错误,不伪造事件/上传成功。
 - 统一接待:`FEATURE_RECEPTION`(默认 off,HUI-1688)。H5 会话、FAQ 依据、人工接管。
-  `RECEPTION_VISITOR_PEPPER` 与去重 pepper 分开。用量账本 `live_charge` 恒为 0,不调用扣费接口。
+  `RECEPTION_VISITOR_PEPPER` 与去重 pepper 分开。用量账本 `live_charge` 恒为 0。
+  可选平台任务只在 `PLATFORM_TASK_BASE_URL`、`PLATFORM_TASK_TOKEN`、`PLATFORM_TASK_ACCOUNT_ID` 三键都有时调用;缺任一键就文本降级,不能记成 Billing PASS。
 
 ## 后续 FEAT 集成落点(本票未实现)
 

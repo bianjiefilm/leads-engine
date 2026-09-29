@@ -16,6 +16,7 @@ import {
   replyApprovable,
   replySendable,
   sendCall,
+  assistCall,
   takeoverCall,
 } from "../src/lib/reception";
 
@@ -57,6 +58,12 @@ describe("reception desk operations", () => {
     });
     expect(takeoverCall(sessionId, 0)).toBeNull();
     expect(releaseCall("", 1)).toBeNull();
+    expect(assistCall(sessionId, 1)).toEqual({
+      method: "POST",
+      path: "/api/reception/sessions/rcs_abc123/assist",
+      body: { epoch: 1 },
+    });
+    expect(assistCall(sessionId, 0)).toBeNull();
   });
 
   it("closes without a lead body", () => {
