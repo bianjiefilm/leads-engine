@@ -35,6 +35,16 @@ import (
 const internalTokenHeader = "X-Internal-Token"
 const tenantHeader = "X-Tenant-ID"
 
+// IntentModelReceipt is what a probe may return. Callers discard every field.
+type IntentModelReceipt struct {
+	AttemptState   string
+	Grade          string
+	TaskID         string
+	CostCents      int
+	BillingVerdict string
+	Conclusion     string
+}
+
 // Server is the API server.
 type Server struct {
 	Cfg     config.Config
@@ -61,6 +71,11 @@ type Server struct {
 	// ReceptionPhraser meters a grounded FAQ answer. Nil means text degrade.
 	ReceptionPhraser interface {
 		Phrase(ctx context.Context, in platformtask.PhraseInput) platformtask.PhraseResult
+	}
+	// IntentModel is an optional probe. Open leaves it nil. Task credentials
+	// stay on ReceptionPhraser and must not be stored as an intent grade.
+	IntentModel interface {
+		Attempt(ctx context.Context, idempotencyKey string) IntentModelReceipt
 	}
 
 	// mapLookupFn replaces the tenants-table read used only to resolve a map.
@@ -106,6 +121,7 @@ func Open(cfg config.Config, logger *log.Logger) (*Server, error) {
 	if phraser := platformtask.New(cfg.TaskBaseURL, cfg.TaskToken, cfg.TaskAccountID, cfg.AppID); phraser != nil {
 		s.ReceptionPhraser = phraser
 	}
+	// IntentModel stays nil even when the three task keys are set.
 	return s, nil
 }
 

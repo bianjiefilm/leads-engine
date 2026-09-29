@@ -89,7 +89,7 @@ export function presentAssessment(input: GradeInput): GradeView {
     disclaimer: input.disclaimer,
     suggestion: input.suggestion.label,
     probability: null,
-    confidenceText: input.calibrated && typeof input.confidence === "number" ? `${Math.round(input.confidence * 100)}%` : "",
+    confidenceText: "",
     actions: ["修正分级", "标记误判"],
     humanLocked: input.human_locked,
     staleText: input.stale ? `旧评分已过时：${staleName || "需重算"}` : "",
@@ -99,4 +99,41 @@ export function presentAssessment(input: GradeInput): GradeView {
 // 分数不能长出触达按钮。调用方即使传来 auto_*，这里也返回空。
 export function outreachControls(_view: GradeView): string[] {
   return [];
+}
+
+// 权限位即使为真，页面也不渲染触达按钮。
+export function outreachButtons(_permissions?: {
+  call?: boolean;
+  direct_message?: boolean;
+  create_order?: boolean;
+}): string[] {
+  return [];
+}
+
+export function outreachGranted(permissions?: {
+  call?: boolean;
+  direct_message?: boolean;
+  create_order?: boolean;
+} | null): boolean {
+  return Boolean(permissions?.call || permissions?.direct_message || permissions?.create_order);
+}
+
+// 没有模型凭证时，任何回执都不是完成。
+export function modelStatusText(_verdict?: string): string {
+  return "真实模型未完成";
+}
+
+export function originLabel(origin: string): string {
+  switch (origin) {
+    case "fixture":
+      return "夹具";
+    case "human":
+      return "人工";
+    default:
+      return "规则";
+  }
+}
+
+export function salesCorrectionActions(): Array<"修正分级" | "驳回"> {
+  return ["修正分级", "驳回"];
 }

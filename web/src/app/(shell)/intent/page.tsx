@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { outreachControls, presentAssessment, type GradeInput, type GradeView } from "@/lib/intentGrade";
+import { modelStatusText, originLabel, outreachControls, presentAssessment, type GradeInput, type GradeView } from "@/lib/intentGrade";
 
 // HUI-1684 意向分级页。只打本站 BFF。规则版本由服务端返回。
 // 页面只展示下一步建议，不外呼、不发短信、不拉群、不建单。
@@ -39,6 +39,7 @@ interface ReportOutcome {
   match: boolean;
   reason: string;
   suggestion: string;
+  origin?: string;
 }
 
 const SCREEN_EXAMPLE: GradeInput = {
@@ -88,7 +89,7 @@ const KIND_LABEL: Record<string, string> = {
   ordinary_qa: "普通问答",
   after_sales: "售后",
   missing_data: "缺数据",
-  refuse_marketing: "拒绝营销",
+  refuse_marketing: "拒绝联系",
 };
 
 function asInput(snap: SnapshotBody): GradeInput {
@@ -216,6 +217,7 @@ export default function IntentGradePage() {
       <h1>意向分级</h1>
       <div className="card">
         <p>规则评分，不是真人成交预测，也不是校准后的成交概率。下一步只给建议，不自动外呼、短信、拉群或创建订单。</p>
+        <p>{modelStatusText()}</p>
         <label>
           当前租户{" "}
           <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
@@ -332,6 +334,7 @@ export default function IntentGradePage() {
                 <th>规则结果</th>
                 <th>理由</th>
                 <th>建议</th>
+                <th>来源</th>
                 <th>是否一致</th>
               </tr>
             </thead>
@@ -343,6 +346,7 @@ export default function IntentGradePage() {
                   <td>{row.predicted}</td>
                   <td>{row.reason}</td>
                   <td>{row.suggestion}</td>
+                  <td>{originLabel(row.origin || "fixture")}</td>
                   <td>{row.match ? "一致" : "误判"}</td>
                 </tr>
               ))}

@@ -1,5 +1,14 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { gradeLabel, outreachControls, presentAssessment, type GradeInput } from "../src/lib/intentGrade";
+import {
+  gradeLabel,
+  modelStatusText,
+  originLabel,
+  outreachControls,
+  presentAssessment,
+  salesCorrectionActions,
+  type GradeInput,
+} from "../src/lib/intentGrade";
 
 const high: GradeInput = {
   grade: "high",
@@ -69,5 +78,38 @@ describe("intent grade presentation", () => {
     expect(locked.actions).toEqual(["修正分级", "标记误判"]);
     expect(outreachControls(locked)).toEqual([]);
     expect(JSON.stringify(locked)).not.toContain("91");
+  });
+
+  it("drops an uncalibrated percent and labels fixtures as fixtures", () => {
+    const view = presentAssessment({ ...high, calibrated: true, confidence: 0.91 });
+    expect(view.confidenceText).toBe("");
+    expect(view.probability).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("%");
+    expect(JSON.stringify(view)).not.toContain("91");
+    expect(modelStatusText("recorded")).toBe("真实模型未完成");
+    expect(modelStatusText("PASS")).toBe("真实模型未完成");
+    expect(modelStatusText()).toBe("真实模型未完成");
+    expect(originLabel("fixture")).toBe("夹具");
+    expect(originLabel("human")).toBe("人工");
+    expect(originLabel("rules")).toBe("规则");
+    expect(salesCorrectionActions()).toEqual(["修正分级", "驳回"]);
+  });
+
+  it("corrects intent on the opportunity page without outreach controls", () => {
+    const panel = readFileSync(new URL("../src/components/IntentOnOpportunity.tsx", import.meta.url), "utf8");
+    const page = readFileSync(new URL("../src/app/(shell)/opportunities/[id]/page.tsx", import.meta.url), "utf8");
+    const intent = readFileSync(new URL("../src/app/(shell)/intent/page.tsx", import.meta.url), "utf8");
+    expect(page).toContain("IntentOnOpportunity");
+    expect(page).toContain("probabilityText");
+    expect(page).toContain("expectedCloseText");
+    for (const banned of ["预计成交", "置信", "shadcn", "外呼", "发私信", "建订单"]) {
+      expect(panel).not.toContain(banned);
+    }
+    expect(panel).toContain("salesCorrectionActions");
+    expect(panel).toContain("modelStatusText");
+    expect(panel).toContain("outreachButtons");
+    expect(intent).toContain("modelStatusText()");
+    expect(intent).toContain("originLabel");
+    expect(intent).toContain("拒绝联系");
   });
 });

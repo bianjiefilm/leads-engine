@@ -2,6 +2,8 @@ package intentgrade
 
 import (
 	"encoding/json"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -308,6 +310,81 @@ func TestCorrectionWithoutReasonIsRefused(t *testing.T) {
 	})
 	if res.Refusal != RefusalReasonRequired || res.HumanLocked {
 		t.Fatalf("empty reason = %+v", res)
+	}
+}
+
+func TestFrozenCounterexamplesHaveBasisAndGaps(t *testing.T) {
+	body, err := os.ReadFile("grade.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(body), "net/http") || strings.Contains(string(body), "http.NewRequest") {
+		t.Fatal("rule package must not call a model over HTTP")
+	}
+	now := fixedNow()
+	rows := FrozenCounterexamples()
+	if len(rows) != 5 {
+		t.Fatalf("frozen count = %d", len(rows))
+	}
+	for _, row := range rows {
+		var evidenceRows []Evidence
+		if strings.TrimSpace(row.Text) != "" {
+			evidenceRows = []Evidence{evidence(row.ID, "tnt_a", row.Text, now)}
+		}
+		res := Score(Input{
+			TenantID: "tnt_a", SubjectKind: "lead", SubjectID: row.ID, Now: now, Evidence: evidenceRows,
+		})
+		if res.Grade != row.Grade || res.Reason != row.Reason || res.Suggestion.Kind != row.SuggestionKind {
+			t.Fatalf("%s: got grade %s reason %s kind %s", row.Kind, res.Grade, res.Reason, res.Suggestion.Kind)
+		}
+		if !reflect.DeepEqual(res.Missing, row.Missing) {
+			t.Fatalf("%s missing = %#v, want %#v", row.Kind, res.Missing, row.Missing)
+		}
+		if res.Suggestion.AutoCall || res.Suggestion.AutoSMS || res.Suggestion.AutoGroup || res.Suggestion.CreateOrder || res.Suggestion.ContactDecidedByScore {
+			t.Fatalf("%s granted outreach: %+v", row.Kind, res.Suggestion)
+		}
+		if strings.TrimSpace(row.Text) == "" {
+			if len(res.Citations) != 0 {
+				t.Fatalf("%s invented a citation: %+v", row.Kind, res.Citations)
+			}
+		} else if len(res.Citations) != 1 || res.Citations[0].EvidenceID != row.ID {
+			t.Fatalf("%s citations = %+v", row.Kind, res.Citations)
+		}
+		if GradeOrigin(false, []string{row.Text}) != OriginFixture {
+			t.Fatalf("%s origin = %s", row.Kind, GradeOrigin(false, []string{row.Text}))
+		}
+	}
+}
+
+func TestOutreachPermissionsIgnoreHighGrade(t *testing.T) {
+	for _, grade := range []string{GradeHigh, GradeMedium, GradeLow, GradeInsufficient, "unexpected"} {
+		call, dm, order := OutreachPermissions(grade)
+		if call || dm || order {
+			t.Fatalf("grade %s granted call=%v dm=%v order=%v", grade, call, dm, order)
+		}
+	}
+}
+
+func TestEvaluateLabeledMarksFixturesNotARealModel(t *testing.T) {
+	report := EvaluateLabeled(LabeledSamples())
+	if report.RealModelCompleted || report.ModelVerdict != "not_completed" {
+		t.Fatalf("report claims a finished model: %+v %s", report.RealModelCompleted, report.ModelVerdict)
+	}
+	if strings.Contains(report.Disclaimer, "成交提升") {
+		t.Fatal("report claims a close-rate lift")
+	}
+	byKind := map[string]Counterexample{}
+	for _, row := range FrozenCounterexamples() {
+		byKind[row.Kind] = row
+	}
+	if len(report.Outcomes) != len(byKind) {
+		t.Fatalf("outcomes = %d", len(report.Outcomes))
+	}
+	for _, outcome := range report.Outcomes {
+		want, ok := byKind[outcome.Kind]
+		if !ok || outcome.Origin != OriginFixture || outcome.Reason != want.Reason || !reflect.DeepEqual(outcome.Missing, want.Missing) {
+			t.Fatalf("outcome = %+v", outcome)
+		}
 	}
 }
 
