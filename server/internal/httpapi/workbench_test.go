@@ -161,6 +161,228 @@ func TestWorkbenchManualDesk(t *testing.T) {
 	}
 }
 
+func TestWorkbenchHonestDesk(t *testing.T) {
+	h := newHarness(t)
+	tenantA, tenantB, contactA1 := h.seed()
+	lead := h.mustDo("POST", "/api/v1/leads", sessionSalesA1, tenantA,
+		fmt.Sprintf(`{"contact_id":%q,"status":"new"}`, contactA1), http.StatusCreated)
+	leadID, _ := lead["id"].(string)
+	opp := h.mustDo("POST", "/api/v1/opportunities", sessionSalesA1, tenantA,
+		fmt.Sprintf(`{"contact_id":%q,"title":"门店复购","business_category":"merchant_customer","stage":"open"}`, contactA1), http.StatusCreated)
+	oppID, _ := opp["id"].(string)
+	creative := h.mustDo("POST", "/api/v1/opportunities", sessionSalesA1, tenantA,
+		fmt.Sprintf(`{"contact_id":%q,"title":"品牌片","business_category":"creative_service","stage":"proposal"}`, contactA1), http.StatusCreated)
+	creativeID, _ := creative["id"].(string)
+
+	desk := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	item := findLeadItem(desk, leadID)
+	if item == nil {
+		t.Fatal("manual lead missing from the seller desk")
+	}
+	source, _ := item["source"].(map[string]any)
+	if source["channel"] != "手工录入" || item["owner_label"] != "Sales A1" || item["next"] == nil {
+		t.Fatalf("row = %v", item)
+	}
+	if contacts, ok := item["allowed_contacts"].([]any); ok && len(contacts) != 0 {
+		t.Fatalf("unpermitted contacts = %v", contacts)
+	}
+	assertSyncUnknown(t, item["sync"])
+	statuses, _ := item["statuses"].(map[string]any)
+	if statuses["followed"] == true {
+		t.Fatal("unknown sync was shown as followed")
+	}
+	if item["model_advice"] != "真实模型未完成" {
+		t.Fatalf("model advice = %v", item["model_advice"])
+	}
+	raw := wbJSON(desk)
+	if strings.Contains(raw, "13812345678") || strings.Contains(raw, "自动触达已成功") || strings.Contains(raw, "PASS") {
+		t.Fatalf("desk leaked a phone, a success claim, or a billing pass: %s", raw)
+	}
+	other := h.mustDo("GET", "/api/v1/workbench", sessionSalesA2, tenantA, "", http.StatusOK)
+	if findLeadItem(other, leadID) != nil || bucketHas(other, "needs_schedule", oppID) {
+		t.Fatal("sales saw work outside their assignment")
+	}
+	owner := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", http.StatusOK)
+	if findLeadItem(owner, leadID) == nil || owner["scope"] != "tenant" {
+		t.Fatal("owner missed the tenant lead")
+	}
+	foreign := h.mustDo("GET", "/api/v1/workbench", sessionOwnerB, tenantB, "", http.StatusOK)
+	if findLeadItem(foreign, leadID) != nil || strings.Contains(wbJSON(foreign), contactA1) {
+		t.Fatal("tenant B kept tenant A's list")
+	}
+	if !bucketHas(desk, "needs_schedule", oppID) || !bucketHas(desk, "needs_schedule", creativeID) {
+		t.Fatal("active opportunities without a next step disappeared")
+	}
+	creativeItem := findOppItem(desk, creativeID)
+	draft, _ := creativeItem["service_draft"].(map[string]any)
+	if creativeItem["show_service_draft"] != true || draft["present"] != false || draft["enabled"] != false {
+		t.Fatalf("sales draft = %v", creativeItem)
+	}
+	ownerCreative := findOppItem(owner, creativeID)
+	ownerDraft, _ := ownerCreative["service_draft"].(map[string]any)
+	if ownerDraft["present"] != true || ownerDraft["enabled"] != false || ownerDraft["reason"] == "" {
+		t.Fatalf("owner draft = %v", ownerCreative["service_draft"])
+	}
+	var handoffs int
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(1) FROM opportunity_handoffs WHERE tenant_id=?`, tenantA).Scan(&handoffs); err != nil || handoffs != 0 {
+		t.Fatalf("draft rows = %d (%v)", handoffs, err)
+	}
+
+	timeline := h.mustDo("GET", "/api/v1/leads/"+leadID+"/timeline", sessionSalesA1, tenantA, "", http.StatusOK)
+	assertSyncUnknown(t, timeline["sync"])
+	tlStatus, _ := timeline["statuses"].(map[string]any)
+	if tlStatus["followed"] == true || timeline["owner_label"] != "Sales A1" || timeline["model_advice"] != "真实模型未完成" {
+		t.Fatalf("timeline = %v", timeline)
+	}
+
+	if _, err := h.api.St.DB.Exec(`INSERT INTO notify_inbox(
+		id,tenant_id,source_app,event_type,source_ref,source_version,profile_event_id,body_sha256,lead_id,receipt_json,created_at,updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		"nin_hui_1893", tenantA, "crm-receipt", "sync.receipt", "local-receipt", 1, "evt_hui_1893", "abc", leadID,
+		`{"accepted":true}`, "2026-09-29T00:00:00Z", "2026-09-29T00:00:00Z"); err != nil {
+		t.Fatal(err)
+	}
+	received := h.mustDo("GET", "/api/v1/leads/"+leadID+"/timeline", sessionSalesA1, tenantA, "", http.StatusOK)
+	sync, _ := received["sync"].(map[string]any)
+	if sync["crm"] != "received" {
+		t.Fatalf("receipt sync = %v", received["sync"])
+	}
+	again, _ := received["statuses"].(map[string]any)
+	if again["followed"] == true {
+		t.Fatal("a receipt was treated as a follow-up")
+	}
+	syncRaw, _ := json.Marshal(received["sync"])
+	if strings.Contains(string(syncRaw), "0") || strings.Contains(string(syncRaw), "已跟进") {
+		t.Fatalf("sync payload = %s", syncRaw)
+	}
+
+	h.mustDo("POST", "/api/v1/contacts/"+contactA1+"/consents", sessionSalesA1, tenantA,
+		`{"source_submission_ref":"sms-1","source_channel":"sms","notice_version":"n1","purpose":"marketing","marketing_allowed":true}`, http.StatusOK)
+	permitted := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	if strings.Contains(wbJSON(permitted), "自动触达已成功") {
+		t.Fatal("marketing permit without a send receipt was called a success")
+	}
+	row := findLeadItem(permitted, leadID)
+	channels, _ := row["allowed_contacts"].([]any)
+	if !stringListHas(channels, "sms") || !stringListHas(channels, "phone") {
+		t.Fatalf("allowed = %v", channels)
+	}
+
+	first := h.mustDo("POST", "/api/v1/leads/"+leadID+"/follow-through", sessionSalesA1, tenantA,
+		`{"note":"已联系，约下次","next_follow_up_at":"2026-09-29T02:00:00Z"}`, http.StatusCreated)
+	second := h.mustDo("POST", "/api/v1/leads/"+leadID+"/follow-through", sessionSalesA1, tenantA,
+		`{"note":"已联系，约下次","next_follow_up_at":"2026-09-29T02:00:00Z"}`, http.StatusOK)
+	if first["follow_up_id"] == "" || first["follow_up_id"] != second["follow_up_id"] || second["replay"] != true {
+		t.Fatalf("replay = %v then %v", first, second)
+	}
+	if n := countFollowNotes(t, h, tenantA, leadID, "已联系，约下次"); n != 1 {
+		t.Fatalf("identical saves = %d", n)
+	}
+	refreshed := h.mustDo("GET", "/api/v1/leads/"+leadID+"/timeline", sessionSalesA1, tenantA, "", http.StatusOK)
+	if countEventSummary(refreshed, "已联系，约下次") != 1 {
+		t.Fatalf("refresh lost or duplicated the follow-up: %v", refreshed["events"])
+	}
+	next, _ := refreshed["next"].(map[string]any)
+	if next["source"] != "manual" {
+		t.Fatalf("next = %v", next)
+	}
+	otherNote := h.mustDo("POST", "/api/v1/leads/"+leadID+"/follow-through", sessionSalesA1, tenantA,
+		`{"note":"这次做完，先不约下次","complete":true}`, http.StatusCreated)
+	if otherNote["follow_up_id"] == first["follow_up_id"] {
+		t.Fatal("a different note collapsed into the first fact")
+	}
+	if n := countFollowNotes(t, h, tenantA, leadID, "这次做完，先不约下次"); n != 1 {
+		t.Fatalf("distinct note count = %d", n)
+	}
+	after := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	if !bucketHas(after, "needs_schedule", oppID) {
+		t.Fatal("active opportunity with no remaining next step disappeared")
+	}
+	if !workbenchHasLead(after, leadID) {
+		t.Fatal("lead vanished after the follow-up was saved")
+	}
+
+	clearAssignee(t, h, leadID)
+	ownerDesk := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", http.StatusOK)
+	pool := findLeadItem(ownerDesk, leadID)
+	if pool == nil || pool["assignment_reason"] != "待分配" {
+		t.Fatalf("unassigned = %v", pool)
+	}
+	salesDesk := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", http.StatusOK)
+	if findLeadItem(salesDesk, leadID) != nil {
+		t.Fatal("sales still sees the unassigned lead")
+	}
+}
+
+func assertSyncUnknown(t *testing.T, raw any) {
+	t.Helper()
+	sync, _ := raw.(map[string]any)
+	if sync["crm"] != "unknown" {
+		t.Fatalf("sync = %v", raw)
+	}
+	body, _ := json.Marshal(sync)
+	if strings.Contains(string(body), "0") || strings.Contains(string(body), "已跟进") {
+		t.Fatalf("unknown sync = %s", body)
+	}
+	if _, ok := sync["count"]; ok {
+		t.Fatal("unknown sync carried a count")
+	}
+}
+
+func findLeadItem(body map[string]any, leadID string) map[string]any {
+	return findItem(body, "lead_id", leadID)
+}
+
+func findOppItem(body map[string]any, oppID string) map[string]any {
+	return findItem(body, "opportunity_id", oppID)
+}
+
+func findItem(body map[string]any, field, id string) map[string]any {
+	buckets, _ := body["buckets"].(map[string]any)
+	for _, raw := range buckets {
+		items, _ := raw.([]any)
+		for _, row := range items {
+			item, _ := row.(map[string]any)
+			if item[field] == id {
+				return item
+			}
+		}
+	}
+	return nil
+}
+
+func stringListHas(items []any, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
+func countFollowNotes(t *testing.T, h *harness, tenantID, leadID, note string) int {
+	t.Helper()
+	var n int
+	if err := h.api.St.DB.QueryRow(
+		`SELECT COUNT(1) FROM follow_ups WHERE tenant_id=? AND lead_id=? AND note=?`,
+		tenantID, leadID, note).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func countEventSummary(body map[string]any, summary string) int {
+	events, _ := body["events"].([]any)
+	n := 0
+	for _, raw := range events {
+		ev, _ := raw.(map[string]any)
+		if ev["summary"] == summary {
+			n++
+		}
+	}
+	return n
+}
+
 func assertChargeAndAutomation(t *testing.T, body map[string]any) {
 	t.Helper()
 	billing, _ := body["billing"].(map[string]any)

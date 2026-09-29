@@ -14,6 +14,10 @@ import (
 )
 
 const (
+	// ModelAdviceMissing is the only intent line this desk may show.
+	// There is no model call behind it.
+	ModelAdviceMissing = "真实模型未完成"
+
 	BucketUnprocessed         = "unprocessed"
 	BucketDueToday            = "due_today"
 	BucketWaitingReply        = "waiting_reply"
@@ -317,6 +321,23 @@ func ProjectSync(receiptAt string) SyncFact {
 	return SyncFact{CRM: "received"}
 }
 
+// DisplayOwner is the seller's name. A bare member id is never the label.
+func DisplayOwner(lead LeadView) string {
+	label := strings.TrimSpace(lead.OwnerLabel)
+	if lead.Assignee != "" && label == "" {
+		return "已分配"
+	}
+	return label
+}
+
+// DisplayAssignmentReason explains an empty assignee. Assigned rows stay blank.
+func DisplayAssignmentReason(lead LeadView) string {
+	if strings.TrimSpace(lead.Assignee) == "" {
+		return "待分配"
+	}
+	return ""
+}
+
 // AllowedContacts lists stored permits only. A phone number on the contact
 // is not itself a permit, and the raw identity is not returned.
 func AllowedContacts(lead LeadView) []string {
@@ -510,24 +531,18 @@ func InScope(scope Scope, assignee string) bool {
 }
 
 func leadItem(lead LeadView, opps []OpportunityView) Item {
-	label := strings.TrimSpace(lead.OwnerLabel)
-	if lead.Assignee != "" && label == "" {
-		label = "已分配"
-	}
 	item := Item{
 		ID: lead.ID, TenantID: lead.TenantID, Kind: "lead", LeadID: lead.ID, Assignee: lead.Assignee,
-		Next:            ResolveNext(lead, time.Time{}),
-		Source:          SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
-		Statuses:        ProjectStatus(lead, opps, false),
-		FilterReason:    DisplayFilterReason(lead),
-		OwnerLabel:      label,
-		AllowedContacts: AllowedContacts(lead),
-		Sync:            ProjectSync(lead.CRMReceiptAt),
-		OutreachNotice:  OutreachNotice(lead.MarketingSMSOrPhone, false),
-		ModelAdvice:     "真实模型未完成",
-	}
-	if lead.Assignee == "" {
-		item.AssignmentReason = "待分配"
+		Next:             ResolveNext(lead, time.Time{}),
+		Source:           SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
+		Statuses:         ProjectStatus(lead, opps, false),
+		FilterReason:     DisplayFilterReason(lead),
+		OwnerLabel:       DisplayOwner(lead),
+		AssignmentReason: DisplayAssignmentReason(lead),
+		AllowedContacts:  AllowedContacts(lead),
+		Sync:             ProjectSync(lead.CRMReceiptAt),
+		OutreachNotice:   OutreachNotice(lead.MarketingSMSOrPhone, false),
+		ModelAdvice:      ModelAdviceMissing,
 	}
 	if RefuseSalesPush(lead.Purpose) {
 		item.Reason = "不推进销售商机"

@@ -11,6 +11,8 @@ package store
 
 import (
 	"database/sql"
+	"errors"
+	"strings"
 )
 
 // FollowUp is one editable sales follow-up record (HUI-1692 / FEAT-0193).
@@ -65,6 +67,46 @@ func (s *Store) CreateFollowUp(tenantID, contactID, leadID, note, nextFollowUpAt
 		f.ID, f.TenantID, f.ContactID, nullable(f.LeadID), f.Note, nullable(f.NextFollowUpAt), nil,
 		f.CreatedBy, f.CreatedAt, f.UpdatedAt)
 	return f, err
+}
+
+// FindFollowUpByDedupe returns the row already stored for this fact key.
+func (s *Store) FindFollowUpByDedupe(tenantID, key string) (FollowUp, bool, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return FollowUp{}, false, nil
+	}
+	row := s.DB.QueryRow(
+		`SELECT `+followUpCols+` FROM follow_ups WHERE tenant_id=? AND dedupe_key=?`, tenantID, key)
+	f, err := scanFollowUp(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return FollowUp{}, false, nil
+	}
+	if err != nil {
+		return FollowUp{}, false, err
+	}
+	return f, true, nil
+}
+
+// CreateFollowUpOnce inserts a follow-up, or returns the existing row when
+// dedupeKey was stored before. replay is true when no new row was inserted.
+func (s *Store) CreateFollowUpOnce(tenantID, contactID, leadID, note, nextFollowUpAt, createdBy, dedupeKey string) (FollowUp, bool, error) {
+	if found, ok, err := s.FindFollowUpByDedupe(tenantID, dedupeKey); err != nil || ok {
+		return found, ok, err
+	}
+	f := FollowUp{
+		ID: newID("fup_"), TenantID: tenantID, ContactID: contactID, LeadID: leadID,
+		Note: note, NextFollowUpAt: nextFollowUpAt, CreatedBy: createdBy,
+	}
+	f.CreatedAt, f.UpdatedAt = now(), now()
+	_, err := s.DB.Exec(
+		`INSERT INTO follow_ups(`+followUpCols+`,dedupe_key) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+		f.ID, f.TenantID, f.ContactID, nullable(f.LeadID), f.Note, nullable(f.NextFollowUpAt), nil,
+		f.CreatedBy, f.CreatedAt, f.UpdatedAt, dedupeKey)
+	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
+		found, ok, findErr := s.FindFollowUpByDedupe(tenantID, dedupeKey)
+		return found, ok, findErr
+	}
+	return f, false, err
 }
 
 // followUpScopeJoin is the parent scope join shared by every read: the live

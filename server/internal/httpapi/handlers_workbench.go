@@ -43,7 +43,7 @@ func (s *Server) handleLeadTimeline(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusNotFound, "not_found", "record not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"lead_id":    lead.ID,
 		"events":     workbench.AssembleTimeline(facts.Events[lead.ID], true),
 		"source":     workbench.SourceLine{Form: lead.SourceForm, Activity: lead.SourceActivity, Channel: lead.SourceChannel, At: lead.SourceAt},
@@ -51,7 +51,11 @@ func (s *Server) handleLeadTimeline(w http.ResponseWriter, r *http.Request) {
 		"next":       workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), 0),
 		"billing":    workbench.Billing{OrdinaryCRMChargeCents: workbench.OrdinaryCRMChargeCents("view")},
 		"automation": workbench.Automation{},
-	})
+	}
+	for k, v := range leadReadout(lead) {
+		body[k] = v
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +75,6 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 	if !decodeBody(w, r, &in) {
 		return
 	}
-	_ = in.AIScore
 	facts, err := s.St.LoadDeskFacts(c.Member.TenantID)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "workbench lookup failed")
@@ -113,39 +116,66 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 		}
 		nextAt = normalized
 	}
+	key := workbench.FollowThroughKey(rec.ID, note, nextAt, channel, in.Complete, c.Member.ID)
+	if existing, found, err := s.St.FindFollowUpByDedupe(c.Member.TenantID, key); err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "follow-up lookup failed")
+		return
+	} else if found {
+		s.finishFollowThrough(w, c, rec, existing.ID, true, nextAt, channel, in.AIScore)
+		return
+	}
 	if in.Complete {
 		if err := s.St.CompleteOpenFollowUps(c.Member.TenantID, rec.ContactID); err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "follow-up complete failed")
 			return
 		}
 	}
-	created, err := s.St.CreateFollowUp(c.Member.TenantID, rec.ContactID, rec.ID, note, nextAt, c.Member.ID)
+	created, replay, err := s.St.CreateFollowUpOnce(c.Member.TenantID, rec.ContactID, rec.ID, note, nextAt, c.Member.ID, key)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "follow-up create failed")
 		return
 	}
+	s.finishFollowThrough(w, c, rec, created.ID, replay, nextAt, channel, in.AIScore)
+}
+
+func (s *Server) finishFollowThrough(w http.ResponseWriter, c *caller, rec store.Lead, followID string, replay bool, nextAt, channel string, aiScore int) {
 	if nextAt == "" {
-		if _, _, _, err := s.St.CompleteFollowUp(created.ID, c.Member.TenantID); err != nil {
+		if _, _, _, err := s.St.CompleteFollowUp(followID, c.Member.TenantID); err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "follow-up complete failed")
 			return
 		}
 	}
-	facts, err = s.St.LoadDeskFacts(c.Member.TenantID)
+	facts, err := s.St.LoadDeskFacts(c.Member.TenantID)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "workbench lookup failed")
 		return
 	}
-	lead, _ = findDeskLead(facts, rec.ID)
+	lead, _ := findDeskLead(facts, rec.ID)
 	if channel == "in_channel" && lead.ManualNextKind == "" {
 		lead.ManualNextKind = "channel_follow_up"
 	}
-	next := workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), in.AIScore)
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"follow_up_id": created.ID,
-		"next":         next,
+	status := http.StatusCreated
+	if replay {
+		status = http.StatusOK
+	}
+	writeJSON(w, status, map[string]any{
+		"follow_up_id": followID,
+		"replay":       replay,
+		"next":         workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), aiScore),
 		"billing":      workbench.Billing{OrdinaryCRMChargeCents: workbench.OrdinaryCRMChargeCents("manual_follow_up")},
 		"automation":   workbench.Automation{},
 	})
+}
+
+func leadReadout(lead workbench.LeadView) map[string]any {
+	return map[string]any{
+		"owner_label":       workbench.DisplayOwner(lead),
+		"assignment_reason": workbench.DisplayAssignmentReason(lead),
+		"allowed_contacts":  workbench.AllowedContacts(lead),
+		"sync":              workbench.ProjectSync(lead.CRMReceiptAt),
+		"outreach_notice":   workbench.OutreachNotice(lead.MarketingSMSOrPhone, false),
+		"model_advice":      workbench.ModelAdviceMissing,
+	}
 }
 
 func findDeskLead(facts store.DeskFacts, id string) (workbench.LeadView, bool) {
