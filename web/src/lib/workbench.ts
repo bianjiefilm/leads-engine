@@ -3,6 +3,16 @@
 
 export const NARROW_ACTIONS = ["查看新线索", "记跟进", "安排下一次"] as const;
 
+export const NARROW_BREAKPOINT = 720;
+
+export function narrowWorkbenchFlow(width: number): { stacked: boolean; actions: string[]; hidden: string[] } {
+  return {
+    stacked: width <= NARROW_BREAKPOINT,
+    actions: [...NARROW_ACTIONS],
+    hidden: [],
+  };
+}
+
 export const BUCKETS = [
   "unprocessed",
   "due_today",
@@ -36,8 +46,15 @@ export interface DeskItem {
   next?: { kind?: string; source?: string; label?: string; at?: string; auto_call?: boolean; auto_message?: boolean; create_order?: boolean };
   source?: { form?: string; activity?: string; channel?: string; at?: string };
   show_service_draft?: boolean;
+  service_draft?: { present?: boolean; enabled?: boolean; reason?: string };
   force_opportunity?: boolean;
   statuses?: StatusFacts;
+  owner_label?: string;
+  assignment_reason?: string;
+  allowed_contacts?: string[];
+  sync?: { crm?: string };
+  outreach_notice?: string;
+  model_advice?: string;
 }
 
 export interface StatusFacts {
@@ -115,4 +132,49 @@ export function sourceText(source?: DeskItem["source"]): string {
   if (!source) return "来源未记录";
   const parts = [source.form, source.activity, source.channel, source.at].filter((part) => !!part);
   return parts.length > 0 ? parts.join(" · ") : "来源未记录";
+}
+
+export function syncLine(sync?: { crm?: string } | null): string {
+  if (sync?.crm === "received") return "CRM已接收";
+  return "同步：未知";
+}
+
+export function allowedContactText(channels?: string[]): string {
+  if (!channels || channels.length === 0) return "无";
+  const labels: Record<string, string> = { sms: "短信", phone: "电话", channel: "渠道内回复" };
+  return channels.map((channel) => labels[channel] ?? channel).join("、");
+}
+
+export function modelAdviceLine(): string {
+  return "真实模型未完成";
+}
+
+export function billingCaption(): string {
+  return "不向用户报价";
+}
+
+export function ownerLine(label?: string, reason?: string): string {
+  if (reason) return reason;
+  return label || "未记录";
+}
+
+export function nextLine(next?: { source?: string; label?: string }): string {
+  const label = next?.label || "安排下一次";
+  if (next?.source === "manual") return "手工安排 · " + label;
+  return "不是模型输出 · " + label;
+}
+
+export function serviceDraftControl(draft?: { present?: boolean; enabled?: boolean; reason?: string } | null): {
+  present: boolean;
+  enabled: boolean;
+  reason: string;
+} {
+  if (!draft?.present) {
+    return { present: false, enabled: false, reason: draft?.reason ?? "" };
+  }
+  return { present: true, enabled: !!draft.enabled, reason: draft.reason ?? "" };
+}
+
+export function serviceDraftClick(): { submitted: false; message: string } {
+  return { submitted: false, message: "本轮不提交草稿" };
 }

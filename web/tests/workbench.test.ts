@@ -1,11 +1,19 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { emptyCrmCache, rememberRows, switchCrmTenant, visibleRows } from "@/lib/eco-nav/crm-scope";
 import {
   NARROW_ACTIONS,
   acceptDesk,
+  allowedContactText,
+  billingCaption,
+  modelAdviceLine,
   moneyView,
+  narrowWorkbenchFlow,
+  serviceDraftClick,
+  serviceDraftControl,
   showServiceDraft,
   statusLine,
+  syncLine,
 } from "@/lib/workbench";
 
 describe("sales desk", () => {
@@ -52,5 +60,44 @@ describe("sales desk", () => {
       won: false,
       paid: false,
     })).toBe("已接收 · 已分配 · 已跟进");
+  });
+
+  it("stacks the three actions at 390px and does not hide them", () => {
+    const flow = narrowWorkbenchFlow(390);
+    expect(flow.stacked).toBe(true);
+    expect(flow.actions).toEqual(["查看新线索", "记跟进", "安排下一次"]);
+    expect(flow.hidden).toEqual([]);
+    const css = readFileSync("src/app/globals.css", "utf8");
+    expect(css).toMatch(/@media \(max-width: 720px\)[\s\S]*\.queue-actions[\s\S]*flex-direction:\s*column/);
+  });
+
+  it("keeps an unknown sync unknown", () => {
+    expect(syncLine(undefined)).toBe("同步：未知");
+    expect(syncLine({ crm: "unknown" })).toBe("同步：未知");
+    expect(syncLine({ crm: "unknown" })).not.toBe("已跟进");
+    expect(syncLine({ crm: "unknown" })).not.toContain("0");
+    expect(syncLine({ crm: "received" })).toBe("CRM已接收");
+  });
+
+  it("does not price ordinary work or mark billing pass", () => {
+    expect(billingCaption()).toBe("不向用户报价");
+    expect(billingCaption()).not.toContain("PASS");
+    expect(billingCaption()).not.toContain("¥");
+    expect(modelAdviceLine()).toBe("真实模型未完成");
+  });
+
+  it("names only permitted contact methods", () => {
+    expect(allowedContactText(undefined)).toBe("无");
+    expect(allowedContactText(["sms", "phone", "channel"])).toBe("短信、电话、渠道内回复");
+  });
+
+  it("does not show or submit a service draft unless the server says it is present", () => {
+    expect(serviceDraftControl({ present: false, enabled: false, reason: "门店销售需类别、权限和人工确认同时成立" }).present).toBe(false);
+    const disabled = serviceDraftControl({ present: true, enabled: false, reason: "需要人工确认，本轮不会把草稿交给接单应用" });
+    expect(disabled.present).toBe(true);
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.reason).toContain("人工确认");
+    expect(serviceDraftClick().submitted).toBe(false);
+    expect(serviceDraftClick().message).not.toContain("已成交");
   });
 });

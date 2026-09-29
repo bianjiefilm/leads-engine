@@ -49,6 +49,10 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 	if err != nil {
 		return DeskFacts{}, err
 	}
+	receipts, err := s.loadDeskReceipts(tenantID)
+	if err != nil {
+		return DeskFacts{}, err
+	}
 	opps, err := s.loadDeskOpps(tenantID)
 	if err != nil {
 		return DeskFacts{}, err
@@ -90,6 +94,9 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 		}
 		if at, ok := submitted[lead.ID]; ok && lead.SubmittedAt == "" {
 			lead.SubmittedAt = at
+		}
+		if at, ok := receipts[lead.ID]; ok {
+			lead.CRMReceiptAt = at
 		}
 		if lead.SourceAt == "" {
 			lead.SourceAt = lead.CreatedAt
@@ -181,10 +188,12 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 		SELECT l.id, l.contact_id, l.status, l.filter_reason, COALESCE(l.assigned_member_id,''),
 		       l.created_at, l.updated_at,
 		       c.phone, c.source_type, c.consent_status,
-		       COALESCE(sr.source_app,''), COALESCE(sr.source_ref,''), COALESCE(sr.auth_scope_snapshot,''), COALESCE(sr.created_at,'')
+		       COALESCE(sr.source_app,''), COALESCE(sr.source_ref,''), COALESCE(sr.auth_scope_snapshot,''), COALESCE(sr.created_at,''),
+		       COALESCE(m.display_name,'')
 		FROM leads l
 		JOIN contacts c ON c.id = l.contact_id AND c.tenant_id = l.tenant_id AND c.deleted_at IS NULL
 		LEFT JOIN source_refs sr ON sr.id = l.source_ref_id AND sr.tenant_id = l.tenant_id
+		LEFT JOIN members m ON m.id = l.assigned_member_id AND m.tenant_id = l.tenant_id
 		WHERE l.tenant_id=?
 		ORDER BY l.created_at, l.id`, tenantID)
 	if err != nil {
@@ -197,7 +206,7 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 		var lead workbench.LeadView
 		var phone, sourceType, consent, app, ref, snapshot, refAt string
 		if err := rows.Scan(&lead.ID, &lead.ContactID, &lead.Status, &lead.FilterReason, &lead.Assignee,
-			&lead.CreatedAt, &lead.UpdatedAt, &phone, &sourceType, &consent, &app, &ref, &snapshot, &refAt); err != nil {
+			&lead.CreatedAt, &lead.UpdatedAt, &phone, &sourceType, &consent, &app, &ref, &snapshot, &refAt, &lead.OwnerLabel); err != nil {
 			return nil, nil, err
 		}
 		lead.TenantID = tenantID
@@ -312,6 +321,27 @@ func (s *Store) loadDeskSubmitted(tenantID string) (map[string]string, error) {
 		rows.Close()
 	}
 	return out, nil
+}
+
+func (s *Store) loadDeskReceipts(tenantID string) (map[string]string, error) {
+	rows, err := s.DB.Query(`
+		SELECT lead_id, MIN(created_at)
+		FROM notify_inbox
+		WHERE tenant_id=? AND lead_id IS NOT NULL AND TRIM(receipt_json) != ''
+		GROUP BY lead_id`, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var id, at string
+		if err := rows.Scan(&id, &at); err != nil {
+			return nil, err
+		}
+		out[id] = at
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) loadDeskOpps(tenantID string) ([]workbench.OpportunityView, error) {

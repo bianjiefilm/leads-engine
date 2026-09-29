@@ -4,7 +4,17 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { NARROW_ACTIONS, sourceText, statusLine, type StatusFacts } from "@/lib/workbench";
+import {
+  NARROW_ACTIONS,
+  allowedContactText,
+  modelAdviceLine,
+  nextLine,
+  ownerLine,
+  sourceText,
+  statusLine,
+  syncLine,
+  type StatusFacts,
+} from "@/lib/workbench";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
 
 interface TimelineEvent {
@@ -19,6 +29,11 @@ interface TimelineResponse {
   statuses?: StatusFacts;
   next?: { kind?: string; source?: string; label?: string; at?: string };
   events?: TimelineEvent[];
+  owner_label?: string;
+  assignment_reason?: string;
+  allowed_contacts?: string[];
+  sync?: { crm?: string };
+  outreach_notice?: string;
   message?: string;
   error?: string;
 }
@@ -124,8 +139,13 @@ export default function LeadDeskPage() {
         <>
           <div className="card">
             <p>来源：{sourceText(visible.source)}</p>
+            <p>负责人：{ownerLine(visible.owner_label, visible.assignment_reason)}</p>
+            <p>允许的联系方式：{allowedContactText(visible.allowed_contacts)}</p>
             <p>状态：{statusLine(visible.statuses ?? {}) || "尚无权威状态"}</p>
-            <p>下一步：{visible.next?.source === "manual" ? "手工安排" : "建议"} · {visible.next?.label || "安排下一次"}</p>
+            <p>{syncLine(visible.sync)}</p>
+            {visible.outreach_notice ? <p className="muted">{visible.outreach_notice}</p> : null}
+            <p>下一步：{nextLine(visible.next)}</p>
+            <p className="muted">{modelAdviceLine()}</p>
             {visible.next?.at ? <p className="muted">时间 {visible.next.at}</p> : null}
           </div>
           <div className="card">
@@ -161,11 +181,11 @@ export default function LeadDeskPage() {
               <input type="datetime-local" value={nextAt} onChange={(e) => setNextAt(e.target.value)} />
             </label>
             <div className="queue-actions">
-              <Link href={`/leads/${id}`}>{NARROW_ACTIONS[0]}</Link>
-              <button className="primary" type="submit" disabled={busy || !note.trim()}>
+              <Link href={`/leads/${id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
+              <button className="primary" type="submit" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
                 {NARROW_ACTIONS[1]}
               </button>
-              <button className="primary" type="submit" disabled={busy || !note.trim() || !nextAt}>
+              <button className="primary" type="submit" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
                 {NARROW_ACTIONS[2]}
               </button>
               {channel ? (
