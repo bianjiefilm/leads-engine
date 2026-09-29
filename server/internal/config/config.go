@@ -6,10 +6,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/bianjiefilm/leads-engine/server/internal/tenantmap"
 )
 
 // Feature flag environment keys (default: off).
@@ -106,9 +109,10 @@ const (
 	// Each app reads LEADS_INGEST_<APP>_SECRET / _FETCH_BASE / _FETCH_TOKEN,
 	// where <APP> is the app id uppercased with '-' replaced by '_'.
 	EnvIngestSources = "LEADS_INGEST_SOURCES"
-	// EnvTenantBindings maps an event tenant that this database does not
-	// have onto a tenant that is already provisioned. It does not create
-	// tenants. Example: touchAppTenant=leadsAppTenant.
+	// EnvTenantBindings is an explicit source→target list. It does not create
+	// tenants and it is not inferred from a local row. A duplicate or invalid
+	// entry rejects the whole list. Example:
+	// touch-engine/notify/touchTenant=leadsTenant@1
 	EnvTenantBindings = "LEADS_TENANT_BINDINGS"
 )
 
@@ -219,10 +223,11 @@ type Config struct {
 	VisitorPepper string
 	// IngestSources is the deployment allowlist. Empty unless the flag is on.
 	IngestSources []IngestSource
-	// TenantBindings is an operator map from an event tenant id that is not
-	// in this database to a tenant that already exists. Empty means an
-	// unknown event tenant stays unknown.
-	TenantBindings map[string]string
+	// TenantBindings is the operator map. Empty means no explicit binding.
+	// TenantBindingProblems is set instead of a partial list when the env
+	// value is duplicate or invalid. Callers must refuse rather than guess.
+	TenantBindings        []tenantmap.Binding
+	TenantBindingProblems []string
 }
 
 // IngestSource is one registered Notify sender (HUI-1680). The fetch base is
@@ -284,6 +289,7 @@ func Load(get func(string) string) Config {
 }
 
 func fromEnv(get func(string) string) Config {
+	bindings, bindingProblems := loadTenantBindings(get(EnvTenantBindings))
 	return Config{
 		HTTPAddr:                   firstNonEmpty(get("LEADS_HTTP_ADDR"), "127.0.0.1:18230"),
 		DBPath:                     firstNonEmpty(get("LEADS_DB_PATH"), "data/leads.db"),
@@ -317,7 +323,8 @@ func fromEnv(get func(string) string) Config {
 		FeatureOutbound:            isTruthy(get(EnvFeatureOutbound)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		IngestSources:              parseIngestSources(get),
-		TenantBindings:             parseTenantBindings(get(EnvTenantBindings)),
+		TenantBindings:             bindings,
+		TenantBindingProblems:      bindingProblems,
 		EcoHandoff: EcoHandoffConfig{
 			TargetAppID: firstNonEmpty(get(EnvEcoHandoffTargetApp), "orders"),
 			IntakeURL:   get(EnvEcoHandoffIntakeURL),
@@ -446,27 +453,18 @@ func ingestEnvKey(appID string) string {
 	return strings.ToUpper(strings.ReplaceAll(appID, "-", "_"))
 }
 
-// parseTenantBindings reads source=target pairs. A pair is kept only when
-// both ids are non-empty and different. The first pair for a source wins.
-// This never inserts a tenant.
-func parseTenantBindings(raw string) map[string]string {
-	out := map[string]string{}
-	for _, part := range strings.Split(raw, ",") {
-		source, target, ok := strings.Cut(strings.TrimSpace(part), "=")
-		source = strings.TrimSpace(source)
-		target = strings.TrimSpace(target)
-		if !ok || source == "" || target == "" || source == target {
-			continue
-		}
-		if _, exists := out[source]; exists {
-			continue
-		}
-		out[source] = target
+// loadTenantBindings parses the operator list. Problems mean the list was
+// dropped entirely; a valid prefix is not kept.
+func loadTenantBindings(raw string) ([]tenantmap.Binding, []string) {
+	bindings, err := tenantmap.Parse(raw)
+	if err == nil {
+		return bindings, nil
 	}
-	if len(out) == 0 {
-		return nil
+	var me *tenantmap.Error
+	if errors.As(err, &me) && me.Detail != "" {
+		return nil, []string{me.Detail}
 	}
-	return out
+	return nil, []string{err.Error()}
 }
 
 // IngestGate lists fail-closed problems for the Notify receiver. An empty

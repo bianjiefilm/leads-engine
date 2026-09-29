@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/bianjiefilm/leads-engine/server/internal/tenantmap"
 )
 
 func TestFollowUpSummaryUsesExistingTenantBinding(t *testing.T) {
@@ -14,7 +16,7 @@ func TestFollowUpSummaryUsesExistingTenantBinding(t *testing.T) {
 	if code != 404 {
 		t.Fatalf("unbound unknown tenant = %d, want 404", code)
 	}
-	h.api.Cfg.TenantBindings = map[string]string{unknown: tenantA}
+	h.api.Cfg.TenantBindings = []tenantmap.Binding{legacyTenantBinding(unknown, tenantA)}
 	code, parsed, _ := h.do("GET", "/internal/v1/campaign-follow-ups?campaign_ref=camp-x", "", unknown, "")
 	raw, _ := json.Marshal(parsed)
 	if code != 200 || parsed["known"] != true {

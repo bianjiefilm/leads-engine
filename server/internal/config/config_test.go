@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+func TestTenantBindingsRejectTheWholeSet(t *testing.T) {
+	good := Load(func(k string) string {
+		if k == EnvTenantBindings {
+			return "touch-engine/notify/ext_s=tnt_a@2"
+		}
+		return ""
+	})
+	if len(good.TenantBindingProblems) != 0 || len(good.TenantBindings) != 1 {
+		t.Fatalf("good bindings=%d problems=%v", len(good.TenantBindings), good.TenantBindingProblems)
+	}
+	if good.TenantBindings[0].TargetTenant != "tnt_a" || good.TenantBindings[0].Version != 2 {
+		t.Fatalf("binding=%+v", good.TenantBindings[0])
+	}
+	for _, raw := range []string{
+		"ext_s=tnt_a,ext_s=tnt_b",
+		"ext_s=tnt_a,not-a-pair",
+		"touch-engine/notify/ext_s=tnt_a,ext_s=tnt_a",
+	} {
+		cfg := Load(func(k string) string {
+			if k == EnvTenantBindings {
+				return raw
+			}
+			return ""
+		})
+		if len(cfg.TenantBindings) != 0 || len(cfg.TenantBindingProblems) == 0 {
+			t.Fatalf("raw %q kept bindings=%d problems=%v", raw, len(cfg.TenantBindings), cfg.TenantBindingProblems)
+		}
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	cfg := Load(func(string) string { return "" })
 	if cfg.HTTPAddr != "127.0.0.1:18230" {

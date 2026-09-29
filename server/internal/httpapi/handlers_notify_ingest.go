@@ -21,6 +21,7 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/notifyingest"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
 	"github.com/bianjiefilm/leads-engine/server/internal/subscription"
+	"github.com/bianjiefilm/leads-engine/server/internal/tenantmap"
 )
 
 const notifyIngestMaxBody = 64 << 10
@@ -68,15 +69,14 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "event_skew", "occurred_at is too far in the future")
 		return
 	}
-	sourceTenant := delivery.TenantID
-	storeTenant, ok := s.storeTenantForEvent(sourceTenant)
-	if !ok {
-		fail(w, http.StatusNotFound, "unknown_tenant", "target tenant is not provisioned")
-		return
-	}
-	delivery.TenantID = storeTenant
+	sourceTenant := strings.TrimSpace(delivery.TenantID)
+	sourceApp := delivery.Profile.SourceApp
+	sourceNS := tenantmap.NamespaceNotify
 	bodySHA := notifyingest.BodySHA256(body)
-	if existing, err := s.St.GetNotifyInboxByEvent(delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventID); err == nil {
+	// Replay is keyed by the source identity stored on the first accept.
+	// Current bindings are not consulted, so a later local tenant or a
+	// changed map cannot move the receipt.
+	if existing, err := s.lookupNotifyEvent(sourceApp, sourceNS, sourceTenant, delivery.Profile.EventID); err == nil {
 		if existing.BodySHA256 != bodySHA {
 			fail(w, http.StatusConflict, "event_content_conflict", "the same event key was delivered with different content")
 			return
@@ -84,17 +84,24 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		writeReceipt(w, existing.ReceiptJSON)
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
+		writeTenantMapError(w, err)
 		return
 	}
 
-	if prior, err := s.St.GetNotifyInboxByFact(delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventType, delivery.Profile.SourceRef); err == nil && delivery.Profile.SourceVersion < prior.SourceVersion {
+	if prior, err := s.lookupNotifyFact(sourceApp, sourceNS, sourceTenant, delivery.Profile.EventType, delivery.Profile.SourceRef); err == nil && delivery.Profile.SourceVersion < prior.SourceVersion {
 		writeReceipt(w, prior.ReceiptJSON)
 		return
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
+		writeTenantMapError(w, err)
 		return
 	}
+
+	decision, err := s.admitNotifyTenant(sourceApp, sourceTenant, delivery.Profile.SourceRef)
+	if err != nil {
+		writeTenantMapError(w, err)
+		return
+	}
+	delivery.TenantID = decision.TargetTenant
 
 	rec, err := notifyingest.FetchRecord(r.Context(), src.FetchBase, src.FetchToken, sourceTenant, delivery.Profile.SourceRef)
 	if err != nil {
@@ -124,7 +131,7 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if existing, err := getInboxEvent(tx, delivery); err == nil {
+	if existing, err := getInboxEvent(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.EventID); err == nil {
 		if existing.BodySHA256 != bodySHA {
 			fail(w, http.StatusConflict, "event_content_conflict", "the same event key was delivered with different content")
 			return
@@ -136,13 +143,21 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		writeReceipt(w, existing.ReceiptJSON)
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
+		writeTenantMapError(w, err)
 		return
 	}
 
 	// 事实键上 source_version 单调。更旧的另一个 event_id 只确认、不改数据，
 	// 避免 Notify 把 500 重试到死信。同版本异正文仍是 409。
-	prior, factErr := store.GetNotifyInboxByFactTx(tx, delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.EventType, delivery.Profile.SourceRef)
+	// 已有事实行的目标租户钉死，不随当前绑定重算。
+	prior, factErr := getInboxFact(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.EventType, delivery.Profile.SourceRef)
+	if factErr == nil {
+		delivery.TenantID = inboxTargetID(prior)
+		decision = decisionFromInbox(prior, sourceTenant)
+	} else if !errors.Is(factErr, sql.ErrNoRows) {
+		writeTenantMapError(w, factErr)
+		return
+	}
 	advance := false
 	if factErr == nil {
 		switch {
@@ -160,15 +175,31 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		default:
 			advance = true
 		}
-	} else if !errors.Is(factErr, sql.ErrNoRows) {
-		fail(w, http.StatusInternalServerError, "internal", "inbox lookup failed")
-		return
 	}
 
-	revVersion, revokedBefore, err := store.NotifyRevocationVersion(tx, delivery.TenantID, delivery.Profile.SourceApp, delivery.Profile.SourceRef)
-	if err != nil {
-		fail(w, http.StatusInternalServerError, "internal", "revocation lookup failed")
+	rev, revErr := lookupRevocationTx(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.SourceRef)
+	if revErr != nil && !errors.Is(revErr, sql.ErrNoRows) {
+		writeTenantMapError(w, revErr)
 		return
+	}
+	if revErr == nil {
+		revTenant := rev.MapTargetTenantID
+		if revTenant == "" {
+			revTenant = rev.TenantID
+		}
+		if factErr == nil && revTenant != delivery.TenantID {
+			writeTenantMapError(w, &tenantmap.Error{Kind: tenantmap.KindConflict, Hint: "The stored submission and revocation for this source ref name different targets. Neither row is moved."})
+			return
+		}
+		if factErr != nil {
+			delivery.TenantID = revTenant
+			decision = decisionFromRevocation(rev, sourceTenant)
+		}
+	}
+	revVersion, revokedBefore := 0, false
+	if revErr == nil {
+		revVersion = rev.SourceVersion
+		revokedBefore = true
 	}
 	marketingBlocked := revoke || revokedBefore
 
@@ -190,7 +221,7 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := storeUpsertRevocation(tx, delivery, maxInt(delivery.Profile.SourceVersion, revVersion)); err != nil {
+		if err := storeUpsertRevocation(tx, delivery, sourceTenant, decision, maxInt(delivery.Profile.SourceVersion, revVersion)); err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "revocation write failed")
 			return
 		}
@@ -204,7 +235,7 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusUnprocessableEntity, "insufficient_contact", "authorized submission has no name or channel subject")
 			return
 		}
-		snapshot := provenanceSnapshot(delivery)
+		snapshot := provenanceSnapshot(delivery, sourceTenant, decision)
 		sourceRefID, err := ensureSource(tx, delivery, snapshot)
 		if err != nil {
 			fail(w, http.StatusInternalServerError, "internal", "source ref failed")
@@ -284,12 +315,24 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		ProfileEventID: delivery.Profile.EventID, NotifyEventID: delivery.NotifyEventID,
 		DeliveryID: r.Header.Get("X-Notify-Delivery-Id"), BodySHA256: bodySHA,
 		LeadID: leadID, ContactID: contactID, ReceiptJSON: string(raw), OccurredAt: occurred,
+		SourceNS: sourceNS, SourceTenantID: sourceTenant,
+		MapTargetTenantID: decision.TargetTenant, MapVersion: decision.Version, MapBasis: decision.Basis,
 	}
 	var writeErr error
 	if advance {
 		writeErr = store.UpdateNotifyInboxFactTx(tx, prior.ID, inboxRow)
 	} else {
 		writeErr = store.InsertNotifyInboxTx(tx, inboxRow)
+	}
+	if writeErr != nil && uniqueViolation(writeErr) {
+		if row, rerr := getInboxEvent(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.EventID); rerr == nil && row.BodySHA256 == bodySHA {
+			if err := tx.Commit(); err != nil {
+				fail(w, http.StatusInternalServerError, "internal", "ingest commit failed")
+				return
+			}
+			writeReceipt(w, row.ReceiptJSON)
+			return
+		}
 	}
 	if writeErr != nil {
 		fail(w, http.StatusInternalServerError, "internal", "inbox write failed")
@@ -387,12 +430,18 @@ func sourceTypeFor(app string) string {
 	return "form"
 }
 
-func provenanceSnapshot(d notifyingest.Delivery) string {
+func provenanceSnapshot(d notifyingest.Delivery, sourceTenant string, decision tenantmap.Decision) string {
 	b, _ := json.Marshal(map[string]any{
 		"campaign_ref": d.Payload.CampaignRef, "store_ref": d.Payload.StoreRef,
 		"channel": d.Payload.Channel, "tag": d.Payload.Tag, "asset_ref": d.Payload.AssetRef,
 		"source_version": d.Profile.SourceVersion, "occurred_at": d.OccurredAt.UTC().Format(time.RFC3339),
-		"consent_version": d.Payload.ConsentVersion,
+		"consent_version":      d.Payload.ConsentVersion,
+		"source_tenant_id":     sourceTenant,
+		"map_target_tenant_id": decision.TargetTenant,
+		"map_version":          decision.Version,
+		"map_basis":            decision.Basis,
+		"source_app":           d.Profile.SourceApp,
+		"source_ns":            decision.SourceNS,
 	})
 	return string(b)
 }
@@ -429,8 +478,39 @@ func contactExtraNotes(rec notifyingest.Record) string {
 }
 
 // wrappers keep the handler from reaching into unexported store helpers.
-func getInboxEvent(tx *sql.Tx, d notifyingest.Delivery) (store.NotifyInbox, error) {
-	return store.GetNotifyInboxByEventTx(tx, d.TenantID, d.Profile.SourceApp, d.Profile.EventID)
+func getInboxEvent(tx *sql.Tx, app, ns, sourceTenant, eventID string) (store.NotifyInbox, error) {
+	row, err := store.GetNotifyInboxBySourceEventTx(tx, app, ns, sourceTenant, eventID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.GetLegacyNotifyInboxByEventTx(tx, app, eventID)
+	}
+	return row, err
+}
+
+func getInboxFact(tx *sql.Tx, app, ns, sourceTenant, eventType, sourceRef string) (store.NotifyInbox, error) {
+	row, err := store.GetNotifyInboxBySourceFactTx(tx, app, ns, sourceTenant, eventType, sourceRef)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.GetLegacyNotifyInboxByFactTx(tx, app, eventType, sourceRef)
+	}
+	return row, err
+}
+
+func lookupRevocationTx(tx *sql.Tx, app, ns, sourceTenant, sourceRef string) (store.NotifyRevocation, error) {
+	rev, err := store.NotifyRevocationBySourceTx(tx, app, ns, sourceTenant, sourceRef)
+	if errors.Is(err, sql.ErrNoRows) {
+		return store.LegacyNotifyRevocationTx(tx, app, sourceRef)
+	}
+	return rev, err
+}
+
+func inboxTargetID(n store.NotifyInbox) string {
+	if n.MapTargetTenantID != "" {
+		return n.MapTargetTenantID
+	}
+	return n.TenantID
+}
+
+func uniqueViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
 func findLead(tx *sql.Tx, d notifyingest.Delivery) (string, string, bool, error) {
@@ -441,8 +521,12 @@ func ensureSource(tx *sql.Tx, d notifyingest.Delivery, snapshot string) (string,
 	return store.EnsureSourceRefTx(tx, d.TenantID, d.Profile.SourceApp, d.Profile.SourceRef, snapshot)
 }
 
-func storeUpsertRevocation(tx *sql.Tx, d notifyingest.Delivery, version int) error {
-	return store.UpsertNotifyRevocationTx(tx, d.TenantID, d.Profile.SourceApp, d.Profile.SourceRef, version)
+func storeUpsertRevocation(tx *sql.Tx, d notifyingest.Delivery, sourceTenant string, decision tenantmap.Decision, version int) error {
+	return store.UpsertNotifyRevocationTx(tx, store.NotifyRevocation{
+		TenantID: d.TenantID, SourceApp: d.Profile.SourceApp, SourceNS: decision.SourceNS,
+		SourceRef: d.Profile.SourceRef, SourceTenantID: sourceTenant, SourceVersion: version,
+		MapTargetTenantID: decision.TargetTenant, MapVersion: decision.Version, MapBasis: decision.Basis,
+	})
 }
 
 func setNotes(tx *sql.Tx, tenantID, contactID string, rec notifyingest.Record) error {
