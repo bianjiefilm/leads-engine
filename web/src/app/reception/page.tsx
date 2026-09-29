@@ -20,8 +20,15 @@ interface DeskItem {
 
 const TENANT_KEY = "leads_tenant_id";
 
+const ROLE_TEXT: Record<string, string> = {
+  owner: "店主",
+  sales: "销售",
+  agent: "客服",
+};
+
 export default function ReceptionDeskPage() {
   const [tenant, setTenant] = useState("");
+  const [role, setRole] = useState("");
   const [items, setItems] = useState<DeskItem[] | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState("");
@@ -39,7 +46,11 @@ export default function ReceptionDeskPage() {
     }
     window.localStorage.setItem(TENANT_KEY, tenantID.trim());
     try {
-      const res = await fetch("/api/reception/desk", { headers: { "x-tenant-id": tenantID.trim() } });
+      const headers = { "x-tenant-id": tenantID.trim() };
+      const who = await fetch("/api/whoami", { headers });
+      const whoBody = await who.json().catch(() => ({}));
+      setRole(who.ok && typeof whoBody.role === "string" ? whoBody.role : "");
+      const res = await fetch("/api/reception/desk", { headers });
       const body = await res.json();
       if (!res.ok) {
         setError(body.message ?? body.error ?? `HTTP ${res.status}`);
@@ -57,7 +68,7 @@ export default function ReceptionDeskPage() {
     <main>
       <p className="muted"><Link href="/">返回工作台</Link></p>
       <h1>接待工作台</h1>
-      <p className="muted">当前负责人、待处理原因和人工待办。模型不可用时，人工仍可在会话里继续回复。</p>
+      <p className="muted">当前身份：{ROLE_TEXT[role] ?? "未确认"}。当前负责人、待处理原因和人工待办。模型不可用时，人工仍可在会话里继续回复。</p>
       <form className="composer" onSubmit={(event) => { event.preventDefault(); void load(tenant); }}>
         <input aria-label="租户" value={tenant} onChange={(event) => setTenant(event.target.value)} placeholder="租户 id" />
         <button className="primary" type="submit">查看</button>

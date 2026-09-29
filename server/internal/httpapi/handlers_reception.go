@@ -1,8 +1,10 @@
 // HUI-1688 统一接待 HTTP 面。FEATURE_RECEPTION 默认 off 时路由不注册。
-// 公共入口的租户只来自 widget 归属。用量 live_charge 恒为 0，不调用外部模型或扣费。
+// 公共入口的租户只来自 widget 归属。用量 live_charge 恒为 0。
+// 没有平台任务三键时不外呼；有三键时也只记任务回执，不把 live_charge 写成 1。
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/bianjiefilm/leads-engine/server/internal/authz"
+	"github.com/bianjiefilm/leads-engine/server/internal/platformtask"
 	"github.com/bianjiefilm/leads-engine/server/internal/reception"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
 )
@@ -38,6 +41,7 @@ func (s *Server) mountReception(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/reception/knowledge/{id}/enable", s.requireSession(s.handleKnowledgeEnable))
 	mux.Handle("GET /api/v1/reception/desk", s.requireSession(s.handleReceptionDesk))
 	mux.Handle("GET /api/v1/reception/sessions/{id}", s.requireSession(s.handleReceptionSessionGet))
+	mux.Handle("POST /api/v1/reception/sessions/{id}/assist", s.requireSession(s.handleReceptionAssist))
 	mux.Handle("POST /api/v1/reception/sessions/{id}/takeover", s.requireSession(s.handleReceptionTakeover))
 	mux.Handle("POST /api/v1/reception/sessions/{id}/release", s.requireSession(s.handleReceptionRelease))
 	mux.Handle("POST /api/v1/reception/sessions/{id}/close", s.requireSession(s.handleReceptionClose))
@@ -300,7 +304,43 @@ func (s *Server) handleReceptionSessionGet(w http.ResponseWriter, r *http.Reques
 		"session":  sess,
 		"messages": messageViews(msgs),
 		"replies":  replyViews(replies),
+		"model":    s.modelPayloadForSession(sess.TenantID, sess.ID),
 	})
+}
+
+func (s *Server) handleReceptionAssist(w http.ResponseWriter, r *http.Request) {
+	c, sess, ok := s.staffSession(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Epoch int `json:"epoch"`
+	}
+	if !readReceptionBody(w, r, &in) {
+		return
+	}
+	if in.Epoch < 1 {
+		fail(w, http.StatusBadRequest, "bad_request", "epoch is required")
+		return
+	}
+	next, err := s.St.EnterAssist(c.Member.TenantID, sess.ID, in.Epoch)
+	if errors.Is(err, store.ErrTakeoverLost) {
+		fail(w, http.StatusConflict, "takeover_lost", "the session epoch changed")
+		return
+	}
+	if errors.Is(err, store.ErrModeConflict) {
+		fail(w, http.StatusConflict, "mode_conflict", "assist is only entered from AI mode")
+		return
+	}
+	if errors.Is(err, store.ErrSessionClosed) {
+		fail(w, http.StatusConflict, "session_closed", "session is closed")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "assist failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, next)
 }
 
 func (s *Server) handleReceptionTakeover(w http.ResponseWriter, r *http.Request) {
@@ -350,6 +390,14 @@ func (s *Server) handleReceptionRelease(w http.ResponseWriter, r *http.Request) 
 	next, err := s.St.ReleaseSessionToAI(c.Member.TenantID, sess.ID, c.Member.ID, c.Member.Role, in.Epoch)
 	if errors.Is(err, store.ErrTakeoverLost) {
 		fail(w, http.StatusConflict, "release_rejected", "only the current owner can return the session to AI")
+		return
+	}
+	if errors.Is(err, store.ErrModeConflict) {
+		fail(w, http.StatusConflict, "mode_conflict", "return to AI is an explicit step from human mode")
+		return
+	}
+	if errors.Is(err, store.ErrSessionClosed) {
+		fail(w, http.StatusConflict, "session_closed", "session is closed")
 		return
 	}
 	if err != nil {
@@ -406,7 +454,11 @@ func (s *Server) handleReceptionLead(w http.ResponseWriter, r *http.Request) {
 	content, _ := json.Marshal(map[string]string{
 		"session_id": sess.ID, "name": strings.TrimSpace(in.ContactName), "phone": strings.TrimSpace(in.Phone), "purpose": in.Purpose,
 	})
-	res, err := s.St.AttachReceptionLead(sess.ID, sess.OwnerMemberID, store.IntakeInput{
+	assignee := sess.OwnerMemberID
+	if assignee == "" {
+		assignee = c.Member.ID
+	}
+	res, err := s.St.AttachReceptionLead(sess.ID, assignee, store.IntakeInput{
 		TenantID: sess.TenantID, SourceApp: "leads-engine", SourceNS: "reception", EventID: sess.ID,
 		Content: content, ContactName: strings.TrimSpace(in.ContactName), Phone: strings.TrimSpace(in.Phone),
 		Email: strings.TrimSpace(in.Email), BusinessCategory: "merchant_customer", SourceType: "form",
@@ -414,7 +466,7 @@ func (s *Server) handleReceptionLead(w http.ResponseWriter, r *http.Request) {
 		Consent: &store.ConsentUpsert{
 			SourceSubmissionRef: sess.ID, SourceChannel: "reception_h5",
 			NoticeVersion: strings.TrimSpace(in.NoticeVersion), Purpose: "sales_followup",
-			MarketingAllowed: in.MarketingAllowed,
+			MarketingAllowed: false,
 		},
 	})
 	if errors.Is(err, store.ErrSessionClosed) {
@@ -434,6 +486,10 @@ func (s *Server) handleReceptionLead(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReceptionFollowUp(w http.ResponseWriter, r *http.Request) {
 	c, sess, ok := s.staffSession(w, r)
 	if !ok {
+		return
+	}
+	if sess.Status != "open" {
+		fail(w, http.StatusConflict, "session_closed", "session is closed")
 		return
 	}
 	if sess.ContactID == "" || sess.LeadID == "" {
@@ -472,6 +528,10 @@ func (s *Server) handleReceptionFollowUp(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleReceptionHumanReply(w http.ResponseWriter, r *http.Request) {
 	c, sess, ok := s.staffSession(w, r)
 	if !ok {
+		return
+	}
+	if sess.Status != "open" {
+		fail(w, http.StatusConflict, "session_closed", "session is closed")
 		return
 	}
 	if sess.Mode != reception.ModeHuman || (sess.OwnerMemberID != c.Member.ID && c.Member.Role != "owner") {
@@ -748,8 +808,14 @@ func (s *Server) handlePublicMessage(w http.ResponseWriter, r *http.Request) {
 	if out.Gaps == nil {
 		gj = []byte("[]")
 	}
+	usageKey := sess.ID + ":" + in.ClientMsgID
+	call := s.phraseReception(r.Context(), sess, in.ClientMsgID, out)
+	fresh, freshErr := s.St.GetReceptionSession(sess.TenantID, sess.ID)
+	late := freshErr != nil || fresh.Epoch != sess.Epoch || fresh.Mode != sess.Mode || fresh.Status != sess.Status
 	status := "generated"
-	if out.ShouldSend {
+	if late {
+		status = "blocked"
+	} else if out.ShouldSend {
 		status = "approved"
 	}
 	rp, err := s.St.InsertReceptionReply(store.ReceptionReply{
@@ -766,20 +832,28 @@ func (s *Server) handlePublicMessage(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "reply failed")
 		return
 	}
-	_, _ = s.St.InsertReceptionUsage(sess.TenantID, rp.ID, sess.ID+":"+in.ClientMsgID, 1)
-	if out.ShouldSend {
+	if _, err := s.St.InsertReceptionModelCall(sess.TenantID, rp.ID, usageKey, call); err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "model receipt failed")
+		return
+	}
+	_, _ = s.St.InsertReceptionUsage(sess.TenantID, rp.ID, usageKey, 1)
+	if out.ShouldSend && !late {
 		sent, _, sendErr := s.St.SendReceptionReply(sess.TenantID, sess.ID, rp.ID, "auto:"+in.ClientMsgID)
 		if sendErr == nil {
 			rp = sent
 		}
 	}
-	next, _ := s.St.TouchReceptionSession(sess.TenantID, sess.ID, out.PendingReason)
-	rows, units, live, _ := s.St.CountReceptionUsage(sess.TenantID, sess.ID+":"+in.ClientMsgID)
+	next := fresh
+	if !late {
+		next, _ = s.St.TouchReceptionSession(sess.TenantID, sess.ID, out.PendingReason)
+	}
+	rows, units, live, _ := s.St.CountReceptionUsage(sess.TenantID, usageKey)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"duplicate": false,
 		"session":   publicSession(next),
 		"reply":     publicReply(rp, next.Epoch),
 		"usage":     map[string]any{"rows": rows, "units": units, "live_charge": live},
+		"model":     s.modelPayload(sess.TenantID, usageKey),
 	})
 }
 
@@ -833,6 +907,64 @@ func (s *Server) lookupFact(tenantID, text string, now time.Time) (*reception.Fa
 		return nil, code
 	}
 	return &reception.Fact{Kind: kind, Value: value, ExpiresAt: exp}, ""
+}
+
+func groundedFAQ(out reception.ComposeOutput) bool {
+	if out.Hostile {
+		return false
+	}
+	for _, c := range out.Citations {
+		if c.Kind == "faq" {
+			return true
+		}
+	}
+	return false
+}
+
+// phraseReception records a model attempt. Without a configured task client the
+// verdict stays not_completed and the grounded body is left unchanged.
+func (s *Server) phraseReception(ctx context.Context, sess store.ReceptionSession, clientMsgID string, out reception.ComposeOutput) store.ReceptionModelCall {
+	fallback := store.ReceptionModelCall{BillingVerdict: "not_completed"}
+	if s.ReceptionPhraser == nil || !groundedFAQ(out) {
+		return fallback
+	}
+	ids := make([]string, 0, len(out.Citations))
+	for _, c := range out.Citations {
+		if c.Kind == "faq" && c.SourceID != "" {
+			ids = append(ids, c.SourceID)
+		}
+	}
+	got := s.ReceptionPhraser.Phrase(ctx, platformtask.PhraseInput{
+		IdempotencyKey: sess.ID + ":" + clientMsgID,
+		Language:       sess.Language,
+		Body:           out.Body,
+		CitationIDs:    ids,
+	})
+	if got.BillingVerdict != "recorded" || strings.TrimSpace(got.TaskID) == "" || strings.Contains(strings.ToUpper(got.BillingVerdict), "PASS") {
+		return store.ReceptionModelCall{TaskID: strings.TrimSpace(got.TaskID), BillingVerdict: "not_completed"}
+	}
+	return store.ReceptionModelCall{TaskID: strings.TrimSpace(got.TaskID), CostCents: 1, BillingVerdict: "recorded"}
+}
+
+func modelPayloadFrom(call store.ReceptionModelCall, err error) map[string]any {
+	if err != nil || call.BillingVerdict == "" {
+		return map[string]any{"task_id": "", "cost_cents": 0, "billing_verdict": "not_completed"}
+	}
+	return map[string]any{
+		"task_id":         call.TaskID,
+		"cost_cents":      call.CostCents,
+		"billing_verdict": call.BillingVerdict,
+	}
+}
+
+func (s *Server) modelPayload(tenantID, key string) map[string]any {
+	call, err := s.St.GetReceptionModelCall(tenantID, key)
+	return modelPayloadFrom(call, err)
+}
+
+func (s *Server) modelPayloadForSession(tenantID, sessionID string) map[string]any {
+	call, err := s.St.LatestReceptionModelCall(tenantID, sessionID)
+	return modelPayloadFrom(call, err)
 }
 
 func (s *Server) writeTranscript(w http.ResponseWriter, sess store.ReceptionSession, staff bool) {

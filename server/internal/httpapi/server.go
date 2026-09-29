@@ -26,6 +26,7 @@ import (
 	"github.com/bianjiefilm/leads-engine/server/internal/db"
 	"github.com/bianjiefilm/leads-engine/server/internal/handoffsender"
 	"github.com/bianjiefilm/leads-engine/server/internal/identity"
+	"github.com/bianjiefilm/leads-engine/server/internal/platformtask"
 	"github.com/bianjiefilm/leads-engine/server/internal/reception"
 	"github.com/bianjiefilm/leads-engine/server/internal/redact"
 	"github.com/bianjiefilm/leads-engine/server/internal/store"
@@ -57,6 +58,10 @@ type Server struct {
 	// ReceptionModelUp, when set and false, marks the generative model down.
 	// Grounded FAQ answers and human replies still work.
 	ReceptionModelUp func() bool
+	// ReceptionPhraser meters a grounded FAQ answer. Nil means text degrade.
+	ReceptionPhraser interface {
+		Phrase(ctx context.Context, in platformtask.PhraseInput) platformtask.PhraseResult
+	}
 
 	// mapLookupFn replaces the tenants-table read used only to resolve a map.
 	// Nil uses Store.GetTenant. A failure other than a missing row must not
@@ -98,6 +103,9 @@ func Open(cfg config.Config, logger *log.Logger) (*Server, error) {
 	idc := &identity.Client{BaseURL: cfg.IdentityBaseURL, Token: cfg.IdentityToken, AppID: cfg.AppID}
 	s := New(cfg, d, idc, logger)
 	s.closeDB = func() { d.Close() }
+	if phraser := platformtask.New(cfg.TaskBaseURL, cfg.TaskToken, cfg.TaskAccountID, cfg.AppID); phraser != nil {
+		s.ReceptionPhraser = phraser
+	}
 	return s, nil
 }
 

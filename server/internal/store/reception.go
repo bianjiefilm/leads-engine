@@ -16,6 +16,8 @@ var (
 	ErrNotDeliverable = errors.New("reception: reply not deliverable")
 	// ErrSessionClosed means the session is not open.
 	ErrSessionClosed = errors.New("reception: session closed")
+	// ErrModeConflict means this transition is not legal for the current mode.
+	ErrModeConflict = errors.New("reception: mode conflict")
 	// ErrReplyConflict means the same idempotency key carried a different body.
 	ErrReplyConflict = errors.New("reception: reply idempotency conflict")
 )
@@ -97,7 +99,7 @@ type ReceptionReply struct {
 	CreatedAt      string `json:"created_at"`
 }
 
-// ReceptionEvent is takeover, release, or interruption.
+// ReceptionEvent is assist, takeover, release, or interruption.
 type ReceptionEvent struct {
 	ID        string `json:"id"`
 	Type      string `json:"type"`
@@ -466,6 +468,59 @@ func (s *Store) supersedeUnsent(tx *sql.Tx, tenantID, sessionID string, epoch in
 	return err
 }
 
+// ReceptionModelCall is the optional platform-task receipt for one reply.
+// BillingVerdict is not_completed or recorded. PASS is not a stored value.
+type ReceptionModelCall struct {
+	TaskID         string
+	CostCents      int
+	BillingVerdict string
+}
+
+// EnterAssist moves an AI session into assist mode and bumps epoch once.
+// The same assist epoch is returned unchanged. Human mode is refused.
+func (s *Store) EnterAssist(tenantID, sessionID string, expectedEpoch int) (ReceptionSession, error) {
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return ReceptionSession{}, err
+	}
+	defer tx.Rollback()
+	sess, err := scanSession(tx.QueryRow(`SELECT `+sessionCols+` FROM reception_sessions WHERE id=? AND tenant_id=?`, sessionID, tenantID))
+	if err != nil {
+		return ReceptionSession{}, err
+	}
+	if sess.Status != "open" {
+		return ReceptionSession{}, ErrSessionClosed
+	}
+	if sess.Mode == "assist" && sess.Epoch == expectedEpoch {
+		return sess, nil
+	}
+	if sess.Mode != "ai" {
+		return ReceptionSession{}, ErrModeConflict
+	}
+	res, err := tx.Exec(`UPDATE reception_sessions SET mode='assist', epoch=epoch+1, version=version+1, pending_reason='awaiting_approval', updated_at=?
+		WHERE id=? AND tenant_id=? AND epoch=? AND status='open' AND mode='ai'`,
+		now(), sessionID, tenantID, expectedEpoch)
+	if err != nil {
+		return ReceptionSession{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n != 1 {
+		return ReceptionSession{}, ErrTakeoverLost
+	}
+	next := expectedEpoch + 1
+	if err := s.supersedeUnsent(tx, tenantID, sessionID, next); err != nil {
+		return ReceptionSession{}, err
+	}
+	if _, err := tx.Exec(`INSERT INTO reception_events(id,tenant_id,session_id,type,epoch,created_at) VALUES(?,?,?,?,?,?)`,
+		newID("rce_"), tenantID, sessionID, "assist", next, now()); err != nil {
+		return ReceptionSession{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return ReceptionSession{}, err
+	}
+	return s.GetReceptionSession(tenantID, sessionID)
+}
+
 // TakeoverSession moves the session to human mode and bumps epoch.
 // A member who already owns the current human epoch is returned unchanged.
 func (s *Store) TakeoverSession(tenantID, sessionID, memberID string, expectedEpoch int) (ReceptionSession, error) {
@@ -523,11 +578,14 @@ func (s *Store) ReleaseSessionToAI(tenantID, sessionID, actorID, role string, ex
 	if sess.Status != "open" {
 		return ReceptionSession{}, ErrSessionClosed
 	}
+	if sess.Mode != "human" {
+		return ReceptionSession{}, ErrModeConflict
+	}
 	if role != "owner" && sess.OwnerMemberID != actorID {
 		return ReceptionSession{}, ErrTakeoverLost
 	}
 	res, err := tx.Exec(`UPDATE reception_sessions SET mode='ai', owner_member_id=NULL, epoch=epoch+1, version=version+1, pending_reason='', updated_at=?
-		WHERE id=? AND tenant_id=? AND epoch=? AND status='open'`,
+		WHERE id=? AND tenant_id=? AND epoch=? AND status='open' AND mode='human'`,
 		now(), sessionID, tenantID, expectedEpoch)
 	if err != nil {
 		return ReceptionSession{}, err
@@ -695,7 +753,7 @@ func (s *Store) ListReceptionDesk(tenantID, memberID, role string) ([]DeskItem, 
 		   ORDER BY f.next_follow_up_at DESC LIMIT 1)
 		FROM reception_sessions s WHERE s.tenant_id=? AND s.status='open'`
 	args := []any{tenantID}
-	if role != "owner" {
+	if role != "owner" && role != "sales" && role != "agent" {
 		q += ` AND (s.owner_member_id=? OR (s.owner_member_id IS NULL AND s.pending_reason!=''))`
 		args = append(args, memberID)
 	}
@@ -723,13 +781,56 @@ func (s *Store) ListReceptionDesk(tenantID, memberID, role string) ([]DeskItem, 
 
 // SessionVisible reports whether a non-public member may read the session.
 func SessionVisible(role, memberID string, sess ReceptionSession) bool {
-	if role == "owner" {
+	if role == "owner" || role == "sales" || role == "agent" {
 		return true
 	}
 	if sess.OwnerMemberID == memberID {
 		return true
 	}
 	return sess.OwnerMemberID == "" && sess.PendingReason != ""
+}
+
+// InsertReceptionModelCall stores one receipt. A repeated key does not add a row.
+func (s *Store) InsertReceptionModelCall(tenantID, replyID, key string, call ReceptionModelCall) (bool, error) {
+	verdict := call.BillingVerdict
+	taskID := strings.TrimSpace(call.TaskID)
+	cost := call.CostCents
+	if verdict != "recorded" {
+		verdict = "not_completed"
+		cost = 0
+	}
+	if verdict == "recorded" && taskID == "" {
+		return false, errors.New("reception: recorded task id required")
+	}
+	if verdict == "not_completed" {
+		cost = 0
+	}
+	res, err := s.DB.Exec(`INSERT INTO reception_model_calls(id,tenant_id,reply_id,idempotency_key,task_id,cost_cents,billing_verdict,created_at)
+		VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id, idempotency_key) DO NOTHING`,
+		newID("rmc_"), tenantID, replyID, key, taskID, cost, verdict, now())
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+// GetReceptionModelCall returns the receipt for an idempotency key.
+func (s *Store) GetReceptionModelCall(tenantID, key string) (ReceptionModelCall, error) {
+	var call ReceptionModelCall
+	err := s.DB.QueryRow(`SELECT task_id, cost_cents, billing_verdict FROM reception_model_calls WHERE tenant_id=? AND idempotency_key=?`, tenantID, key).Scan(&call.TaskID, &call.CostCents, &call.BillingVerdict)
+	return call, err
+}
+
+// LatestReceptionModelCall returns the newest receipt on a session, if any.
+func (s *Store) LatestReceptionModelCall(tenantID, sessionID string) (ReceptionModelCall, error) {
+	var call ReceptionModelCall
+	err := s.DB.QueryRow(`SELECT c.task_id, c.cost_cents, c.billing_verdict
+		FROM reception_model_calls c
+		JOIN reception_replies r ON r.id=c.reply_id AND r.tenant_id=c.tenant_id
+		WHERE c.tenant_id=? AND r.session_id=?
+		ORDER BY c.created_at DESC LIMIT 1`, tenantID, sessionID).Scan(&call.TaskID, &call.CostCents, &call.BillingVerdict)
+	return call, err
 }
 
 // CitationsOf decodes a reply's citation JSON.

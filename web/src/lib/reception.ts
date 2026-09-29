@@ -103,6 +103,12 @@ export function takeoverCall(sessionId: string, epoch: number): DeskCall | null 
   return { method: "POST", path, body: { epoch } };
 }
 
+export function assistCall(sessionId: string, epoch: number): DeskCall | null {
+  const path = sessionPath(sessionId, "/assist");
+  if (!path || !Number.isInteger(epoch) || epoch < 1) return null;
+  return { method: "POST", path, body: { epoch } };
+}
+
 export function releaseCall(sessionId: string, epoch: number): DeskCall | null {
   const path = sessionPath(sessionId, "/release");
   if (!path || !Number.isInteger(epoch) || epoch < 1) return null;
