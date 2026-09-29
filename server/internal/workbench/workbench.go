@@ -86,15 +86,30 @@ type OpportunityView struct {
 }
 
 // ReceptionView is one fact already produced by the reception core.
+// OwnerLabel is a display name. Assignee stays the member id used only for scope.
 type ReceptionView struct {
 	SessionID     string
 	TenantID      string
 	LeadID        string
 	Assignee      string
+	OwnerLabel    string
+	Mode          string
+	Epoch         int
+	Version       int
 	PendingReason string
 	WaitingReply  bool
 	HumanTodo     bool
 	Purpose       string
+}
+
+// ReceptionFact is the only reception line this desk may show.
+// It names the current holder without a member id, a phone, or knowledge text.
+type ReceptionFact struct {
+	Takeover   bool   `json:"takeover"`
+	OwnerLabel string `json:"owner_label,omitempty"`
+	Label      string `json:"label"`
+	Epoch      int    `json:"epoch"`
+	Version    int    `json:"version"`
 }
 
 // NextAction is advisory unless Source is manual. The three side-effect
@@ -171,6 +186,7 @@ type Item struct {
 	OutreachNotice   string           `json:"outreach_notice,omitempty"`
 	ModelAdvice      string           `json:"model_advice,omitempty"`
 	ServiceDraft     ServiceDraftDesk `json:"service_draft"`
+	Reception        *ReceptionFact   `json:"reception,omitempty"`
 }
 
 // SyncFact is the external receipt. It has no count. Unknown is not zero
@@ -580,12 +596,31 @@ func leadItem(lead LeadView, opps []OpportunityView) Item {
 	return item
 }
 
+// ProjectReceptionFact reports the current holder. Pending reason alone is
+// not a takeover, and a bare member id is never the label.
+func ProjectReceptionFact(session ReceptionView) ReceptionFact {
+	fact := ReceptionFact{Label: "尚未接管", Epoch: session.Epoch, Version: session.Version}
+	holder := strings.TrimSpace(session.Assignee)
+	if session.Mode == "human" && holder != "" {
+		fact.Takeover = true
+		fact.Label = "人工接管"
+		label := strings.TrimSpace(session.OwnerLabel)
+		if label == "" || label == holder {
+			label = "已接管"
+		}
+		fact.OwnerLabel = label
+	}
+	return fact
+}
+
 func sessionItem(session ReceptionView, bucket string) Item {
+	fact := ProjectReceptionFact(session)
 	return Item{
 		ID: session.SessionID, TenantID: session.TenantID, Bucket: bucket, Kind: "reception",
 		SessionID: session.SessionID, LeadID: session.LeadID, Assignee: session.Assignee,
 		Reason: session.PendingReason, ForceOpportunity: false,
-		Next: safeAction("none", "suggestion", ""),
+		Next:      safeAction("none", "suggestion", ""),
+		Reception: &fact,
 	}
 }
 
