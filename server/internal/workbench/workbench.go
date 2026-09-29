@@ -18,6 +18,11 @@ const (
 	// There is no model call behind it.
 	ModelAdviceMissing = "真实模型未完成"
 
+	// JointChainIncomplete is the only chain line this slice may show.
+	// A local fixture is not a Touch delivery, and a missing Notify receipt
+	// is not a completed follow-up.
+	JointChainIncomplete = "联合经营链未完成"
+
 	BucketUnprocessed         = "unprocessed"
 	BucketDueToday            = "due_today"
 	BucketWaitingReply        = "waiting_reply"
@@ -192,13 +197,23 @@ type TimelineEvent struct {
 	ContactPlaintext string `json:"contact_plaintext,omitempty"`
 }
 
+// JointChain says whether Touch delivery and Notify receipt were proven
+// for this desk. This slice never proves them.
+type JointChain struct {
+	Status         string `json:"status"`
+	Label          string `json:"label"`
+	TouchDelivered bool   `json:"touch_delivered"`
+}
+
 // Result is the whole desk for one caller.
 type Result struct {
-	Scope      string            `json:"scope"`
-	Buckets    map[string][]Item `json:"buckets"`
-	Money      Money             `json:"money"`
-	Billing    Billing           `json:"billing"`
-	Automation Automation        `json:"automation"`
+	Scope             string            `json:"scope"`
+	Buckets           map[string][]Item `json:"buckets"`
+	Money             Money             `json:"money"`
+	Billing           Billing           `json:"billing"`
+	Automation        Automation        `json:"automation"`
+	JointChain        JointChain        `json:"joint_chain"`
+	OutreachSubmitted bool              `json:"outreach_submitted"`
 }
 
 // OrdinaryCRMChargeCents is the fee for storing, opening, or hand-writing
@@ -361,14 +376,27 @@ func OutreachLabel(marketingAllowed, sendReceipt bool) string {
 }
 
 // OutreachNotice explains the gap without using the success sentence.
+// A permit plus a receipt still does not mean this desk submitted outreach.
 func OutreachNotice(marketingAllowed, sendReceipt bool) string {
 	if marketingAllowed && sendReceipt {
-		return OutreachLabel(true, true)
+		return ""
 	}
 	if !marketingAllowed {
 		return "没有营销许可"
 	}
 	return "没有触达回执"
+}
+
+// DeskSubmittedOutreach stays false. Saving a draft or reading a fixture
+// is not a submitted outreach.
+func DeskSubmittedOutreach() bool {
+	return false
+}
+
+// ProjectJointChain reports the joint Touch → Notify chain. This process
+// does not observe that delivery, so the chain stays incomplete.
+func ProjectJointChain() JointChain {
+	return JointChain{Status: "incomplete", Label: JointChainIncomplete, TouchDelivered: false}
 }
 
 // ServiceDraftDesk decides whether the draft control is on screen.
@@ -514,11 +542,13 @@ func Build(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView,
 		name = "tenant"
 	}
 	return Result{
-		Scope:      name,
-		Buckets:    buckets,
-		Money:      SeparateMoney(visibleOpps),
-		Billing:    Billing{OrdinaryCRMChargeCents: OrdinaryCRMChargeCents("view")},
-		Automation: Automation{},
+		Scope:             name,
+		Buckets:           buckets,
+		Money:             SeparateMoney(visibleOpps),
+		Billing:           Billing{OrdinaryCRMChargeCents: OrdinaryCRMChargeCents("view")},
+		Automation:        Automation{},
+		JointChain:        ProjectJointChain(),
+		OutreachSubmitted: DeskSubmittedOutreach(),
 	}
 }
 

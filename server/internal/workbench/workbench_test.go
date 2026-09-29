@@ -302,6 +302,78 @@ func TestOrdinarySalesHideUnconfirmedServiceDraft(t *testing.T) {
 	}
 }
 
+func TestLocalFixtureDeskKeepsChainIncomplete(t *testing.T) {
+	notice := OutreachNotice(true, true)
+	if strings.Contains(notice, "自动触达已成功") {
+		t.Fatalf("notice claimed success: %q", notice)
+	}
+	if DeskSubmittedOutreach() {
+		t.Fatal("a draft or a receipt was treated as submitted outreach")
+	}
+	chain := ProjectJointChain()
+	if chain.Status != "incomplete" || chain.Label != "联合经营链未完成" || chain.TouchDelivered {
+		t.Fatalf("chain = %+v", chain)
+	}
+	rawChain, _ := json.Marshal(chain)
+	if bytes.Contains(rawChain, []byte("已跟进")) || bytes.Contains(rawChain, []byte("自动触达已成功")) || bytes.Contains(rawChain, []byte("Touch已投递")) {
+		t.Fatalf("chain claimed delivery: %s", rawChain)
+	}
+
+	now := time.Date(2026, 9, 29, 1, 0, 0, 0, time.UTC)
+	local := LeadView{
+		ID: "lead_fixture_local", TenantID: "tnt_fixture", Status: "new", Assignee: "sales1",
+		OwnerLabel: "Sales A1", SourceChannel: "手工录入", SourceAt: now.Format(time.RFC3339),
+	}
+	sales := Build(Scope{Role: "sales", MemberID: "sales1"}, now, []LeadView{local}, nil, nil)
+	owner := Build(Scope{Role: "owner", MemberID: "owner1"}, now, []LeadView{local}, nil, nil)
+	if sales.Scope == owner.Scope || sales.Scope != "own" || owner.Scope != "tenant" {
+		t.Fatalf("scopes sales=%s owner=%s", sales.Scope, owner.Scope)
+	}
+	if sales.OutreachSubmitted || owner.OutreachSubmitted {
+		t.Fatal("desk marked outreach submitted")
+	}
+	if sales.JointChain != chain || owner.JointChain != chain {
+		t.Fatalf("joint = %+v / %+v", sales.JointChain, owner.JointChain)
+	}
+	var row Item
+	for _, item := range sales.Buckets[BucketUnprocessed] {
+		if item.LeadID == local.ID {
+			row = item
+		}
+	}
+	if row.Source.Channel != "手工录入" || row.OwnerLabel != "Sales A1" || row.Next.Label == "" {
+		t.Fatalf("row = %+v", row)
+	}
+	if row.Statuses.Followed || row.Sync.CRM != "unknown" {
+		t.Fatalf("unknown sync rendered as followed: %+v %+v", row.Statuses, row.Sync)
+	}
+	other := Build(Scope{Role: "sales", MemberID: "sales2"}, now, []LeadView{local}, nil, nil)
+	if hasID(other, BucketUnprocessed, local.ID) {
+		t.Fatal("sales scope included another owner's lead")
+	}
+	unassigned := local
+	unassigned.ID = "lead_pool"
+	unassigned.Assignee = ""
+	unassigned.OwnerLabel = ""
+	pool := Build(Scope{Role: "owner", MemberID: "owner1"}, now, []LeadView{unassigned}, nil, nil)
+	var reason string
+	for _, item := range pool.Buckets[BucketAssignmentException] {
+		if item.LeadID == unassigned.ID {
+			reason = item.AssignmentReason
+			if item.Statuses.Followed || item.Sync.CRM != "unknown" {
+				t.Fatalf("pool sync = %+v", item)
+			}
+		}
+	}
+	if reason != "待分配" {
+		t.Fatalf("assignment reason = %q", reason)
+	}
+	hidden := Build(Scope{Role: "sales", MemberID: "sales1"}, now, []LeadView{unassigned}, nil, nil)
+	if hasID(hidden, BucketUnprocessed, unassigned.ID) || hasID(hidden, BucketAssignmentException, unassigned.ID) {
+		t.Fatal("sales saw the unassigned lead")
+	}
+}
+
 func TestDeskRowShowsOwnerPermissionAndNext(t *testing.T) {
 	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
 	res := Build(Scope{Role: "owner", MemberID: "owner"}, now, []LeadView{
