@@ -35,6 +35,10 @@ const (
 	StaleRetraction      = "retraction"
 	StaleHumanCorrection = "human_correction"
 	StaleExpired         = "expired"
+
+	OriginFixture = "fixture"
+	OriginRules   = "rules"
+	OriginHuman   = "human"
 )
 
 // Evidence is one lead or session fact the caller is allowed to pass in.
@@ -130,6 +134,17 @@ type Result struct {
 	ChargeKey        string             `json:"charge_key,omitempty"`
 }
 
+// Counterexample is one frozen fixture. It is not a real customer's close.
+type Counterexample struct {
+	ID             string
+	Kind           string
+	Text           string
+	Grade          string
+	Reason         string
+	SuggestionKind string
+	Missing        []string
+}
+
 // LabeledSample is a hand-labeled fixture. It is not a real customer's close.
 type LabeledSample struct {
 	ID    string
@@ -149,6 +164,8 @@ type Outcome struct {
 	Suggestion  string
 	RuleVersion string
 	Refusal     string
+	Missing     []string
+	Origin      string
 }
 
 // Report compares labels with rule output and lists the misses.
@@ -161,6 +178,8 @@ type Report struct {
 	MisjudgmentCount          int
 	Outcomes                  []Outcome
 	Misjudgments              []Outcome
+	RealModelCompleted        bool
+	ModelVerdict              string
 }
 
 // PresentConfidence returns a percentage only for a calibrated model.
@@ -229,16 +248,56 @@ func Score(in Input) Result {
 	return res
 }
 
+// FrozenCounterexamples are the five acceptance rows. The text is a fixture,
+// not a model conclusion and not an observed win or loss.
+func frozenMissing(fields ...string) []string {
+	return append([]string(nil), fields...)
+}
+
+func FrozenCounterexamples() []Counterexample {
+	all := frozenMissing("buyer", "need", "timeline", "quantity_or_budget")
+	return []Counterexample{
+		{ID: "sample-strong", Kind: "strong_intent", Grade: GradeHigh, SuggestionKind: "suggest_follow_up",
+			Text: "我们这周要采购 50 套，请发合同和报价。", Reason: "出现采购、合同或打款等购买承诺。", Missing: frozenMissing("buyer")},
+		{ID: "sample-qa", Kind: "ordinary_qa", Grade: GradeLow, SuggestionKind: "review_only",
+			Text: "请问你们的营业时间是几点？地址在哪里？", Reason: "这是普通问答，没有购买承诺。", Missing: append([]string(nil), all...)},
+		{ID: "sample-after", Kind: "after_sales", Grade: GradeLow, SuggestionKind: "review_only",
+			Text: "我上周买的设备坏了，要申请维修。", Reason: "内容是售后问题，不是新购意向。", Missing: frozenMissing("buyer", "quantity_or_budget")},
+		{ID: "sample-missing", Kind: "missing_data", Grade: GradeInsufficient, SuggestionKind: "collect_missing",
+			Text: "", Reason: "没有足够的线索或会话内容，信息不足。", Missing: append([]string(nil), all...)},
+		{ID: "sample-refuse", Kind: "refuse_marketing", Grade: GradeLow, SuggestionKind: "do_not_contact",
+			Text: "请不要再打电话，也不要发短信，我不需要。", Reason: "对方明确拒绝营销触达。", Missing: append([]string(nil), all...)},
+	}
+}
+
+// GradeOrigin labels a score. A human lock wins. Fixture text is never a model conclusion.
+func GradeOrigin(humanLocked bool, texts []string) string {
+	if humanLocked {
+		return OriginHuman
+	}
+	joined := strings.TrimSpace(strings.Join(texts, "\n"))
+	for _, row := range FrozenCounterexamples() {
+		if strings.TrimSpace(row.Text) == joined {
+			return OriginFixture
+		}
+	}
+	return OriginRules
+}
+
+// OutreachPermissions is not derived from a grade. High still cannot call, message, or order.
+func OutreachPermissions(string) (call, directMessage, createOrder bool) {
+	return false, false, false
+}
+
 // LabeledSamples are the acceptance fixtures for this rule version.
 // They are written examples, not observed wins or losses.
 func LabeledSamples() []LabeledSample {
-	return []LabeledSample{
-		{ID: "sample-strong", Kind: "strong_intent", Label: GradeHigh, Text: "我们这周要采购 50 套，请发合同和报价。"},
-		{ID: "sample-qa", Kind: "ordinary_qa", Label: GradeLow, Text: "请问你们的营业时间是几点？地址在哪里？"},
-		{ID: "sample-after", Kind: "after_sales", Label: GradeLow, Text: "我上周买的设备坏了，要申请维修。"},
-		{ID: "sample-missing", Kind: "missing_data", Label: GradeInsufficient, Text: ""},
-		{ID: "sample-refuse", Kind: "refuse_marketing", Label: GradeLow, Text: "请不要再打电话，也不要发短信，我不需要。"},
+	rows := FrozenCounterexamples()
+	out := make([]LabeledSample, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, LabeledSample{ID: row.ID, Kind: row.Kind, Text: row.Text, Label: row.Grade})
 	}
+	return out
 }
 
 // EvaluateLabeled runs the rule scorer and lists every label miss.
@@ -248,6 +307,8 @@ func EvaluateLabeled(samples []LabeledSample) Report {
 		ModelVersion:              ModelVersion,
 		Disclaimer:                Disclaimer,
 		RealPersonClosePrediction: false,
+		RealModelCompleted:        false,
+		ModelVerdict:              "not_completed",
 		SampleCount:               len(samples),
 	}
 	now := time.Date(2026, 9, 28, 8, 0, 0, 0, time.UTC)
@@ -264,7 +325,8 @@ func EvaluateLabeled(samples []LabeledSample) Report {
 		outcome := Outcome{
 			ID: sample.ID, Kind: sample.Kind, Label: sample.Label, Predicted: res.Grade,
 			Reason: res.Reason, Suggestion: res.Suggestion.Label, RuleVersion: res.RuleVersion,
-			Refusal: res.Refusal, Match: res.Refusal == "" && res.Grade == sample.Label,
+			Refusal: res.Refusal, Missing: append([]string(nil), res.Missing...), Origin: OriginFixture,
+			Match: res.Refusal == "" && res.Grade == sample.Label,
 		}
 		report.Outcomes = append(report.Outcomes, outcome)
 		if !outcome.Match {
