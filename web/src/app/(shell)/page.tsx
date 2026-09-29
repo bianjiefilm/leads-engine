@@ -13,6 +13,7 @@ import {
   jointChainLine,
   modelAdviceLine,
   moneyView,
+  receptionFactLine,
   renderLeadFacts,
   scopeCaption,
   serviceDraftClick,
@@ -175,19 +176,27 @@ export default function Home() {
                   const draft = serviceDraftControl(item.service_draft);
                   const facts = renderLeadFacts(item, jointChain);
                   const outreach = visibleOutreach(item.outreach_notice);
+                  const receptionLine = receptionFactLine(item);
                   return (
                   <li key={`${key}-${item.id}`}>
-                    <p>来源：{facts.source}</p>
-                    <p>负责人：{facts.owner}</p>
-                    <p>状态：{facts.state}</p>
-                    <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
-                    <p>下一步：{facts.next}</p>
-                    <p>{facts.sync}</p>
+                    {item.kind === "reception" ? (
+                      <p data-reception-fact="owner">{receptionLine}</p>
+                    ) : (
+                      <>
+                        <p>来源：{facts.source}</p>
+                        <p>负责人：{facts.owner}</p>
+                        <p>状态：{facts.state}</p>
+                        <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
+                        <p>下一步：{facts.next}</p>
+                        <p>{facts.sync}</p>
+                      </>
+                    )}
                     <p data-joint-chain="incomplete">{facts.chain}</p>
                     {outreach ? <p className="muted">{outreach}</p> : null}
                     <p className="muted">{modelAdviceLine()}</p>
-                    {item.reason ? <p className="muted">{item.reason}</p> : null}
+                    {item.reason && item.kind !== "reception" ? <p className="muted">{item.reason}</p> : null}
                     <div className="queue-actions">
+                      {item.kind === "reception" ? <Link href="/reception">打开接待</Link> : null}
                       {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action="查看新线索">查看新线索</Link> : null}
                       {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
                       {draft.present ? (

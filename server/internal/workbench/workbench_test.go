@@ -430,6 +430,60 @@ func TestDeskRowShowsOwnerPermissionAndNext(t *testing.T) {
 	}
 }
 
+func TestReceptionTakeoverFactNamesTheHolder(t *testing.T) {
+	now := time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC)
+	held := ReceptionView{
+		SessionID: "rcs_held", TenantID: "tnt_a", Assignee: "mem_agent", OwnerLabel: "Agent A",
+		Mode: "human", Epoch: 3, Version: 4, HumanTodo: true, PendingReason: "human_takeover",
+	}
+	fact := ProjectReceptionFact(held)
+	if !fact.Takeover || fact.Label != "人工接管" || fact.OwnerLabel != "Agent A" || fact.Epoch != 3 || fact.Version != 4 {
+		t.Fatalf("held fact = %+v", fact)
+	}
+	raw, _ := json.Marshal(fact)
+	if bytes.Contains(raw, []byte("mem_agent")) || bytes.Contains(raw, []byte("138")) || bytes.Contains(raw, []byte("营业时间")) {
+		t.Fatalf("fact leaked: %s", raw)
+	}
+	bare := ProjectReceptionFact(ReceptionView{SessionID: "rcs_bare", Assignee: "mem_agent", OwnerLabel: "mem_agent", Mode: "human", Epoch: 2, Version: 2})
+	if bare.OwnerLabel != "已接管" || strings.Contains(bare.OwnerLabel, "mem_") {
+		t.Fatalf("bare id became the label: %+v", bare)
+	}
+	unnamed := ProjectReceptionFact(ReceptionView{SessionID: "rcs_unnamed", Assignee: "mem_agent", Mode: "human", Epoch: 2, Version: 2})
+	if unnamed.OwnerLabel != "已接管" || !unnamed.Takeover {
+		t.Fatalf("unnamed holder = %+v", unnamed)
+	}
+	open := ProjectReceptionFact(ReceptionView{SessionID: "rcs_ai", Mode: "ai", Epoch: 1, Version: 1, PendingReason: "clarify_or_handoff"})
+	if open.Takeover || open.Label != "尚未接管" || open.OwnerLabel != "" || open.Epoch != 1 {
+		t.Fatalf("ai fact = %+v", open)
+	}
+
+	sales := Build(Scope{Role: "sales", MemberID: "mem_agent"}, now, nil, nil, []ReceptionView{held})
+	owner := Build(Scope{Role: "owner", MemberID: "mem_owner"}, now, nil, nil, []ReceptionView{held})
+	other := Build(Scope{Role: "sales", MemberID: "mem_sales2"}, now, nil, nil, []ReceptionView{held})
+	if sales.Scope == owner.Scope || sales.Scope != "own" || owner.Scope != "tenant" {
+		t.Fatalf("scopes sales=%s owner=%s", sales.Scope, owner.Scope)
+	}
+	if sales.JointChain.Label != "联合经营链未完成" || sales.OutreachSubmitted || owner.JointChain.Label != "联合经营链未完成" {
+		t.Fatalf("chain = %+v submitted %v", sales.JointChain, sales.OutreachSubmitted)
+	}
+	if !hasID(sales, BucketHumanTakeover, "rcs_held") || !hasID(owner, BucketHumanTakeover, "rcs_held") || hasID(other, BucketHumanTakeover, "rcs_held") {
+		t.Fatalf("visibility sales=%v owner=%v other=%v", ids(sales, BucketHumanTakeover), ids(owner, BucketHumanTakeover), ids(other, BucketHumanTakeover))
+	}
+	var row Item
+	for _, item := range sales.Buckets[BucketHumanTakeover] {
+		if item.SessionID == "rcs_held" {
+			row = item
+		}
+	}
+	if row.Kind != "reception" || row.Reception == nil || row.Reception.OwnerLabel != "Agent A" || row.ForceOpportunity || row.Next.CreateOrder || row.Next.AutoCall || row.Next.AutoMessage {
+		t.Fatalf("row = %+v", row)
+	}
+	deskRaw, _ := json.Marshal(sales)
+	if bytes.Contains(deskRaw, []byte("自动触达已成功")) {
+		t.Fatalf("desk claimed outreach: %s", deskRaw)
+	}
+}
+
 func hasID(res Result, bucket, id string) bool {
 	for _, item := range res.Buckets[bucket] {
 		if item.ID == id || item.LeadID == id || item.OpportunityID == id || item.SessionID == id {

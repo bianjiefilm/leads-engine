@@ -9,6 +9,7 @@ import {
   deskState,
   jointChainLine,
   modelAdviceLine,
+  receptionFactLine,
   moneyView,
   narrowWorkbenchFlow,
   refreshedLead,
@@ -162,5 +163,43 @@ describe("sales desk", () => {
     expect(leadPage).toContain("jointChainLine");
     expect(leadPage).toContain("deskState");
     expect(leadPage).not.toContain("自动触达已成功");
+  });
+
+  it("names the current takeover holder without a member id or a finished chain", () => {
+    const held = receptionFactLine({
+      id: "rcs_held",
+      kind: "reception",
+      tenant_id: "tnt_a",
+      session_id: "rcs_held",
+      assignee: "mem_agent",
+      reception: { takeover: true, owner_label: "Agent A", label: "人工接管", epoch: 3, version: 4 },
+    });
+    expect(held).toBe("人工接管 · 当前负责人 Agent A · 轮次 3 · 版本 4");
+    expect(held).not.toContain("mem_agent");
+    expect(held).not.toContain("自动触达已成功");
+    expect(receptionFactLine({
+      id: "rcs_bare",
+      kind: "reception",
+      assignee: "mem_agent",
+      reception: { takeover: true, owner_label: "mem_agent", label: "人工接管", epoch: 3, version: 4 },
+    })).toBe("接待事实未记录");
+    expect(receptionFactLine({
+      id: "rcs_ai",
+      kind: "reception",
+      reception: { takeover: false, label: "尚未接管", epoch: 1, version: 2 },
+    })).toBe("尚未接管 · 轮次 1 · 版本 2");
+    expect(receptionFactLine({ id: "lead_1", kind: "lead" })).toBe("");
+    expect(receptionFactLine({
+      id: "rcs_gap",
+      kind: "reception",
+      reception: { takeover: true, label: "人工接管", epoch: 3, version: 4 },
+    })).toBe("接待事实未记录");
+
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    expect(home).toContain("receptionFactLine");
+    expect(home).toContain("jointChainLine");
+    expect(home).toContain('href="/reception"');
+    expect(home).not.toContain("自动触达已成功");
+    expect(jointChainLine({ status: "incomplete", label: "联合经营链未完成" })).toBe("联合经营链未完成");
   });
 });

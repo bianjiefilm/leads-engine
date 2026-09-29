@@ -35,6 +35,14 @@ export const BUCKET_LABELS: Record<BucketKey, string> = {
   human_takeover: "待接管",
 };
 
+export interface ReceptionFact {
+  takeover?: boolean;
+  owner_label?: string;
+  label?: string;
+  epoch?: number;
+  version?: number;
+}
+
 export interface DeskItem {
   id: string;
   tenant_id?: string;
@@ -42,6 +50,8 @@ export interface DeskItem {
   lead_id?: string;
   opportunity_id?: string;
   session_id?: string;
+  assignee?: string;
+  reception?: ReceptionFact;
   reason?: string;
   next?: { kind?: string; source?: string; label?: string; at?: string; auto_call?: boolean; auto_message?: boolean; create_order?: boolean };
   source?: { form?: string; activity?: string; channel?: string; at?: string };
@@ -250,4 +260,23 @@ export function serviceDraftControl(draft?: { present?: boolean; enabled?: boole
 
 export function serviceDraftClick(): { submitted: false; outreach: false; message: string } {
   return { submitted: false, outreach: false, message: "本轮不提交草稿" };
+}
+
+// receptionFactLine is the only reception sentence on the sales desk.
+// A missing holder, epoch, or version is not filled in. A member id is not a name.
+export function receptionFactLine(item: DeskItem): string {
+  if (item.kind !== "reception") return "";
+  const fact = item.reception;
+  if (!fact || fact.epoch == null || fact.version == null || fact.epoch < 1 || fact.version < 1 || !fact.label) {
+    return "接待事实未记录";
+  }
+  if (fact.takeover) {
+    const owner = (fact.owner_label ?? "").trim();
+    if (!owner || owner === item.assignee || owner.startsWith("mem_") || fact.label !== "人工接管") {
+      return "接待事实未记录";
+    }
+    return `人工接管 · 当前负责人 ${owner} · 轮次 ${fact.epoch} · 版本 ${fact.version}`;
+  }
+  if (fact.label !== "尚未接管") return "接待事实未记录";
+  return `尚未接管 · 轮次 ${fact.epoch} · 版本 ${fact.version}`;
 }
