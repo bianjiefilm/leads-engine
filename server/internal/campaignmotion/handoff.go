@@ -414,24 +414,33 @@ func parseMotion(raw json.RawMessage, campaignID string) (MotionRef, error) {
 	if err != nil {
 		return MotionRef{}, err
 	}
-	campaign := campaignID
-	if _, ok := obj["campaign_id"]; ok {
-		campaign, err = motionString(obj, "campaign_id")
-		if err != nil {
-			return MotionRef{}, err
+	// 空字符串配上合法 digest 也不能交出。tokenRe 同时要求非空且只含现有记号。
+	if project == "" || revision == "" || !tokenRe.MatchString(project) || !tokenRe.MatchString(revision) {
+		return MotionRef{}, ErrMotion
+	}
+	if rawCampaign, ok := obj["campaign_id"]; ok {
+		requested, err := jsonString(rawCampaign)
+		if err != nil || requested != campaignID {
+			return MotionRef{}, ErrMotion
 		}
 	}
 	digest, err := motionString(obj, "digest")
 	if err != nil {
 		return MotionRef{}, err
 	}
-	if campaign != campaignID || !tokenRe.MatchString(project) || !tokenRe.MatchString(revision) {
-		return MotionRef{}, ErrMotion
-	}
 	if !digestRe.MatchString(digest) {
 		return MotionRef{}, ErrDigest
 	}
-	return MotionRef{ProjectID: project, RevisionID: revision, CampaignID: campaign, Digest: digest}, nil
+	// 导出的 campaign_id 只用路径 id，不用请求里的另一个 id。
+	return MotionRef{ProjectID: project, RevisionID: revision, CampaignID: campaignID, Digest: digest}, nil
+}
+
+func jsonString(raw json.RawMessage) (string, error) {
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(s), nil
 }
 
 func motionString(obj map[string]json.RawMessage, key string) (string, error) {

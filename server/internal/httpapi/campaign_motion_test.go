@@ -148,3 +148,53 @@ func TestCampaignMotionExportStripsPrivacyAndDoesNotProduce(t *testing.T) {
 		t.Fatalf("cross tenant = %d", status)
 	}
 }
+
+func TestCampaignMotionRefStaysOnThePathCampaign(t *testing.T) {
+	h := newHarnessOpts(t, harnessOpts{featureCampaignMotion: true})
+	tenant, _, _ := h.seed()
+	intake := h.intake(sessionOwnerA, tenant, `{
+		"source_app":"touch","source_ns":"landing","event_id":"evt-motion-ref",
+		"contact":{"name":"活动甲","phone":"13900005555"},
+		"business_category":"merchant_customer","source_type":"touch_campaign",
+		"source":{"source_app":"touch","source_ref":"camp-motion-ref"},
+		"consent":{"source_submission_ref":"sub-motion-ref","source_channel":"landing_page","notice_version":"notice-v1","marketing_allowed":false}
+	}`, 201)
+	leadID, _ := intake["lead_id"].(string)
+	if leadID == "" {
+		t.Fatalf("intake: %v", intake)
+	}
+	digest := "sha256:" + strings.Repeat("cd", 32)
+	other := "led_other_campaign"
+	status, mismatch, _ := h.do("POST", "/api/v1/campaigns/"+leadID+"/motion-handoff", sessionOwnerA, tenant, `{
+		"campaign_goal":"指向另一次活动",
+		"channels":["抖音"],
+		"budget_attribution_id":"budget_spring_1",
+		"motion":{"project_id":"prj_motion_1","revision_id":"rev_motion_1","campaign_id":"`+other+`","digest":"`+digest+`"}
+	}`)
+	if status != 400 || mismatch["error"] != "motion" {
+		t.Fatalf("mismatch = %d %v", status, mismatch)
+	}
+	var rows int
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM campaign_motion_handoffs WHERE tenant_id=? AND (campaign_id=? OR export_json LIKE ?)`, tenant, leadID, "%"+other+"%").Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("wrong ref stored, rows=%d", rows)
+	}
+
+	for _, body := range []string{
+		`{"campaign_goal":"空工程","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"","revision_id":"rev_motion_1","campaign_id":"` + leadID + `","digest":"` + digest + `"}}`,
+		`{"campaign_goal":"空版本","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"prj_motion_1","revision_id":"","digest":"` + digest + `"}}`,
+	} {
+		status, emptyID, _ := h.do("POST", "/api/v1/campaigns/"+leadID+"/motion-handoff", sessionOwnerA, tenant, body)
+		if status != 400 || emptyID["error"] != "motion" {
+			t.Fatalf("empty id = %d %v body=%s", status, emptyID, body)
+		}
+	}
+	if err := h.api.St.DB.QueryRow(`SELECT COUNT(*) FROM campaign_motion_handoffs WHERE tenant_id=? AND campaign_id=?`, tenant, leadID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("rejected ref was stored, rows=%d", rows)
+	}
+}

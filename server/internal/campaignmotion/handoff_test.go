@@ -217,6 +217,16 @@ func TestMotionDigestAndShape(t *testing.T) {
 	if got.Document.Motion.CampaignID != "led_campaign_1" {
 		t.Fatalf("motion=%+v", got.Document.Motion)
 	}
+	for _, raw := range [][]byte{
+		[]byte(`{"campaign_goal":"空工程","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"","revision_id":"rev_motion_1","campaign_id":"led_campaign_1","digest":"` + validDigest() + `"}}`),
+		[]byte(`{"campaign_goal":"空版本","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"prj_motion_1","revision_id":"","campaign_id":"led_campaign_1","digest":"` + validDigest() + `"}}`),
+		[]byte(`{"campaign_goal":"空白工程","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"   ","revision_id":"rev_motion_1","digest":"` + validDigest() + `"}}`),
+		[]byte(`{"campaign_goal":"空白版本","channels":["抖音"],"budget_attribution_id":"budget_spring_1","motion":{"project_id":"prj_motion_1","revision_id":"  ","digest":"` + validDigest() + `"}}`),
+	} {
+		if _, err := Prepare("led_campaign_1", raw, nil); err != ErrMotion {
+			t.Fatalf("empty motion id err=%v body=%s", err, raw)
+		}
+	}
 	var motion map[string]any
 	raw, _ := json.Marshal(got.Document.Motion)
 	if err := json.Unmarshal(raw, &motion); err != nil {
