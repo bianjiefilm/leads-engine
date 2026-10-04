@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentSOP, recordLabel, type SOPCapability } from "@/lib/sopReach";
 
 interface SOPAction {
@@ -20,7 +22,7 @@ const EMPTY_VIEW = presentSOP(null);
 
 export default function SOPPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const tenantId = scope.tenantId ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [items, setItems] = useState<SOPAction[] | null>(null);
   const [error, setError] = useState("");
@@ -34,8 +36,8 @@ export default function SOPPage() {
   const [busy, setBusy] = useState(false);
 
   const headers = useCallback(
-    () => ({ "content-type": "application/json", "x-tenant-id": tenant.trim() }),
-    [tenant],
+    () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
+    [tenantId],
   );
 
   const load = useCallback(async (tenantID: string) => {
@@ -44,7 +46,6 @@ export default function SOPPage() {
     setView(EMPTY_VIEW);
     if (!tenantID.trim()) {
       setItems([]);
-      setError("先填写当前租户");
       return;
     }
     const h = { "x-tenant-id": tenantID.trim() };
@@ -57,19 +58,18 @@ export default function SOPPage() {
       const listBody = await listRes.json();
       setView(presentSOP(capBody));
       if (!listRes.ok) {
-        setError(listBody.message ?? listBody.error ?? `HTTP ${listRes.status}`);
+        setError(failureText(listBody, listRes.status));
         setItems([]);
         return;
       }
       setItems((listBody.items ?? []) as SOPAction[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
+      setError(e instanceof Error ? productError(e.message) : "加载失败");
       setItems([]);
     }
   }, []);
 
   useEffect(() => {
-    setTenant(scope.tenantId ?? "");
     void load(scope.tenantId ?? "");
   }, [scope.epoch, scope.tenantId, load]);
 
@@ -80,14 +80,14 @@ export default function SOPPage() {
       const res = await fetch(path, { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.message ?? data.error ?? `HTTP ${res.status}`);
+        setError(failureText(data, res.status));
         return data as { id?: string };
       }
       if (data.kind === "pending_draft" && typeof data.id === "string") setDraftId(data.id);
-      await load(tenant.trim());
+      await load(tenantId);
       return data as { id?: string; kind?: string };
     } catch (e) {
-      setError(e instanceof Error ? e.message : "提交失败");
+      setError(e instanceof Error ? productError(e.message) : "提交失败");
       return {};
     } finally {
       setBusy(false);
@@ -106,35 +106,18 @@ export default function SOPPage() {
   };
 
   return (
-    <main>
-      <h1>下一次跟进</h1>
-      <p>
-        <Link href="/">我的工作</Link>
-      </p>
+    <main data-page="sop">
+      <header className="page-head">
+        <h1>下一次跟进</h1>
+        <Link className="btn" href="/">我的工作</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
-        <p>{view.note}</p>
+        <p data-tone="automation">{view.note}</p>
         <p className="muted">
-          渠道状态：{view.verified ? "已接通" : "未验证"}。无人值守：{view.unattended ? "已明确开启" : "关闭"}。
+          <span data-tone="automation">自动化状态</span> 渠道状态：{view.verified ? "已接通" : "未验证"}。无人值守：{view.unattended ? "已明确开启" : "关闭"}。
           这里只做内部提醒、回复草稿和人工确认，不会自动发短信、邮件或企微，也不会扣费。
         </p>
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button
-          type="button"
-          onClick={() => {
-            const value = tenant.trim();
-            if (!value) {
-              setError("先填写当前租户");
-              return;
-            }
-            if (value === scope.tenantId) void load(value);
-            else commitCrmTenant(value);
-          }}
-        >
-          加载
-        </button>
       </div>
       <div className="card">
         <h2>提醒和草稿</h2>
@@ -176,13 +159,13 @@ export default function SOPPage() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
           </label>
         </p>
-        <button type="button" disabled={busy} onClick={() => void post("/api/sop/reminders", bound)}>
-          记下内部提醒
+        <button className="primary" type="button" data-page-primary="true" disabled={busy || !tenantId} onClick={() => void post("/api/sop/reminders", bound)}>
+          {pagePrimary("sop")}
         </button>{" "}
-        <button type="button" disabled={busy} onClick={() => void post("/api/sop/drafts", bound)}>
+        <button className="btn" type="button" disabled={busy || !tenantId} onClick={() => void post("/api/sop/drafts", bound)}>
           保存回复草稿
         </button>
-        {error ? <p>{error}</p> : null}
+        {error ? <SurfaceState kind="error" title="跟进没有记下" detail={error} /> : null}
       </div>
       <div className="card">
         <h2>人工确认</h2>
@@ -192,6 +175,7 @@ export default function SOPPage() {
           <input value={draftId} onChange={(e) => setDraftId(e.target.value)} placeholder="草稿 id" />
         </label>{" "}
         <button
+          className="btn"
           type="button"
           disabled={busy || !draftId.trim()}
           onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
@@ -201,8 +185,8 @@ export default function SOPPage() {
       </div>
       <div className="card">
         <h2>记录</h2>
-        {items === null ? <p className="muted">加载中</p> : null}
-        {items?.length === 0 ? <p className="muted">还没有提醒或草稿。</p> : null}
+        {items === null ? <SurfaceState kind="loading" title="正在读取提醒" detail="草稿和人工确认马上就位。" /> : null}
+        {items?.length === 0 ? <SurfaceState kind="empty" title="还没有提醒或草稿" detail="记下内部提醒后会出现在这里。" /> : null}
         <ul>
           {items?.map((item) => (
             <li key={item.id}>
@@ -211,7 +195,7 @@ export default function SOPPage() {
               {item.kind === "pending_draft" ? (
                 <>
                   {" "}
-                  <button type="button" disabled={busy} onClick={() => setDraftId(item.id)}>
+                  <button className="btn" type="button" disabled={busy} onClick={() => setDraftId(item.id)}>
                     选用
                   </button>
                 </>

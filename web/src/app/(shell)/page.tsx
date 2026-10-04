@@ -4,7 +4,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { RecordFrame, SurfaceState, ToneBadge, useShellWidth } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, factTone, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import {
   HOME_SURFACE,
   NARROW_ACTIONS,
@@ -81,7 +83,7 @@ function writeMemory(memory: TodayMemory) {
 
 export default function Home() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const width = useShellWidth();
   const [reload, setReload] = useState(0);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [groups, setGroups] = useState<Record<TodayGroup, DeskItem[]> | null>(null);
@@ -110,25 +112,25 @@ export default function Home() {
   }, [scope.tenantId, focusId, drafts]);
 
   useEffect(() => {
-    setTenant(scope.tenantId ?? "");
     setLoadedFor(null);
     setGroups(null);
     setMoney(EMPTY_MONEY);
     setJointChain(null);
-    if (!scope.tenantId) {
-      setErr("先填写当前租户");
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) {
+      setErr("");
       setGroups(acceptToday(null, null));
       setLoadedFor("");
       return;
     }
-    const tenantId = scope.tenantId;
+    const tenantId = headers["x-tenant-id"];
     let cancelled = false;
-    fetch("/api/workbench", { headers: { "x-tenant-id": tenantId } })
+    fetch("/api/workbench", { headers })
       .then(async (res) => {
         const body = (await res.json()) as DeskResponse;
         if (cancelled) return;
         if (!res.ok) {
-          setErr(body.message ?? body.error ?? `HTTP ${res.status}`);
+          setErr(failureText(body, res.status));
           setGroups(acceptToday(tenantId, null));
           setJointChain(body.joint_chain ?? null);
           setLoadedFor(tenantId);
@@ -142,7 +144,7 @@ export default function Home() {
         setLoadedFor(tenantId);
       })
       .catch((e: Error) => {
-        if (!cancelled) setErr(e.message);
+        if (!cancelled) setErr(productError(e.message));
       });
     return () => {
       cancelled = true;
@@ -151,6 +153,7 @@ export default function Home() {
 
   const visible = loadedFor === (scope.tenantId ?? "") ? groups : null;
   const lines = moneyView(visible ? money : EMPTY_MONEY);
+  const primaryId = focusId || (visible ? TODAY_GROUPS.flatMap((key) => visible[key]).find((item) => item.lead_id)?.id ?? "" : "");
 
   useEffect(() => {
     if (!focusId || !visible) return;
@@ -167,7 +170,8 @@ export default function Home() {
   }
 
   async function submitFollow(item: DeskItem, mode: "note" | "schedule") {
-    if (!scope.tenantId || !item.lead_id) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers || !item.lead_id) return;
     const draft = draftFor(item.id);
     const note = followNote(draft.note);
     if (!note) return;
@@ -184,12 +188,12 @@ export default function Home() {
     }
     const res = await fetch(`/api/leads/${item.lead_id}/follow-through`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify(payload),
     });
     const out = await res.json();
     if (!res.ok) {
-      setDraftMsg(out.message ?? out.error ?? `HTTP ${res.status}`);
+      setDraftMsg(failureText(out, res.status));
       return;
     }
     setDrafts((current) => {
@@ -202,17 +206,18 @@ export default function Home() {
   }
 
   async function reviseDraft(item: DeskItem) {
-    if (!scope.tenantId) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) return;
     const body = reviseBody(draftFor(item.id).draftBody, item.draft_body).trim();
     if (!body) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/revise`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({ body }),
     });
     const out = await res.json();
     if (!res.ok || out.sent === true) {
-      setDraftMsg(out.message ?? out.error ?? "没有修改");
+      setDraftMsg(!res.ok ? failureText(out, res.status) : (out.message ?? out.error ?? "没有修改"));
       return;
     }
     setDraftMsg("草稿已修改，尚未发送");
@@ -220,15 +225,16 @@ export default function Home() {
   }
 
   async function ignoreDraft(item: DeskItem) {
-    if (!scope.tenantId) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/ignore`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({}),
     });
     const out = await res.json();
     if (!res.ok || out.sent === true) {
-      setDraftMsg(out.message ?? out.error ?? "没有忽略");
+      setDraftMsg(!res.ok ? failureText(out, res.status) : (out.message ?? out.error ?? "没有忽略"));
       return;
     }
     setDraftMsg("已忽略草稿，没有发送");
@@ -236,52 +242,23 @@ export default function Home() {
   }
 
   return (
-    <main data-today-home={HOME_SURFACE}>
-      <h1>今天要完成的客户工作</h1>
-      <p>
-        <Link href="/channel-interactions">授权互动</Link>
-        {" · "}
-        <Link href="/sop">跟进提醒</Link>
-        {" · "}
-        <Link href="/outbound">外呼安全门</Link>
-      </p>
+    <main data-today-home={HOME_SURFACE} data-page="today">
+      <header className="page-head">
+        <h1>今天要完成的客户工作</h1>
+      </header>
       <div className="card">
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button
-          type="button"
-          onClick={() => {
-            const value = tenant.trim();
-            if (!value) {
-              setErr("先填写当前租户");
-              setGroups(null);
-              setLoadedFor(null);
-              setJointChain(null);
-              return;
-            }
-            if (value === scope.tenantId) {
-              setLoadedFor(null);
-              setGroups(null);
-              setMoney(EMPTY_MONEY);
-              setJointChain(null);
-              setReload((n) => n + 1);
-              return;
-            }
-            commitCrmTenant(value);
-          }}
-        >
-          加载
-        </button>
-        <p className="muted">
-          {scopeLabel ? `当前视图：${scopeLabel}。` : ""}
-          手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。{billingCaption()}。
-          {modelAdviceLine()}。意向分级只给下一步建议，不自动触达。
+        <p>
+          <ToneBadge tone="human" /> {scopeLabel ? `当前视图：${scopeLabel}。` : ""}
+          {billingCaption()}。
+        </p>
+        <p data-tone="automation">
+          <ToneBadge tone="automation" /> 手工安排的下一步优先。这里不会自动外呼、发消息或创建订单。
+        </p>
+        <p data-tone="ai">
+          <ToneBadge tone="ai" /> {modelAdviceLine()}。意向分级只给下一步建议，不自动触达。
         </p>
         <p data-joint-chain="incomplete">{jointChainLine(jointChain)}</p>
       </div>
-      {err ? <p className="muted">{err}</p> : null}
       {draftMsg ? <p className="muted">{draftMsg}</p> : null}
       <div className="card">
         <h2>金额分开看</h2>
@@ -293,21 +270,24 @@ export default function Home() {
           ))}
         </ul>
       </div>
-      {visible === null ? (
-        <p className="muted">加载中…</p>
-      ) : (
-        TODAY_GROUPS.map((key) => (
+      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {scope.tenantId && err ? <SurfaceState kind="error" title="今天的工作没有载入" detail={err} /> : null}
+      {scope.tenantId && !err && visible === null ? <SurfaceState kind="loading" title="正在整理今天的工作" detail="分组和金额马上就位。" /> : null}
+      {scope.tenantId && !err && visible
+        ? TODAY_GROUPS.map((key) => (
           <section className="card" key={key}>
             <h2>
               {TODAY_LABELS[key]}（{visible[key].length}）
             </h2>
             {visible[key].length === 0 ? (
-              <p className="muted">没有待办。</p>
+              <SurfaceState kind="empty" title="没有待办" detail={`${TODAY_LABELS[key]}这一组是空的。`} />
             ) : (
               <ul className="desk-list">
                 {visible[key].map((item) => (
                   <TodayRow
                     key={`${key}-${item.id}`}
+                    width={width}
+                    primaryRow={item.id === primaryId}
                     item={item}
                     jointChain={jointChain}
                     draft={draftFor(item.id)}
@@ -322,7 +302,7 @@ export default function Home() {
             )}
           </section>
         ))
-      )}
+        : null}
       <p className="muted">
         <Link href="/leads">线索</Link> · <Link href="/contacts">客户档案</Link> · <Link href="/opportunities">商机</Link> ·{" "}
         <Link href="/reception">接待</Link> · <Link href="/intent">意向分级</Link> · <Link href="/attribution">来源与费用</Link> · <Link href="/subscription">订阅与用量</Link> ·{" "}
@@ -333,6 +313,8 @@ export default function Home() {
 }
 
 function TodayRow({
+  width,
+  primaryRow,
   item,
   jointChain,
   draft,
@@ -342,6 +324,8 @@ function TodayRow({
   onIgnore,
   onService,
 }: {
+  width: number;
+  primaryRow: boolean;
   item: DeskItem;
   jointChain: JointChain | null;
   draft: TodayDraft;
@@ -357,98 +341,129 @@ function TodayRow({
   const service = serviceDraftControl(item.service_draft);
   const confirmed = item.context?.facts ?? [];
   const questions = questionsFor(confirmed, item.context?.ask ?? item.ask ?? [], []);
+  const tone = factTone({
+    kind: item.kind,
+    auto: item.next?.auto_call === true || item.next?.auto_message === true || item.next?.create_order === true,
+  });
+  const factRows = [
+    ...(receptionLine ? [{ label: "接待", value: receptionLine }] : []),
+    { label: "来源", value: facts.source },
+    { label: "已确认", value: `${item.context?.customer || "客户未记录"}${item.context?.business ? ` · ${item.context.business}` : ""}${confirmed.length ? ` · ${confirmed.join("、")}` : ""}` },
+    { label: "负责人", value: facts.owner },
+    { label: "状态", value: `状态：${facts.state}` },
+    { label: "允许的联系方式", value: allowedContactText(item.allowed_contacts) },
+    { label: "最近一次互动", value: `${item.last_interaction?.summary || "还没有互动"}${item.last_interaction?.at ? ` · ${item.last_interaction.at}` : ""}` },
+    { label: "下一步", value: facts.next },
+    { label: "依据", value: item.basis || modelAdviceLine() },
+    { label: "同步", value: facts.sync },
+    ...(outreach ? [{ label: "触达", value: outreach }] : []),
+    ...(item.reason && item.kind !== "reception" ? [{ label: "原因", value: item.reason }] : []),
+    ...(questions.length > 0 ? [{ label: "待补充", value: questions.join("、") }] : []),
+    ...(item.kind === "ai_draft" ? [{ label: "草稿", value: item.draft_body || "未记录" }] : []),
+  ];
+  const followDisabled = !draft.note.trim();
+  const primaryFollow = (
+    <button
+      className="primary"
+      type="button"
+      data-page-primary="true"
+      data-desk-action={NARROW_ACTIONS[1]}
+      disabled={followDisabled}
+      onClick={() => onFollow("note")}
+    >
+      {pagePrimary("today")}
+    </button>
+  );
+  const secondaryFollow = (
+    <button
+      className="btn"
+      type="button"
+      data-page-primary="false"
+      data-desk-action={NARROW_ACTIONS[1]}
+      disabled={followDisabled}
+      onClick={() => onFollow("note")}
+    >
+      {pagePrimary("today")}
+    </button>
+  );
   return (
     <li id={`today-item-${item.id}`}>
-      {item.kind === "reception" ? <p data-reception-fact="owner">{receptionLine}</p> : null}
-      <p>来源：{facts.source}</p>
-      <p>已确认：{item.context?.customer || "客户未记录"}{item.context?.business ? ` · ${item.context.business}` : ""}{confirmed.length ? ` · ${confirmed.join("、")}` : ""}</p>
-      <p>负责人：{facts.owner}</p>
-      <p>状态：{facts.state}</p>
-      <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
-      <p>最近一次互动：{item.last_interaction?.summary || "还没有互动"}{item.last_interaction?.at ? ` · ${item.last_interaction.at}` : ""}</p>
-      <p>下一步：{facts.next}</p>
-      <p className="muted">{item.basis || modelAdviceLine()}</p>
-      <p>{facts.sync}</p>
-      <p data-joint-chain="incomplete">{facts.chain}</p>
-      {outreach ? <p className="muted">{outreach}</p> : null}
-      <p className="muted">{modelAdviceLine()}</p>
-      {item.reason && item.kind !== "reception" ? <p className="muted">{item.reason}</p> : null}
-      {questions.length > 0 ? <p>待补充：{questions.join("、")}</p> : null}
-      {item.kind === "ai_draft" ? <p>草稿：{item.draft_body || "未记录"}</p> : null}
-      <div className="queue-actions">
-        {item.kind === "reception" && !item.lead_id ? (
-          <Link href="/reception">打开接待，本屏尚未完成这一步</Link>
-        ) : item.kind === "reception" || item.session_id ? (
-          <Link href="/reception">打开接待</Link>
-        ) : null}
-        {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link> : null}
-        {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
-        {service.present ? (
-          <button type="button" disabled={!service.enabled} onClick={onService}>
-            创建服务需求草稿
-          </button>
-        ) : null}
-      </div>
-      {service.present && !service.enabled ? <p className="muted">{service.reason}</p> : null}
-      {item.lead_id ? (
-        <form
-          className="stack-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onFollow(draft.disposition === "waiting_customer" ? "note" : "schedule");
-          }}
-        >
-          <label>
-            记录
-            <textarea
-              value={draft.note}
-              placeholder={item.next?.label || "这次跟进了什么"}
-              onFocus={() => onDraft({})}
-              onChange={(e) => onDraft({ note: e.target.value })}
-            />
-          </label>
-          <label>
-            处理
-            <select
-              value={draft.disposition}
-              onChange={(e) => onDraft({ disposition: e.target.value as TodayDraft["disposition"] })}
-            >
-              <option value="next">安排下一步</option>
-              <option value="waiting_customer">等待客户</option>
-            </select>
-          </label>
-          <label>
-            下一次（北京时间）
-            <input type="datetime-local" value={draft.nextAt} onChange={(e) => onDraft({ nextAt: e.target.value })} />
-          </label>
-          <div className="queue-actions">
-            <button className="primary" type="button" data-desk-action={NARROW_ACTIONS[1]} disabled={!draft.note.trim()} onClick={() => onFollow("note")}>
-              {NARROW_ACTIONS[1]}
+      <RecordFrame width={width} tone={tone} title={item.context?.customer || facts.next} facts={factRows} primary={primaryRow && item.lead_id ? primaryFollow : undefined}>
+        {item.kind === "reception" ? <p data-reception-fact="owner">{receptionLine}</p> : null}
+        <p data-joint-chain="incomplete">{facts.chain}</p>
+        <div className="queue-actions">
+          {item.kind === "reception" && !item.lead_id ? (
+            <Link className="btn" href="/reception">打开接待，本屏尚未完成这一步</Link>
+          ) : item.kind === "reception" || item.session_id ? (
+            <Link className="btn" href="/reception">打开接待</Link>
+          ) : null}
+          {item.lead_id ? <Link className="btn" href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link> : null}
+          {item.opportunity_id ? <Link className="btn" href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
+          {service.present ? (
+            <button type="button" className="btn" disabled={!service.enabled} onClick={onService}>
+              创建服务需求草稿
             </button>
-            <button className="primary" type="button" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
-              {NARROW_ACTIONS[2]}
-            </button>
-          </div>
-        </form>
-      ) : null}
-      {item.kind === "ai_draft" ? (
-        <form
-          className="stack-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onRevise();
-          }}
-        >
-          <label>
-            修改草稿
-            <textarea value={reviseBody(draft.draftBody, item.draft_body)} onChange={(e) => onDraft({ draftBody: e.target.value })} placeholder="改成要保留的措辞" />
-          </label>
-          <div className="queue-actions">
-            <button className="primary" type="submit">保存修改</button>
-            <button type="button" onClick={onIgnore}>忽略</button>
-          </div>
-        </form>
-      ) : null}
+          ) : null}
+        </div>
+        {service.present && !service.enabled ? <p className="muted">{service.reason}</p> : null}
+        {item.lead_id ? (
+          <form
+            className="stack-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onFollow(draft.disposition === "waiting_customer" ? "note" : "schedule");
+            }}
+          >
+            <label>
+              记录
+              <textarea
+                value={draft.note}
+                placeholder={item.next?.label || "这次跟进了什么"}
+                onFocus={() => onDraft({})}
+                onChange={(e) => onDraft({ note: e.target.value })}
+              />
+            </label>
+            <label>
+              处理
+              <select
+                value={draft.disposition}
+                onChange={(e) => onDraft({ disposition: e.target.value as TodayDraft["disposition"] })}
+              >
+                <option value="next">安排下一步</option>
+                <option value="waiting_customer">等待客户</option>
+              </select>
+            </label>
+            <label>
+              下一次（北京时间）
+              <input type="datetime-local" value={draft.nextAt} onChange={(e) => onDraft({ nextAt: e.target.value })} />
+            </label>
+            <div className="queue-actions">
+              {primaryRow ? null : secondaryFollow}
+              <button className="btn" type="button" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
+                {NARROW_ACTIONS[2]}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {item.kind === "ai_draft" ? (
+          <form
+            className="stack-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onRevise();
+            }}
+          >
+            <label>
+              修改草稿
+              <textarea value={reviseBody(draft.draftBody, item.draft_body)} onChange={(e) => onDraft({ draftBody: e.target.value })} placeholder="改成要保留的措辞" />
+            </label>
+            <div className="queue-actions">
+              <button className="btn" type="submit">保存修改</button>
+              <button className="btn" type="button" onClick={onIgnore}>忽略</button>
+            </div>
+          </form>
+        ) : null}
+      </RecordFrame>
     </li>
   );
 }

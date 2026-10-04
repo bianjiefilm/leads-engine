@@ -27,6 +27,22 @@ export function hydrateCrmTenantFromStorage() {
   if (saved.trim()) commitCrmTenant(saved);
 }
 
+// 对账结果为空时清掉内存里的范围，不改已经保存的登录租户。
+export function releaseCrmTenant() {
+  if (!cache.tenantId) return;
+  cache = {
+    tenantId: null,
+    epoch: cache.epoch + 1,
+    contacts: null,
+    opportunities: null,
+    leads: null,
+    workbench: null,
+    filters: {},
+    details: {},
+  };
+  emit();
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);

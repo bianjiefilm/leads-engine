@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { failureText, productError } from "@/lib/productShell";
 import {
   MODE_TEXT,
   REPLY_STATUS_TEXT,
@@ -91,7 +92,7 @@ export default function SessionPanel({
     });
     const body = await res.json();
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       setSession(null);
       return;
     }
@@ -107,7 +108,7 @@ export default function SessionPanel({
     setNote("");
     setNextAt("");
     setHumanText("");
-    void load().catch((e: Error) => setError(e.message));
+    void load().catch((e: Error) => setError(productError(e.message)));
   }, [load]);
 
   async function run(call: DeskCall | null, refused: string) {
@@ -125,13 +126,13 @@ export default function SessionPanel({
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setError(failureText(body, res.status));
         return;
       }
       await load();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "操作失败");
+      setError(e instanceof Error ? productError(e.message) : "操作失败");
     } finally {
       setBusy(false);
     }
@@ -155,7 +156,7 @@ export default function SessionPanel({
       });
       const body = await res.json();
       if (!res.ok) {
-        setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setError(failureText(body, res.status));
         return;
       }
       const replyId = body.reply?.id as string | undefined;
@@ -171,7 +172,7 @@ export default function SessionPanel({
       });
       const sentBody = await sent.json();
       if (!sent.ok) {
-        setError(sentBody.message ?? sentBody.error ?? `HTTP ${sent.status}`);
+        setError(failureText(sentBody, sent.status));
         await load();
         return;
       }
@@ -179,7 +180,7 @@ export default function SessionPanel({
       await load();
       onChanged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "发送失败");
+      setError(e instanceof Error ? productError(e.message) : "发送失败");
     } finally {
       setBusy(false);
     }

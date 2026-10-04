@@ -10,7 +10,9 @@ import {
   rowActions,
   type CapabilityView,
 } from "@/lib/channelInteraction";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 
 // 授权评论/私信（HUI-1681）。只打本站 BFF。
 // 没有真实渠道凭证时保持未验证，不把发布授权当成私信权限，也不因分数自动触达。
@@ -52,7 +54,8 @@ const PURPOSE_TEXT: Record<string, string> = {
 
 export default function ChannelInteractionsPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const tenantId = scope.tenantId ?? "";
+  const width = useShellWidth();
   const [view, setView] = useState<CapabilityView>(presentCapability(null));
   const [items, setItems] = useState<InteractionItem[] | null>(null);
   const [error, setError] = useState("");
@@ -72,7 +75,7 @@ export default function ChannelInteractionsPage() {
   const [intent, setIntent] = useState(false);
   const [purpose, setPurpose] = useState("general_qa");
 
-  const headers = useCallback(() => ({ "content-type": "application/json", "x-tenant-id": tenant.trim() }), [tenant]);
+  const headers = useCallback(() => ({ "content-type": "application/json", "x-tenant-id": tenantId }), [tenantId]);
 
   const load = useCallback(async (tenantID: string) => {
     setError("");
@@ -80,7 +83,6 @@ export default function ChannelInteractionsPage() {
     setView(presentCapability(null));
     if (!tenantID.trim()) {
       setItems([]);
-      setError("先填写当前租户");
       return;
     }
     const h = { "x-tenant-id": tenantID.trim() };
@@ -93,36 +95,21 @@ export default function ChannelInteractionsPage() {
       const listBody = await listRes.json();
       setView(presentCapability(capBody));
       if (!listRes.ok) {
-        setError(listBody.message ?? listBody.error ?? `HTTP ${listRes.status}`);
+        setError(failureText(listBody, listRes.status));
         setItems([]);
         return;
       }
       setItems((listBody.items ?? []) as InteractionItem[]);
     } catch (e) {
-      setError((e as Error).message);
+      setError(productError((e as Error).message));
       setItems([]);
     }
   }, []);
 
   useEffect(() => {
-    setTenant(scope.tenantId ?? "");
-    if (scope.tenantId) load(scope.tenantId);
-    else {
-      setItems([]);
-      setError("先填写当前租户");
-    }
+    if (scope.tenantId) void load(scope.tenantId);
+    else setItems([]);
   }, [scope.epoch, scope.tenantId, load]);
-
-  const saveTenant = () => {
-    const value = tenant.trim();
-    if (!value) {
-      setError("先填写当前租户");
-      setItems([]);
-      return;
-    }
-    if (value === scope.tenantId) load(value);
-    else commitCrmTenant(value);
-  };
 
   const capabilities = [
     commentRead ? "comment.read" : "",
@@ -148,10 +135,10 @@ export default function ChannelInteractionsPage() {
     });
     const body = await res.json();
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
-    await load(tenant.trim());
+    await load(tenantId);
   };
 
   const saveEvent = async () => {
@@ -160,7 +147,7 @@ export default function ChannelInteractionsPage() {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
-        target_tenant_id: tenant.trim(),
+        target_tenant_id: tenantId,
         provider,
         account_id: accountId,
         app_id: appId,
@@ -178,11 +165,11 @@ export default function ChannelInteractionsPage() {
     });
     const body = await res.json();
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
     setText("");
-    await load(tenant.trim());
+    await load(tenantId);
   };
 
   const confirm = async (candidateId: string) => {
@@ -193,33 +180,27 @@ export default function ChannelInteractionsPage() {
     });
     const body = await res.json();
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
     setLeadId(typeof body.lead_id === "string" ? body.lead_id : "");
-    await load(tenant.trim());
+    await load(tenantId);
   };
 
   return (
-    <main>
-      <p>
-        <Link href="/">返回工作台</Link>
-      </p>
-      <h1>授权互动</h1>
+    <main data-page="channel">
+      <header className="page-head">
+        <h1>授权互动</h1>
+        <Link className="btn" href="/">返回工作台</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p>
           <strong>{view.label}</strong>。{view.note}
         </p>
-        <p className="muted">发布授权不会带来私信权限。高分不会自动外呼、发短信或让两个机器人一起回复。</p>
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button type="button" onClick={saveTenant}>
-          加载
-        </button>
+        <p className="muted" data-tone="automation">发布授权不会带来私信权限。高分不会自动外呼、发短信或让两个机器人一起回复。</p>
       </div>
-      {error ? <p className="muted">{error}</p> : null}
+      {error ? <SurfaceState kind="error" title="互动没有载入" detail={error} /> : null}
       {leadId ? (
         <p>
           已确认到本租户线索。<Link href={leadHref(leadId)}>打开线索</Link>
@@ -253,7 +234,7 @@ export default function ChannelInteractionsPage() {
             <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} /> 发布（不含私信）
           </label>
         </p>
-        <button type="button" onClick={saveGrant}>
+        <button className="btn" type="button" onClick={saveGrant}>
           登记授权
         </button>
       </div>
@@ -296,54 +277,46 @@ export default function ChannelInteractionsPage() {
             正文 <input value={text} onChange={(e) => setText(e.target.value)} />
           </label>
         </p>
-        <button type="button" onClick={saveEvent}>
+        <button className="primary" type="button" data-page-primary="true" onClick={saveEvent}>
           接入
         </button>
       </div>
       <div className="card">
         {items === null ? (
-          <p className="muted">加载中…</p>
+          <SurfaceState kind="loading" title="正在读取互动" detail="授权和回执马上就位。" />
         ) : items.length === 0 ? (
-          <p className="muted">这个租户还没有授权互动。</p>
+          <SurfaceState kind="empty" title="还没有授权互动" detail="登记授权并接入一条互动后会出现在这里。" />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>类型</th>
-                <th>昵称</th>
-                <th>正文</th>
-                <th>用途</th>
-                <th>回执</th>
-                <th>候选</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row) => {
-                const actions = rowActions(row);
-                const marketing = marketingLabels({ phone: "", phone_marketing: row.phone_marketing, sms_marketing: row.sms_marketing });
-                return (
-                  <tr key={row.id}>
-                    <td>{KIND_TEXT[row.kind] ?? row.kind}</td>
-                    <td>{row.nickname || "未命名"}</td>
-                    <td>{row.body}</td>
-                    <td>{PURPOSE_TEXT[row.purpose] ?? row.purpose}</td>
-                    <td>{receiptLine(row)}{row.retracted ? " · 已撤回" : ""}</td>
-                    <td>{row.candidate_status === "open" ? "待确认" : row.candidate_status === "confirmed" ? "已确认" : row.candidate_status === "withdrawn" ? "已撤回" : "不是线索"}</td>
-                    <td>
-                      {actions.confirm && row.candidate_id ? (
-                        <button type="button" onClick={() => confirm(row.candidate_id!)}>
-                          确认线索
-                        </button>
-                      ) : null}
-                      {actions.reach.length === 0 ? null : <span>触达</span>}
-                      {marketing.length > 0 ? <span>{marketing.join("、")}</span> : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="record-list">
+            {items.map((row) => {
+              const actions = rowActions(row);
+              const marketing = marketingLabels({ phone: "", phone_marketing: row.phone_marketing, sms_marketing: row.sms_marketing });
+              const candidate = row.candidate_status === "open" ? "待确认" : row.candidate_status === "confirmed" ? "已确认" : row.candidate_status === "withdrawn" ? "已撤回" : "不是线索";
+              return (
+                <RecordFrame
+                  key={row.id}
+                  width={width}
+                  tone="human"
+                  title={row.nickname || "未命名"}
+                  facts={[
+                    { label: "类型", value: KIND_TEXT[row.kind] ?? row.kind },
+                    { label: "正文", value: row.body || "无" },
+                    { label: "用途", value: PURPOSE_TEXT[row.purpose] ?? row.purpose },
+                    { label: "回执", value: `${receiptLine(row)}${row.retracted ? " · 已撤回" : ""}` },
+                    { label: "候选", value: candidate },
+                    ...(marketing.length > 0 ? [{ label: "营销", value: marketing.join("、") }] : []),
+                  ]}
+                  secondary={actions.confirm && row.candidate_id ? (
+                    <button className="btn" type="button" onClick={() => confirm(row.candidate_id!)}>
+                      确认线索
+                    </button>
+                  ) : undefined}
+                >
+                  {actions.reach.length === 0 ? null : <p data-tone="automation">触达未开放</p>}
+                </RecordFrame>
+              );
+            })}
+          </div>
         )}
       </div>
     </main>

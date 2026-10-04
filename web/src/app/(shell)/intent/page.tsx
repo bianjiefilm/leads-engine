@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { useCallback, useState } from "react";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 import { modelStatusText, originLabel, outreachControls, presentAssessment, type GradeInput, type GradeView } from "@/lib/intentGrade";
 
 // HUI-1684 意向分级页。只打本站 BFF。规则版本由服务端返回。
@@ -115,7 +117,7 @@ function asInput(snap: SnapshotBody): GradeInput {
 
 export default function IntentGradePage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const tenantId = scope.tenantId ?? "";
   const [subjectKind, setSubjectKind] = useState("lead");
   const [subjectId, setSubjectId] = useState("");
   const [text, setText] = useState("");
@@ -129,35 +131,31 @@ export default function IntentGradePage() {
   const [report, setReport] = useState<ReportOutcome[] | null>(null);
   const [reportNote, setReportNote] = useState("");
 
-  useEffect(() => {
-    setTenant(scope.tenantId ?? "");
-  }, [scope.epoch, scope.tenantId]);
-
-  const headers = useCallback((): HeadersInit => ({ "content-type": "application/json", "x-tenant-id": tenant.trim() }), [tenant]);
+  const headers = useCallback((): HeadersInit => ({ "content-type": "application/json", "x-tenant-id": tenantId }), [tenantId]);
 
   const loadReport = useCallback(async () => {
     setReportNote("");
-    if (!tenant.trim()) {
+    if (!tenantId) {
       setReport(null);
-      setReportNote("先填写当前租户，再看标注样本。这些样本不是真人成交记录。");
+      setReportNote("先在顶部选择工作范围，再看标注样本。这些样本不是真人成交记录。");
       return;
     }
-    const res = await fetch("/api/intent-grades/sample-report", { headers: { "x-tenant-id": tenant.trim() } });
+    const res = await fetch("/api/intent-grades/sample-report", { headers: { "x-tenant-id": tenantId } });
     const body = await res.json();
     if (!res.ok) {
       setReport(null);
-      setReportNote(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setReportNote(failureText(body, res.status));
       return;
     }
     setReport((body.outcomes ?? []) as ReportOutcome[]);
     setReportNote(typeof body.disclaimer === "string" ? body.disclaimer : "");
-  }, [tenant]);
+  }, [tenantId]);
 
   const score = async () => {
     setError("");
     setView(null);
-    if (!tenant.trim() || !subjectId.trim()) {
-      setError("先填写当前租户和线索或会话编号");
+    if (!tenantId || !subjectId.trim()) {
+      setError(tenantId ? "先填写线索或会话编号" : MISSING_SCOPE);
       return;
     }
     const res = await fetch("/api/intent-grades", {
@@ -166,12 +164,12 @@ export default function IntentGradePage() {
       body: JSON.stringify({
         subject_kind: subjectKind,
         subject_id: subjectId.trim(),
-        evidence: text.trim() ? [{ id: "ev-page", tenant_id: tenant.trim(), text: text.trim() }] : [],
+        evidence: text.trim() ? [{ id: "ev-page", tenant_id: tenantId, text: text.trim() }] : [],
       }),
     });
     const body = (await res.json()) as ScoreResponse;
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
     const snap = body.snapshot ?? body;
@@ -198,7 +196,7 @@ export default function IntentGradePage() {
     });
     const body = (await res.json()) as ScoreResponse;
     if (!res.ok) {
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
     const snap = body.snapshot ?? body;
@@ -210,29 +208,15 @@ export default function IntentGradePage() {
   const outreach = shown ? outreachControls(shown) : [];
 
   return (
-    <main>
-      <p>
-        <Link href="/">返回工作台</Link>
-      </p>
-      <h1>意向分级</h1>
+    <main data-page="intent">
+      <header className="page-head">
+        <h1>意向分级</h1>
+        <Link className="btn" href="/">返回工作台</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
-        <p>规则评分，不是真人成交预测，也不是校准后的成交概率。下一步只给建议，不自动外呼、短信、拉群或创建订单。</p>
-        <p>{modelStatusText()}</p>
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button
-          type="button"
-          onClick={() => {
-            const value = tenant.trim();
-            if (!value) return;
-            if (value === scope.tenantId) return;
-            commitCrmTenant(value);
-          }}
-        >
-          使用这个租户
-        </button>
+        <p data-tone="ai">规则评分，不是真人成交预测，也不是校准后的成交概率。下一步只给建议，不自动外呼、短信、拉群或创建订单。</p>
+        <p data-tone="ai">{modelStatusText()}</p>
         <p>
           <label>
             对象{" "}
@@ -252,13 +236,13 @@ export default function IntentGradePage() {
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} cols={60} />
           </label>
         </p>
-        <button type="button" onClick={score}>
+        <button className="primary" type="button" data-page-primary="true" onClick={score}>
           用规则重新评估
         </button>
         <p className="muted">重算沿用同一条用量记录，不重复扣费。人工确认过的事实不会被这次评估盖掉。</p>
       </div>
       <ExampleCard />
-      {error ? <p className="muted">{error}</p> : null}
+      {error ? <SurfaceState kind="error" title="评估没有完成" detail={productError(error)} /> : null}
       {shown ? (
         <div className="card">
           <h2>
@@ -276,7 +260,7 @@ export default function IntentGradePage() {
           <p className="muted">{shown.disclaimer}</p>
           <p className="muted">成交概率：不提供</p>
           {shown.actions.map((action) => (
-            <button key={action} type="button" onClick={() => document.getElementById("intent-correction")?.scrollIntoView()}>
+            <button className="btn" key={action} type="button" onClick={() => document.getElementById("intent-correction")?.scrollIntoView()}>
               {action}
             </button>
           ))}
@@ -315,13 +299,13 @@ export default function IntentGradePage() {
                 <textarea value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} rows={3} cols={60} />
               </label>
             </p>
-            <button type="submit">保存修正</button>
+            <button className="btn" type="submit">保存修正</button>
           </form>
         </div>
       ) : null}
       <div className="card">
         <h2>标注样本</h2>
-        <button type="button" onClick={() => void loadReport()}>
+        <button className="btn" type="button" onClick={() => void loadReport()}>
           查看样本报告
         </button>
         {reportNote ? <p className="muted">{reportNote}</p> : null}
