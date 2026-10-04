@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { pageCensus, scanHalfProduct, surfaceFor, SURFACES } from "@/lib/pageCensus";
+import { HALF_PRODUCT_MARKERS, pageCensus, scanHalfProduct, surfaceFor, SURFACES } from "@/lib/pageCensus";
 import type { HalfProductHit } from "@/lib/pageCensus";
 import { routeLedger } from "@/lib/pageMap";
 
@@ -51,6 +51,11 @@ function rescan(source: string): HalfProductHit[] {
     { marker: "inline style", re: /style\s*=\s*(?:\{\{|["'{])/g },
     { marker: "接口说明", re: /接口说明/g },
     { marker: "架构说明", re: /架构说明/g },
+    // 大小写敏感。<Button 不算。# 后恰好 3 或 6 位十六进制才算，多一位或少一位都不计。
+    { marker: "raw button", re: /(?<![A-Za-z0-9_])<button/g },
+    { marker: "raw input", re: /(?<![A-Za-z0-9_])<input/g },
+    { marker: "raw table", re: /(?<![A-Za-z0-9_])<table/g },
+    { marker: "bare hex", re: /(?<![A-Za-z0-9_])#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?![0-9A-Fa-f])/g },
   ];
   const found: { index: number; hit: HalfProductHit }[] = [];
   for (const rule of rules) {
@@ -139,12 +144,30 @@ describe("page census", () => {
   });
 
   it("records half-product hits that match a fresh scan of that page file", () => {
+    expect(HALF_PRODUCT_MARKERS).toEqual([
+      "TODO",
+      "FIXME",
+      "inline style",
+      "接口说明",
+      "架构说明",
+      "raw button",
+      "raw input",
+      "raw table",
+      "bare hex",
+    ]);
     const fixture = [
       "// TODO: keep",
       "  FIXME style={{ color: 1 }} style=\"x\" 接口说明",
       "架构说明",
       "TODOS FIXMEIT todo <style jsx></style> stylesheet={{",
       "style={color} style='x'",
+      "<button <Button x<button _<button </button>",
+      "<input <Input My<input </input>",
+      "<table <Table a<table </table>",
+      "#fff #112233 #FFF #aabbcc #fff; #112233;",
+      "#abcd #12345 #1234567 #12 #ggg #fff0",
+      "color#fff _#112233 a#abc",
+      "<buttoned <inputType <tableView",
     ].join("\n");
     const fixtureHits: HalfProductHit[] = [
       { marker: "TODO", line: 1, column: 4 },
@@ -155,6 +178,18 @@ describe("page census", () => {
       { marker: "架构说明", line: 3, column: 1 },
       { marker: "inline style", line: 5, column: 1 },
       { marker: "inline style", line: 5, column: 15 },
+      { marker: "raw button", line: 6, column: 1 },
+      { marker: "raw input", line: 7, column: 1 },
+      { marker: "raw table", line: 8, column: 1 },
+      { marker: "bare hex", line: 9, column: 1 },
+      { marker: "bare hex", line: 9, column: 6 },
+      { marker: "bare hex", line: 9, column: 14 },
+      { marker: "bare hex", line: 9, column: 19 },
+      { marker: "bare hex", line: 9, column: 27 },
+      { marker: "bare hex", line: 9, column: 33 },
+      { marker: "raw button", line: 12, column: 1 },
+      { marker: "raw input", line: 12, column: 11 },
+      { marker: "raw table", line: 12, column: 22 },
     ];
     expect(rescan(fixture)).toEqual(fixtureHits);
     expect(scanHalfProduct(fixture)).toEqual(fixtureHits);
@@ -172,11 +207,35 @@ describe("page census", () => {
     const form = rows.find((row) => row.path === "/f/[id]");
     expect(form?.half_product).toEqual([
       { marker: "inline style", line: 155, column: 29 },
+      { marker: "raw input", line: 158, column: 13 },
       { marker: "inline style", line: 169, column: 15 },
+      { marker: "raw input", line: 174, column: 11 },
       { marker: "inline style", line: 178, column: 22 },
+      { marker: "bare hex", line: 178, column: 39 },
       { marker: "inline style", line: 182, column: 27 },
+      { marker: "bare hex", line: 182, column: 44 },
+      { marker: "raw button", line: 183, column: 9 },
     ]);
-    expect(rows.filter((row) => row.half_product.length > 0).map((row) => row.path)).toEqual(["/f/[id]"]);
+    expect(rows.filter((row) => row.half_product.length > 0).map((row) => row.path)).toEqual([
+      "/",
+      "/leads/[id]",
+      "/contacts",
+      "/contacts/[id]",
+      "/opportunities",
+      "/opportunities/[id]",
+      "/reception",
+      "/sop",
+      "/outbound",
+      "/attribution",
+      "/subscription",
+      "/intent",
+      "/enterprises",
+      "/channel-interactions",
+      "/isolation",
+      "/f/[id]",
+      "/r/[id]",
+    ]);
+    expect(rows.filter((row) => row.half_product.length === 0).map((row) => row.path)).toEqual(["/leads"]);
   });
 
   it("does not name forbidden packages", () => {
