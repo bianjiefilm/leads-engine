@@ -2,12 +2,12 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { EcoTopNav } from "@/components/eco-nav/EcoTopNav";
-import { ShellWidthProvider, WorkbenchChrome, useShellWidth } from "@/components/workbench/chrome";
+import { ShellWidthProvider, SurfaceState, WorkbenchChrome, useShellWidth } from "@/components/workbench/chrome";
 import { CRM_TENANT_STORAGE_KEY } from "@/lib/eco-nav/crm-scope";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { shouldMountEcoTopNav } from "@/lib/eco-nav/mount";
-import { commitCrmTenant, hydrateCrmTenantFromStorage, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { chooseScope, reconcileTenant, scopeChoices, withSessionScope } from "@/lib/productShell";
+import { commitCrmTenant, hydrateCrmTenantFromStorage, releaseCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { applyWorkTenant, chooseScope, scopeChoices, settleWorkTenant, withSessionScope } from "@/lib/productShell";
 
 function DeskFrame({
   model,
@@ -40,10 +40,28 @@ export function CrmShell({ model, children }: { model: EcoNavModel; children: Re
   const [authenticated, setAuthenticated] = useState(false);
   const [nickname, setNickname] = useState("账户");
   const [sessionTenant, setSessionTenant] = useState<string | null>(null);
+  const [scopeFault, setScopeFault] = useState("");
 
   useEffect(() => {
     hydrateCrmTenantFromStorage();
     let cancelled = false;
+    const apply = (whoamiOk: boolean, session: string | null) => {
+      const stored = (window.localStorage.getItem(CRM_TENANT_STORAGE_KEY) ?? "").trim() || null;
+      const settlement = settleWorkTenant({
+        membershipScopes: scopeChoices(model.scopes),
+        whoamiOk,
+        sessionTenant: session,
+        storedId: stored,
+      });
+      const applied = applyWorkTenant(stored, stored, settlement);
+      if (!applied.memoryTenantId) {
+        setScopeFault("没有可用的工作范围。今天、线索和接待不会改去看别的客户。");
+        releaseCrmTenant();
+        return;
+      }
+      setScopeFault("");
+      if (applied.storage && applied.storage !== stored) commitCrmTenant(applied.storage);
+    };
     fetch("/api/whoami")
       .then(async (res) => {
         if (cancelled) return;
@@ -57,18 +75,13 @@ export function CrmShell({ model, children }: { model: EcoNavModel; children: Re
           setAuthenticated(false);
         }
         if (session) setSessionTenant(session);
-        const allowed = withSessionScope(scopeChoices(model.scopes), session);
-        const stored = window.localStorage.getItem(CRM_TENANT_STORAGE_KEY) ?? "";
-        const next = reconcileTenant(allowed, stored.trim() || session, model.active_tenant_id);
-        if (next && next !== stored.trim()) commitCrmTenant(next);
+        apply(res.ok, session);
       })
       .catch(() => {
         if (cancelled) return;
         setAuthenticated(false);
-        const allowed = scopeChoices(model.scopes);
-        const stored = window.localStorage.getItem(CRM_TENANT_STORAGE_KEY) ?? "";
-        const next = reconcileTenant(allowed, stored.trim() || null, model.active_tenant_id);
-        if (next && next !== stored.trim()) commitCrmTenant(next);
+        setSessionTenant(null);
+        apply(false, null);
       });
     return () => {
       cancelled = true;
@@ -81,6 +94,7 @@ export function CrmShell({ model, children }: { model: EcoNavModel; children: Re
       <div className="desk-app" data-shell="sales">
         {show ? <EcoTopNav model={model} nickname={nickname} onTenantSwitch={commitCrmTenant} /> : null}
         <DeskFrame model={model} sessionTenant={sessionTenant}>
+          {scopeFault ? <SurfaceState kind="error" title="工作范围不可用" detail={scopeFault} /> : null}
           {children}
         </DeskFrame>
       </div>

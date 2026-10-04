@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, ToneBadge, useShellWidth } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, factTone, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, factTone, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import {
   HOME_SURFACE,
   NARROW_ACTIONS,
@@ -116,15 +116,16 @@ export default function Home() {
     setGroups(null);
     setMoney(EMPTY_MONEY);
     setJointChain(null);
-    if (!scope.tenantId) {
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) {
       setErr("");
       setGroups(acceptToday(null, null));
       setLoadedFor("");
       return;
     }
-    const tenantId = scope.tenantId;
+    const tenantId = headers["x-tenant-id"];
     let cancelled = false;
-    fetch("/api/workbench", { headers: { "x-tenant-id": tenantId } })
+    fetch("/api/workbench", { headers })
       .then(async (res) => {
         const body = (await res.json()) as DeskResponse;
         if (cancelled) return;
@@ -169,7 +170,8 @@ export default function Home() {
   }
 
   async function submitFollow(item: DeskItem, mode: "note" | "schedule") {
-    if (!scope.tenantId || !item.lead_id) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers || !item.lead_id) return;
     const draft = draftFor(item.id);
     const note = followNote(draft.note);
     if (!note) return;
@@ -186,7 +188,7 @@ export default function Home() {
     }
     const res = await fetch(`/api/leads/${item.lead_id}/follow-through`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify(payload),
     });
     const out = await res.json();
@@ -204,12 +206,13 @@ export default function Home() {
   }
 
   async function reviseDraft(item: DeskItem) {
-    if (!scope.tenantId) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) return;
     const body = reviseBody(draftFor(item.id).draftBody, item.draft_body).trim();
     if (!body) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/revise`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({ body }),
     });
     const out = await res.json();
@@ -222,10 +225,11 @@ export default function Home() {
   }
 
   async function ignoreDraft(item: DeskItem) {
-    if (!scope.tenantId) return;
+    const headers = listTenantHeader(scope.tenantId);
+    if (!headers) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/ignore`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      headers: { "content-type": "application/json", ...headers },
       body: JSON.stringify({}),
     });
     const out = await res.json();

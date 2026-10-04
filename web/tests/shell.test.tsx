@@ -5,14 +5,19 @@ import { describe, expect, it } from "vitest";
 import { RecordFrame, SurfaceState, WorkbenchChrome } from "@/components/workbench/chrome";
 import {
   MISSING_SCOPE,
+  acceptDeskPayload,
+  applyWorkTenant,
   chooseScope,
   droppedTenantRows,
   factTone,
   failureText,
+  listTenantHeader,
   pagePrimary,
   productError,
+  receptionSessionFrame,
   reconcileTenant,
   scopeChoices,
+  settleWorkTenant,
   shellStructure,
   toneLabel,
   withSessionScope,
@@ -75,6 +80,8 @@ describe("sales workbench shell", () => {
     expect(chooseScope(scopes, "typed-by-hand")).toBeNull();
     expect(reconcileTenant(scopes, "typed-by-hand", "tenant-a")).toBe("tenant-a");
     expect(reconcileTenant(scopes, "tenant-b", "tenant-a")).toBe("tenant-b");
+    expect(reconcileTenant(scopes, "typed-by-hand", null)).toBeNull();
+    expect(reconcileTenant(scopes, "typed-by-hand", "tenant-real")).toBeNull();
     const session = withSessionScope(scopes, "real-tenant");
     expect(session.map((scope) => scope.display_name)).toContain("当前登录范围");
     expect(withSessionScope(scopes, "tenant-a")).toHaveLength(2);
@@ -145,6 +152,54 @@ describe("sales workbench shell", () => {
     const loading = renderToStaticMarkup(createElement(SurfaceState, { kind: "loading" }));
     expect(loading).toContain('data-skeleton="block"');
     expect(loading).toContain('data-skeleton="line"');
+  });
+
+  it("does not issue the fixture tenant when login is outside the preview list", () => {
+    const fixture = scopeChoices([
+      { tenant_id: "tenant-a", display_name: "客户甲" },
+      { tenant_id: "tenant-b", display_name: "客户乙" },
+    ]);
+    expect(chooseScope(fixture, "tenant-real")).toBeNull();
+    const cases = [
+      { storedId: "not-a-real-id", sessionTenant: "tenant-real", whoamiOk: true },
+      { storedId: "tenant-real", sessionTenant: "tenant-real", whoamiOk: true },
+      { storedId: "tenant-real", sessionTenant: null, whoamiOk: false },
+      { storedId: "not-a-real-id", sessionTenant: null, whoamiOk: false },
+    ];
+    for (const item of cases) {
+      const settlement = settleWorkTenant({
+        membershipScopes: fixture,
+        whoamiOk: item.whoamiOk,
+        sessionTenant: item.sessionTenant,
+        storedId: item.storedId,
+      });
+      const applied = applyWorkTenant(item.storedId, item.storedId, settlement);
+      const header = listTenantHeader(applied.memoryTenantId);
+      expect(header?.["x-tenant-id"] ?? "", item.storedId).not.toBe("tenant-a");
+      expect(applied.storage, item.storedId).not.toBe("tenant-a");
+      if (item.whoamiOk) {
+        expect(header).toEqual({ "x-tenant-id": "tenant-real" });
+      } else {
+        expect(header).toBeNull();
+        expect(applied.storage).toBe(item.storedId);
+        expect(settlement.persist).toBe(false);
+      }
+    }
+  });
+
+  it("drops a late reception desk response and the previous session frame", () => {
+    let active = { seq: 1, tenantId: "tenant-a" };
+    const late = acceptDeskPayload(active, 1, "tenant-a", [{ session_id: "from-a" }]);
+    active = { seq: 2, tenantId: "tenant-b" };
+    expect(acceptDeskPayload(active, 1, "tenant-a", [{ session_id: "from-a" }])).toBeNull();
+    expect(acceptDeskPayload(active, 2, "tenant-b", [{ session_id: "from-b" }])).toEqual([{ session_id: "from-b" }]);
+    expect(late).toEqual([{ session_id: "from-a" }]);
+    expect(receptionSessionFrame("sess-a", "tenant-a", "tenant-b")).toBeNull();
+    expect(receptionSessionFrame("sess-b", "tenant-b", "tenant-b")).toEqual({ tenant: "tenant-b", sessionId: "sess-b" });
+    const page = readFileSync("src/app/reception/page.tsx", "utf8");
+    expect(page).toContain("acceptDeskPayload");
+    expect(page).toContain("receptionSessionFrame");
+    expect(page).not.toContain("tenant={scope.tenantId} sessionId={selected}");
   });
 
   it("keeps formal pages free of a tenant id field and raw failure copy", () => {

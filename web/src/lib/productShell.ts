@@ -73,12 +73,66 @@ export function chooseScope(scopes: WorkScope[], tenantId: string): WorkScope | 
   return scopes.find((scope) => scope.tenant_id === id) ?? null;
 }
 
-export function reconcileTenant(scopes: WorkScope[], storedId: string | null, activeId: string | null): string | null {
+export function reconcileTenant(scopes: WorkScope[], storedId: string | null, sessionTenantId: string | null): string | null {
   const stored = chooseScope(scopes, storedId ?? "");
   if (stored) return stored.tenant_id;
-  const active = chooseScope(scopes, activeId ?? "");
-  if (active) return active.tenant_id;
-  return scopes[0]?.tenant_id ?? null;
+  const session = chooseScope(scopes, sessionTenantId ?? "");
+  if (session) return session.tenant_id;
+  return null;
+}
+
+export interface WorkTenantSettlement {
+  tenantId: string | null;
+  persist: boolean;
+}
+
+// whoami 失败时，预览夹具不是允许集合。存储和登录租户都不在允许集合里时返回空，不落到第一项。
+export function settleWorkTenant(input: {
+  membershipScopes: WorkScope[];
+  whoamiOk: boolean;
+  sessionTenant: string | null;
+  storedId: string | null;
+}): WorkTenantSettlement {
+  if (!input.whoamiOk) return { tenantId: null, persist: false };
+  const allowed = withSessionScope(input.membershipScopes, input.sessionTenant);
+  const tenantId = reconcileTenant(allowed, input.storedId, input.sessionTenant);
+  const stored = (input.storedId ?? "").trim();
+  return { tenantId, persist: Boolean(tenantId) && tenantId !== stored };
+}
+
+export function applyWorkTenant(
+  memoryTenantId: string | null,
+  storedId: string | null,
+  settlement: WorkTenantSettlement,
+): { memoryTenantId: string | null; storage: string | null } {
+  if (!settlement.tenantId) return { memoryTenantId: null, storage: storedId };
+  if (!settlement.persist) return { memoryTenantId: settlement.tenantId || memoryTenantId, storage: storedId };
+  return { memoryTenantId: settlement.tenantId, storage: settlement.tenantId };
+}
+
+export function listTenantHeader(tenantId: string | null): { "x-tenant-id": string } | null {
+  const id = (tenantId ?? "").trim();
+  if (!id) return null;
+  return { "x-tenant-id": id };
+}
+
+export function acceptDeskPayload<T>(
+  active: { seq: number; tenantId: string },
+  arrivedSeq: number,
+  arrivedTenant: string,
+  payload: T,
+): T | null {
+  if (active.seq !== arrivedSeq || active.tenantId !== arrivedTenant) return null;
+  return payload;
+}
+
+export function receptionSessionFrame(
+  selectedId: string,
+  selectedTenant: string | null,
+  tenantId: string | null,
+): { tenant: string; sessionId: string } | null {
+  if (!selectedId || !tenantId || selectedTenant !== tenantId) return null;
+  return { tenant: tenantId, sessionId: selectedId };
 }
 
 export function droppedTenantRows<T extends { tenant_id?: string }>(tenantId: string | null, rows: T[]): T[] {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 
 // 原生线索页（HUI-1680）。只打本站 BFF。租户由工作区选择，服务端再校验成员身份。
 // 未分配的线索明确写「待分配」，不把空负责人伪装成已分派。
@@ -51,7 +51,11 @@ export default function LeadsPage() {
       setRows([]);
       return;
     }
-    const headers = { "x-tenant-id": tenantID.trim() };
+    const headers = listTenantHeader(tenantID);
+    if (!headers) {
+      setRows([]);
+      return;
+    }
     try {
       const [leadRes, contactRes] = await Promise.all([
         fetch("/api/leads", { headers }),

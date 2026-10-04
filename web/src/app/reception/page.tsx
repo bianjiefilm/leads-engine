@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, factTone, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, acceptDeskPayload, factTone, failureText, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
 import { MODE_TEXT, PENDING_TEXT } from "@/lib/reception";
 import SessionPanel from "./session-panel";
 
@@ -34,38 +34,67 @@ export default function ReceptionDeskPage() {
   const [items, setItems] = useState<DeskItem[] | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState("");
+  const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [seenTenant, setSeenTenant] = useState(scope.tenantId);
+  const gen = useRef({ seq: 0, tenantId: "" });
 
-  const load = useCallback(async (tenantID: string) => {
+  if (seenTenant !== scope.tenantId) {
+    setSeenTenant(scope.tenantId);
+    setSelected("");
+    setSelectedTenant(null);
+    setItems(null);
     setError("");
-    if (!tenantID.trim()) {
+    setRole("");
+  }
+
+  useEffect(() => {
+    const tenantID = scope.tenantId ?? "";
+    const seq = gen.current.seq + 1;
+    gen.current = { seq, tenantId: tenantID };
+    if (!tenantID) {
       setItems([]);
       return;
     }
-    try {
-      const headers = { "x-tenant-id": tenantID.trim() };
-      const who = await fetch("/api/whoami", { headers });
-      const whoBody = await who.json().catch(() => ({}));
-      setRole(who.ok && typeof whoBody.role === "string" ? whoBody.role : "");
-      const res = await fetch("/api/reception/desk", { headers });
-      const body = await res.json();
-      if (!res.ok) {
-        setError(failureText(body, res.status));
-        setItems([]);
+    let cancelled = false;
+    void (async () => {
+      const headers = listTenantHeader(tenantID);
+      if (!headers) {
+        if (!cancelled) setItems([]);
         return;
       }
-      setItems(body.items ?? []);
-    } catch (e) {
-      setError(productError((e as Error).message));
-      setItems([]);
-    }
-  }, []);
+      try {
+        const who = await fetch("/api/whoami", { headers });
+        const whoBody = await who.json().catch(() => ({}));
+        const res = await fetch("/api/reception/desk", { headers });
+        const body = await res.json();
+        const roleText = who.ok && typeof whoBody.role === "string" ? whoBody.role : "";
+        if (!res.ok) {
+          const accepted = acceptDeskPayload(gen.current, seq, tenantID, [] as DeskItem[]);
+          if (cancelled || accepted === null) return;
+          setRole(roleText);
+          setError(failureText(body, res.status));
+          setItems([]);
+          return;
+        }
+        const accepted = acceptDeskPayload(gen.current, seq, tenantID, (body.items ?? []) as DeskItem[]);
+        if (cancelled || accepted === null) return;
+        setRole(roleText);
+        setError("");
+        setItems(accepted);
+      } catch (e) {
+        const accepted = acceptDeskPayload(gen.current, seq, tenantID, [] as DeskItem[]);
+        if (cancelled || accepted === null) return;
+        setError(productError((e as Error).message));
+        setItems([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scope.epoch, scope.tenantId, reload]);
 
-  useEffect(() => {
-    setSelected("");
-    setItems(null);
-    if (scope.tenantId) void load(scope.tenantId);
-    else setItems([]);
-  }, [scope.epoch, scope.tenantId, load]);
+  const panel = receptionSessionFrame(selected, selectedTenant, scope.tenantId);
 
   return (
     <main data-page="reception">
@@ -83,7 +112,10 @@ export default function ReceptionDeskPage() {
       {items && items.length === 0 && !error ? <SurfaceState kind="empty" title="没有进行中的接待" detail="新的咨询进来后会出现在这里。" /> : null}
       <div className="record-list">
         {(items ?? []).map((item, index) => {
-          const open = () => setSelected(item.session_id);
+          const open = () => {
+            setSelected(item.session_id);
+            setSelectedTenant(scope.tenantId);
+          };
           const primary = index === 0;
           return (
             <RecordFrame
@@ -113,8 +145,8 @@ export default function ReceptionDeskPage() {
           );
         })}
       </div>
-      {selected && scope.tenantId ? (
-        <SessionPanel tenant={scope.tenantId} sessionId={selected} onChanged={() => { void load(scope.tenantId ?? ""); }} />
+      {panel ? (
+        <SessionPanel tenant={panel.tenant} sessionId={panel.sessionId} onChanged={() => setReload((n) => n + 1)} />
       ) : null}
     </main>
   );
