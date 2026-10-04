@@ -19,6 +19,7 @@ import {
   visibleOutreach,
   type StatusFacts,
 } from "@/lib/workbench";
+import { CampaignMotionPanel } from "@/components/CampaignMotionPanel";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
 
 interface TimelineEvent {
@@ -178,6 +179,7 @@ export default function LeadDeskPage() {
             </ol>
           </div>
           {id ? <LightCopyPanel subjectKind="campaign" subjectId={id} /> : null}
+          {id ? <CampaignMotionPanel campaignId={id} /> : null}
           <form
             className="card stack-form"
             onSubmit={(e) => {
