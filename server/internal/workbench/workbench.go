@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -48,6 +49,11 @@ const (
 	relBefore      = 1
 	relToday       = 2
 	relAfter       = 3
+
+	// DraftBodyMaxRunes matches reception messages. There is no tenant
+	// timezone column; today and overdue use Asia/Shanghai, the same clock
+	// as the SOP window.
+	DraftBodyMaxRunes = 2000
 )
 
 // Scope is the caller's existing record scope. Owner sees the tenant.
@@ -779,6 +785,9 @@ func AssembleTimeline(events []TimelineEvent, reveal bool) []TimelineEvent {
 
 var errDraftNotEditable = errors.New("draft is not editable")
 
+// ErrDraftTooLong is the reception message cap applied to a draft edit.
+var ErrDraftTooLong = errors.New("draft body is too long")
+
 // IsTouchSource reports a lead that arrived from Touch.
 func IsTouchSource(lead LeadView) bool {
 	if lead.SourceType == "touch_campaign" {
@@ -843,6 +852,9 @@ func IgnoreDraft(status string) DraftDecision {
 // ReviseDraft edits a generated body and never sends it.
 func ReviseDraft(status, body string) (DraftDecision, string, error) {
 	body = strings.TrimSpace(body)
+	if utf8.RuneCountInString(body) > DraftBodyMaxRunes {
+		return DraftDecision{Status: status, Sent: status == "sent"}, body, ErrDraftTooLong
+	}
 	if status != "generated" || body == "" {
 		return DraftDecision{Status: status, Sent: status == "sent"}, body, errDraftNotEditable
 	}
@@ -965,17 +977,27 @@ func infoException(lead LeadView) bool {
 	return strings.TrimSpace(lead.ConsentStatus) == "denied"
 }
 
+func deskLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*3600)
+	}
+	return loc
+}
+
 func nextRelation(at string, now time.Time) int {
 	ts, ok := parseTime(at)
 	if !ok {
 		return relNone
 	}
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
-	if ts.Before(start) {
+	loc := deskLocation()
+	localNow := now.In(loc)
+	localAt := ts.In(loc)
+	start := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc)
+	if localAt.Before(start) {
 		return relBefore
 	}
-	if ts.After(end) {
+	if !localAt.Before(start.AddDate(0, 0, 1)) {
 		return relAfter
 	}
 	return relToday
@@ -1008,20 +1030,27 @@ func projectToday(scope Scope, now time.Time, leads []LeadView, opps []Opportuni
 		if !InScope(scope, opp.Assignee) || !activeStage(opp.Stage) || opp.HasManualNext {
 			continue
 		}
+		lead, ok := soleLead(leads, opp.ContactID, scope)
+		if !ok {
+			continue
+		}
 		canUpdate := scope.Role == "owner" || (opp.Assignee != "" && opp.Assignee == scope.MemberID)
 		item := Item{
 			ID: opp.ID, TenantID: opp.TenantID, Bucket: TodayDue, TodayGroup: TodayDue, Kind: "opportunity",
 			OpportunityID: opp.ID, Assignee: opp.Assignee,
-			ShowServiceDraft: ShowServiceDraft(opp.Category) && AllowCreativeHandoff("", opp.Category),
+			ShowServiceDraft: ShowServiceDraft(opp.Category) && AllowCreativeHandoff(lead.Purpose, opp.Category),
 			ServiceDraft:     DecideServiceDraft(scope.Role, opp.Category, canUpdate, false),
 			ForceOpportunity: false,
 			Next:             safeAction("suggest_schedule", "suggestion", ""),
 		}
-		if !AllowCreativeHandoff("", opp.Category) {
+		item = copyLeadFacts(item, lead, opps)
+		if !AllowCreativeHandoff(lead.Purpose, opp.Category) {
 			item.ShowServiceDraft = false
 			item.ServiceDraft = ServiceDraftDesk{}
 		}
-		item.Basis = NextBasis(item.Next, 0)
+		if item.Basis == "" {
+			item.Basis = NextBasis(item.Next, 0)
+		}
 		today[TodayDue] = append(today[TodayDue], item)
 	}
 	for _, session := range desk {
@@ -1031,12 +1060,18 @@ func projectToday(scope Scope, now time.Time, leads []LeadView, opps []Opportuni
 		if session.HumanTodo {
 			item := sessionItem(session, TodayHuman)
 			item.TodayGroup = TodayHuman
+			if lead, ok := findLead(leads, session.LeadID); ok && InScope(scope, lead.Assignee) {
+				item = copyLeadFacts(item, lead, opps)
+			}
 			today[TodayHuman] = append(today[TodayHuman], item)
 			continue
 		}
 		if session.WaitingReply {
 			item := sessionItem(session, TodayWaiting)
 			item.TodayGroup = TodayWaiting
+			if lead, ok := findLead(leads, session.LeadID); ok && InScope(scope, lead.Assignee) {
+				item = copyLeadFacts(item, lead, opps)
+			}
 			today[TodayWaiting] = append(today[TodayWaiting], item)
 		}
 	}
@@ -1047,9 +1082,66 @@ func projectToday(scope Scope, now time.Time, leads []LeadView, opps []Opportuni
 		if !InScope(scope, draft.Assignee) {
 			continue
 		}
-		today[TodayAIDraft] = append(today[TodayAIDraft], draftItem(draft))
+		item := draftItem(draft)
+		if lead, ok := findLead(leads, draft.LeadID); ok && InScope(scope, lead.Assignee) {
+			item = copyLeadFacts(item, lead, nil)
+		}
+		today[TodayAIDraft] = append(today[TodayAIDraft], item)
 	}
 	return today
+}
+
+func findLead(leads []LeadView, id string) (LeadView, bool) {
+	if id == "" {
+		return LeadView{}, false
+	}
+	for _, lead := range leads {
+		if lead.ID == id {
+			return lead, true
+		}
+	}
+	return LeadView{}, false
+}
+
+func soleLead(leads []LeadView, contactID string, scope Scope) (LeadView, bool) {
+	if strings.TrimSpace(contactID) == "" {
+		return LeadView{}, false
+	}
+	var found LeadView
+	n := 0
+	for _, lead := range leads {
+		if lead.ContactID != contactID || !InScope(scope, lead.Assignee) {
+			continue
+		}
+		n++
+		found = lead
+	}
+	if n != 1 {
+		return LeadView{}, false
+	}
+	return found, true
+}
+
+func copyLeadFacts(item Item, lead LeadView, opps []OpportunityView) Item {
+	filled := leadItem(lead, opps)
+	item.LeadID = lead.ID
+	item.Source = filled.Source
+	item.Context = filled.Context
+	item.Ask = filled.Ask
+	item.OwnerLabel = filled.OwnerLabel
+	item.AllowedContacts = filled.AllowedContacts
+	item.LastInteraction = filled.LastInteraction
+	item.Statuses = filled.Statuses
+	item.Sync = filled.Sync
+	item.OutreachNotice = filled.OutreachNotice
+	item.AssignmentReason = filled.AssignmentReason
+	if item.Next.Kind == "" || item.Next.Kind == "none" {
+		item.Next = filled.Next
+		item.Basis = filled.Basis
+	} else if item.Basis == "" {
+		item.Basis = filled.Basis
+	}
+	return item
 }
 
 func draftItem(d DraftView) Item {

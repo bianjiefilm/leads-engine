@@ -52,7 +52,7 @@ func TestTodayTouchLeadStaysOnTheDesk(t *testing.T) {
 		t.Fatalf("waiting placement = %s", mustJSON(afterWait["today"]))
 	}
 
-	todayAt := time.Now().UTC().Format("2006-01-02") + "T15:00:00Z"
+	todayAt := shanghaiWall(15, 0)
 	scheduled := h.mustDo("POST", "/api/v1/leads/"+nextID+"/follow-through", sessionSalesA1, tenantA,
 		fmt.Sprintf(`{"note":"约今天再联系","complete":true,"next_follow_up_at":%q,"ai_score":99}`, todayAt), 201)
 	if scheduled["today_group"] != "due_today" {
@@ -131,6 +131,29 @@ func TestTodayDraftCanBeEditedOrIgnoredWithoutSending(t *testing.T) {
 	}
 }
 
+func TestTodaySiblingFollowUpDoesNotStealNewInquiry(t *testing.T) {
+	h := newHarnessOpts(t, harnessOpts{featureFollowups: true})
+	tenantA, _, _ := h.seed()
+	contactID, oldID := h.todayTouchContactLead(tenantA, "回头客", "13700005555")
+	freshID := h.todayAnotherTouchLead(tenantA, contactID, "碰一碰新咨询")
+	h.mustDo("POST", "/api/v1/leads/"+oldID+"/follow-through", sessionSalesA1, tenantA,
+		`{"note":"等旧线索的客户","complete":true,"disposition":"waiting_customer"}`, 201)
+	past := time.Now().UTC().Add(-48 * time.Hour).Format(time.RFC3339)
+	h.mustDo("POST", "/api/v1/follow-ups", sessionOwnerA, tenantA,
+		fmt.Sprintf(`{"contact_id":%q,"note":"接触级旧跟进","next_follow_up_at":%q}`, contactID, past), 201)
+
+	desk := h.mustDo("GET", "/api/v1/workbench", sessionSalesA1, tenantA, "", 200)
+	if !todayHas(desk, "new_inquiry", freshID) {
+		t.Fatalf("new touch lead left new_inquiry: %s", mustJSON(desk["today"]))
+	}
+	if !todayHas(desk, "waiting_customer", oldID) {
+		t.Fatalf("old lead left waiting_customer: %s", mustJSON(desk["today"]))
+	}
+	if todayHas(desk, "waiting_customer", freshID) || todayHas(desk, "due_today", freshID) || todayHas(desk, "overdue", freshID) {
+		t.Fatalf("sibling or contact follow-up moved the new lead: %s", mustJSON(desk["today"]))
+	}
+}
+
 func (h *harness) todayTouchLead(tenant, name, phone string) string {
 	h.t.Helper()
 	session := sessionOwnerA
@@ -156,6 +179,45 @@ func (h *harness) todayTouchLead(tenant, name, phone string) string {
 		h.t.Fatalf("touch lead missing id: %v", lead)
 	}
 	return id
+}
+
+func (h *harness) todayTouchContactLead(tenant, name, phone string) (string, string) {
+	h.t.Helper()
+	ref := "touch-" + name
+	source := fmt.Sprintf(`{"source_app":"touch","source_ref":%q,"auth_scope_snapshot":"{\"campaign_ref\":\"camp-touch\"}"}`, ref)
+	contact := h.mustDo("POST", "/api/v1/contacts", sessionOwnerA, tenant,
+		fmt.Sprintf(`{"name":%q,"phone":%q,"business_category":"merchant_customer","source_type":"touch_campaign","consent_status":"granted","source":%s}`, name, phone, source), 201)
+	contactID, _ := contact["id"].(string)
+	lead := h.mustDo("POST", "/api/v1/leads", sessionSalesA1, tenant,
+		fmt.Sprintf(`{"contact_id":%q,"status":"new","source":%s}`, contactID, source), 201)
+	leadID, _ := lead["id"].(string)
+	if contactID == "" || leadID == "" {
+		h.t.Fatalf("touch pair = %v %v", contact, lead)
+	}
+	return contactID, leadID
+}
+
+func (h *harness) todayAnotherTouchLead(tenant, contactID, name string) string {
+	h.t.Helper()
+	ref := "touch-" + name
+	source := fmt.Sprintf(`{"source_app":"touch","source_ref":%q,"auth_scope_snapshot":"{\"campaign_ref\":\"camp-touch\"}"}`, ref)
+	lead := h.mustDo("POST", "/api/v1/leads", sessionSalesA1, tenant,
+		fmt.Sprintf(`{"contact_id":%q,"status":"new","source":%s}`, contactID, source), 201)
+	id, _ := lead["id"].(string)
+	if id == "" {
+		h.t.Fatalf("second touch lead = %v", lead)
+	}
+	return id
+}
+
+func shanghaiWall(hour, minute int) string {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
+	now := time.Now().In(loc)
+	at := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, loc)
+	return at.UTC().Format(time.RFC3339)
 }
 
 func todayHas(desk map[string]any, group, id string) bool {

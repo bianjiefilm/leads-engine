@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -228,6 +229,10 @@ func (s *Server) handleDraftRevise(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	decision, body, err := workbench.ReviseDraft(rp.Status, in.Body)
+	if errors.Is(err, workbench.ErrDraftTooLong) {
+		fail(w, http.StatusBadRequest, "bad_request", "body must be at most 2000 characters")
+		return
+	}
 	if err != nil {
 		fail(w, http.StatusConflict, "not_editable", "只有未发送的草稿可以修改")
 		return

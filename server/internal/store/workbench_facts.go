@@ -72,30 +72,69 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 		return DeskFacts{}, err
 	}
 
-	openNext := map[string]string{}
-	completed := map[string]bool{}
-	latestFollow := map[string]followSnap{}
+	// Own follow-ups stay on that lead. A blank lead_id is contact-level and
+	// must not pull a still-new lead, or a sibling lead, out of 新咨询.
+	ownOpen := map[string]string{}
+	ownDone := map[string]bool{}
+	ownLatest := map[string]followSnap{}
+	ownAny := map[string]bool{}
+	contactOpen := map[string]string{}
+	contactDone := map[string]bool{}
+	contactLatest := map[string]followSnap{}
+	anyOpen := map[string]string{}
 	for _, f := range follows {
 		if f.done == "" && f.next != "" {
-			if cur, ok := openNext[f.contactID]; !ok || f.next < cur {
-				openNext[f.contactID] = f.next
+			if cur, ok := anyOpen[f.contactID]; !ok || f.next < cur {
+				anyOpen[f.contactID] = f.next
+			}
+		}
+		if f.leadID != "" {
+			ownAny[f.leadID] = true
+			if f.done == "" && f.next != "" {
+				if cur, ok := ownOpen[f.leadID]; !ok || f.next < cur {
+					ownOpen[f.leadID] = f.next
+				}
+			}
+			if f.done != "" {
+				ownDone[f.leadID] = true
+			}
+			if cur, ok := ownLatest[f.leadID]; !ok || f.createdAt >= cur.createdAt {
+				ownLatest[f.leadID] = f
+			}
+			continue
+		}
+		if f.done == "" && f.next != "" {
+			if cur, ok := contactOpen[f.contactID]; !ok || f.next < cur {
+				contactOpen[f.contactID] = f.next
 			}
 		}
 		if f.done != "" {
-			completed[f.contactID] = true
+			contactDone[f.contactID] = true
 		}
-		if cur, ok := latestFollow[f.contactID]; !ok || f.createdAt >= cur.createdAt {
-			latestFollow[f.contactID] = f
+		if cur, ok := contactLatest[f.contactID]; !ok || f.createdAt >= cur.createdAt {
+			contactLatest[f.contactID] = f
 		}
 	}
 	for i := range leads {
 		lead := &leads[i]
 		contactID := lead.ContactID
-		if next, ok := openNext[contactID]; ok {
-			lead.HasOpenFollowUp = true
-			lead.ManualNextAt = next
+		var latest followSnap
+		hasLatest := false
+		if ownAny[lead.ID] {
+			if next, ok := ownOpen[lead.ID]; ok {
+				lead.HasOpenFollowUp = true
+				lead.ManualNextAt = next
+			}
+			lead.HasCompletedFollowUp = ownDone[lead.ID]
+			latest, hasLatest = ownLatest[lead.ID]
+		} else if lead.Status != "new" {
+			if next, ok := contactOpen[contactID]; ok {
+				lead.HasOpenFollowUp = true
+				lead.ManualNextAt = next
+			}
+			lead.HasCompletedFollowUp = contactDone[contactID]
+			latest, hasLatest = contactLatest[contactID]
 		}
-		lead.HasCompletedFollowUp = completed[contactID]
 		applyConsentFacts(lead, consents[contactID])
 		if form, ok := forms[lead.ID]; ok {
 			lead.SourceForm = form.key
@@ -116,17 +155,17 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 		} else if lead.SourceChannel == "" {
 			lead.SourceChannel = sourceChannelLabel(contacts[contactID].sourceType)
 		}
-		if row, ok := latestFollow[contactID]; ok {
-			lead.WaitingCustomer = row.disposition == "waiting_customer" && row.done != "" && !lead.HasOpenFollowUp
-			lead.LastInteraction = row.note
-			lead.LastInteractionAt = row.createdAt
+		if hasLatest {
+			lead.WaitingCustomer = latest.disposition == "waiting_customer" && latest.done != "" && !lead.HasOpenFollowUp
+			lead.LastInteraction = latest.note
+			lead.LastInteractionAt = latest.createdAt
 		} else {
 			lead.LastInteraction = sourceSummary(*lead)
 			lead.LastInteractionAt = lead.SourceAt
 		}
 	}
 	for i := range opps {
-		if _, ok := openNext[opps[i].ContactID]; ok {
+		if _, ok := anyOpen[opps[i].ContactID]; ok {
 			opps[i].HasManualNext = true
 		}
 	}

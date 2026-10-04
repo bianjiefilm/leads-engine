@@ -30,6 +30,8 @@ import {
   rememberToday,
   recallToday,
   todaySaveReady,
+  followNote,
+  reviseBody,
 } from "@/lib/workbench";
 import fixture from "./fixtures/hui-1893-local-lead.json";
 
@@ -281,5 +283,20 @@ describe("sales desk", () => {
     expect(existsSync("src/app/(shell)/today/page.tsx")).toBe(false);
     expect(existsSync("src/app/today/page.tsx")).toBe(false);
     expect(existsSync("src/app/page.tsx")).toBe(false);
+  });
+
+  it("keeps a follow-up note out of the draft revise body", () => {
+    const generated = "请确认这段回复";
+    const note = "跟进备注不要进草稿";
+    expect(reviseBody(undefined, generated)).toBe(generated);
+    expect(reviseBody("改过的草稿", generated)).toBe("改过的草稿");
+    expect(reviseBody(undefined, generated)).not.toBe(note);
+    expect(followNote(note)).toBe(note);
+    expect(reviseBody("改过的草稿", generated)).not.toBe(followNote(note));
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    expect(home).toContain("reviseBody");
+    expect(home).toContain("followNote");
+    expect(home).not.toContain("只改变化项");
+    expect(home).not.toMatch(/修改草稿[\s\S]*value=\{draft\.note\}/);
   });
 });

@@ -17,8 +17,10 @@ import {
   modelAdviceLine,
   centsText,
   moneyView,
+  followNote,
   questionsFor,
   recallToday,
+  reviseBody,
   receptionFactLine,
   rememberToday,
   todaySaveReady,
@@ -167,12 +169,13 @@ export default function Home() {
   async function submitFollow(item: DeskItem, mode: "note" | "schedule") {
     if (!scope.tenantId || !item.lead_id) return;
     const draft = draftFor(item.id);
-    if (!draft.note.trim()) return;
+    const note = followNote(draft.note);
+    if (!note) return;
     if (mode === "schedule" && !draft.nextAt) return;
     setDraftMsg("");
     const waiting = mode === "note" && draft.disposition === "waiting_customer";
     const payload: Record<string, unknown> = {
-      note: draft.note.trim(),
+      note,
       complete: true,
       disposition: waiting ? "waiting_customer" : "next",
     };
@@ -200,7 +203,7 @@ export default function Home() {
 
   async function reviseDraft(item: DeskItem) {
     if (!scope.tenantId) return;
-    const body = draftFor(item.id).note.trim();
+    const body = reviseBody(draftFor(item.id).draftBody, item.draft_body).trim();
     if (!body) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/revise`, {
       method: "POST",
@@ -353,24 +356,19 @@ function TodayRow({
   const receptionLine = receptionFactLine(item);
   const service = serviceDraftControl(item.service_draft);
   const confirmed = item.context?.facts ?? [];
-  const questions = questionsFor(confirmed, item.context?.ask ?? item.ask ?? [], draft.changed);
+  const questions = questionsFor(confirmed, item.context?.ask ?? item.ask ?? [], []);
   return (
     <li id={`today-item-${item.id}`}>
-      {item.kind === "reception" ? (
-        <p data-reception-fact="owner">{receptionLine}</p>
-      ) : (
-        <>
-          <p>来源：{facts.source}</p>
-          <p>已确认：{item.context?.customer || "客户未记录"}{item.context?.business ? ` · ${item.context.business}` : ""}{confirmed.length ? ` · ${confirmed.join("、")}` : ""}</p>
-          <p>负责人：{facts.owner}</p>
-          <p>状态：{facts.state}</p>
-          <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
-          <p>最近一次互动：{item.last_interaction?.summary || "还没有互动"}{item.last_interaction?.at ? ` · ${item.last_interaction.at}` : ""}</p>
-          <p>下一步：{facts.next}</p>
-          <p className="muted">{item.basis || modelAdviceLine()}</p>
-          <p>{facts.sync}</p>
-        </>
-      )}
+      {item.kind === "reception" ? <p data-reception-fact="owner">{receptionLine}</p> : null}
+      <p>来源：{facts.source}</p>
+      <p>已确认：{item.context?.customer || "客户未记录"}{item.context?.business ? ` · ${item.context.business}` : ""}{confirmed.length ? ` · ${confirmed.join("、")}` : ""}</p>
+      <p>负责人：{facts.owner}</p>
+      <p>状态：{facts.state}</p>
+      <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
+      <p>最近一次互动：{item.last_interaction?.summary || "还没有互动"}{item.last_interaction?.at ? ` · ${item.last_interaction.at}` : ""}</p>
+      <p>下一步：{facts.next}</p>
+      <p className="muted">{item.basis || modelAdviceLine()}</p>
+      <p>{facts.sync}</p>
       <p data-joint-chain="incomplete">{facts.chain}</p>
       {outreach ? <p className="muted">{outreach}</p> : null}
       <p className="muted">{modelAdviceLine()}</p>
@@ -378,7 +376,11 @@ function TodayRow({
       {questions.length > 0 ? <p>待补充：{questions.join("、")}</p> : null}
       {item.kind === "ai_draft" ? <p>草稿：{item.draft_body || "未记录"}</p> : null}
       <div className="queue-actions">
-        {item.kind === "reception" || item.session_id ? <Link href="/reception">打开接待</Link> : null}
+        {item.kind === "reception" && !item.lead_id ? (
+          <Link href="/reception">打开接待，本屏尚未完成这一步</Link>
+        ) : item.kind === "reception" || item.session_id ? (
+          <Link href="/reception">打开接待</Link>
+        ) : null}
         {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link> : null}
         {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
         {service.present ? (
@@ -388,26 +390,6 @@ function TodayRow({
         ) : null}
       </div>
       {service.present && !service.enabled ? <p className="muted">{service.reason}</p> : null}
-      {confirmed.length > 0 ? (
-        <fieldset className="stack-form">
-          <legend>只改变化项</legend>
-          {confirmed.map((fact) => (
-            <label key={fact}>
-              <input
-                type="checkbox"
-                checked={draft.changed.includes(fact)}
-                onChange={(e) => {
-                  const changed = e.target.checked
-                    ? [...draft.changed, fact]
-                    : draft.changed.filter((itemName) => itemName !== fact);
-                  onDraft({ changed });
-                }}
-              />
-              {fact}
-            </label>
-          ))}
-        </fieldset>
-      ) : null}
       {item.lead_id ? (
         <form
           className="stack-form"
@@ -436,7 +418,7 @@ function TodayRow({
             </select>
           </label>
           <label>
-            下一次
+            下一次（北京时间）
             <input type="datetime-local" value={draft.nextAt} onChange={(e) => onDraft({ nextAt: e.target.value })} />
           </label>
           <div className="queue-actions">
@@ -459,7 +441,7 @@ function TodayRow({
         >
           <label>
             修改草稿
-            <textarea value={draft.note} onChange={(e) => onDraft({ note: e.target.value })} placeholder={item.draft_body || "改成要保留的措辞"} />
+            <textarea value={reviseBody(draft.draftBody, item.draft_body)} onChange={(e) => onDraft({ draftBody: e.target.value })} placeholder="改成要保留的措辞" />
           </label>
           <div className="queue-actions">
             <button className="primary" type="submit">保存修改</button>

@@ -185,6 +185,101 @@ func TestTodayKeepsRefusalsDraftsAndScope(t *testing.T) {
 	}
 }
 
+func TestTodayUsesShanghaiCalendarBeforeEight(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 01:30 in Shanghai is still the previous UTC date. 09:00 the same local
+	// morning is the next UTC date, so a UTC day boundary hides it from today.
+	now := time.Date(2026, 10, 4, 1, 30, 0, 0, loc).UTC()
+	appointment := time.Date(2026, 10, 4, 9, 0, 0, 0, loc).UTC().Format(time.RFC3339)
+	lead := LeadView{
+		ID: "morning", Status: "in_progress", Assignee: "sales1",
+		HasOpenFollowUp: true, ManualNextAt: appointment, ManualNextKind: "manual_follow_up",
+	}
+	if got := PlaceToday(lead, now); got != TodayDue {
+		t.Fatalf("local morning appointment = %s, want %s", got, TodayDue)
+	}
+	evening := time.Date(2026, 10, 4, 20, 0, 0, 0, loc).UTC()
+	dawn := time.Date(2026, 10, 5, 1, 0, 0, 0, loc).UTC().Format(time.RFC3339)
+	nextDawn := lead
+	nextDawn.ManualNextAt = dawn
+	if got := PlaceToday(nextDawn, evening); got != TodayScheduled {
+		t.Fatalf("next local dawn = %s, want %s", got, TodayScheduled)
+	}
+}
+
+func TestTodayDraftAndReceptionWithLeadAreNotEmpty(t *testing.T) {
+	now := time.Date(2026, 10, 4, 1, 30, 0, 0, time.UTC)
+	const phone = "13800138000"
+	const knowledge = "知识库不应进今天"
+	lead := LeadView{
+		ID: "lead1", TenantID: "tnt_a", ContactID: "c1", Status: "new", Assignee: "mem_sales1",
+		ContactName: "甲商家", BusinessCategory: "merchant_customer", SourceType: "touch_campaign",
+		SourceChannel: "碰一碰", SourceActivity: "camp-1", SourceAt: "2026-10-04T01:00:00Z",
+		OwnerLabel: "Sales A1", ConsentStatus: "granted", Phone: phone,
+		ChannelIdentity: "wx_openid_1", ChannelReplyAllowed: true,
+		LastInteraction: "活动 camp-1 · 碰一碰", LastInteractionAt: "2026-10-04T01:00:00Z",
+	}
+	other := lead
+	other.ID = "lead2"
+	other.ContactID = "c2"
+	third := lead
+	third.ID = "lead3"
+	third.ContactID = "c2"
+	draft := DraftView{
+		ID: "dr1", TenantID: "tnt_a", SessionID: "s1", LeadID: "lead1", Assignee: "mem_sales1",
+		OwnerLabel: "Sales A1", Kind: "draft", Status: "generated", Body: "请确认这段回复",
+	}
+	session := ReceptionView{
+		SessionID: "rs1", TenantID: "tnt_a", LeadID: "lead1", Assignee: "mem_sales1", OwnerLabel: "Sales A1",
+		Mode: "human", Epoch: 2, Version: 3, HumanTodo: true, PendingReason: "human_takeover",
+	}
+	opps := []OpportunityView{
+		{ID: "opp_tied", TenantID: "tnt_a", ContactID: "c1", Stage: "open", Category: "merchant_customer", Assignee: "mem_sales1"},
+		{ID: "opp_orphan", TenantID: "tnt_a", ContactID: "nobody", Stage: "open", Category: "merchant_customer", Assignee: "mem_sales1"},
+		{ID: "opp_many", TenantID: "tnt_a", ContactID: "c2", Stage: "proposal", Category: "merchant_customer", Assignee: "mem_sales1"},
+	}
+	res := BuildWithDrafts(Scope{Role: "sales", MemberID: "mem_sales1"}, now, []LeadView{lead, other, third}, opps, []ReceptionView{session}, []DraftView{draft})
+	for _, spec := range []struct{ group, id string }{{TodayAIDraft, "dr1"}, {TodayHuman, "rs1"}} {
+		item, ok := todayItem(res, spec.group, spec.id)
+		if !ok {
+			t.Fatalf("%s missing from %s", spec.id, spec.group)
+		}
+		if item.LeadID != "lead1" || item.Source.Channel == "" || item.Source.Activity == "" || item.Context.Customer == "" || item.OwnerLabel == "" || item.OwnerLabel == "mem_sales1" {
+			t.Fatalf("%s facts = %+v", spec.id, item)
+		}
+		if len(item.AllowedContacts) == 0 || item.LastInteraction.Summary == "" || item.Next.Label == "" || item.Basis == "" {
+			t.Fatalf("%s next/contact = %+v", spec.id, item)
+		}
+		raw, _ := json.Marshal(item)
+		if strings.Contains(string(raw), phone) || strings.Contains(string(raw), knowledge) || strings.Contains(item.OwnerLabel, "mem_") {
+			t.Fatalf("%s leaked a phone, member id, or knowledge: %s", spec.id, raw)
+		}
+	}
+	tied, ok := todayItem(res, TodayDue, "opp_tied")
+	if !ok || tied.LeadID != "lead1" || tied.Context.Customer != "甲商家" || tied.Source.Channel == "" {
+		t.Fatalf("tied opportunity = %+v ok=%v", tied, ok)
+	}
+	for _, group := range []string{TodayNewInquiry, TodayDue, TodayWaiting, TodayOverdue, TodayAIDraft, TodayHuman, TodayInfo} {
+		if todayHas(res, group, "opp_orphan") || todayHas(res, group, "opp_many") {
+			t.Fatalf("opportunity without one lead stayed in %s", group)
+		}
+	}
+}
+
+func TestReviseDraftUsesTheReceptionLimit(t *testing.T) {
+	okBody := strings.Repeat("字", 2000)
+	revised, body, err := ReviseDraft("generated", okBody)
+	if err != nil || revised.Sent || revised.Status != "generated" || body != okBody {
+		t.Fatalf("2000 runes = %+v %d %v", revised, len([]rune(body)), err)
+	}
+	if _, _, err := ReviseDraft("generated", strings.Repeat("字", 2001)); err == nil {
+		t.Fatal("2001 runes was accepted")
+	}
+}
+
 func todayItem(res Result, group, id string) (Item, bool) {
 	for _, item := range res.Today[group] {
 		if item.ID == id || item.LeadID == id || item.SessionID == id {

@@ -343,9 +343,21 @@ export function acceptToday(
 
 export interface TodayDraft {
   note: string;
+  draftBody?: string;
   nextAt: string;
   disposition: "next" | "waiting_customer";
   changed: string[];
+}
+
+// reviseBody is the draft editor. An untouched box shows the generated body.
+// A follow-up note never feeds it.
+export function reviseBody(stored: string | undefined, itemBody: string | undefined): string {
+  if (stored !== undefined) return stored;
+  return itemBody ?? "";
+}
+
+export function followNote(note: string): string {
+  return note.trim();
 }
 
 export interface TodayMemory {
