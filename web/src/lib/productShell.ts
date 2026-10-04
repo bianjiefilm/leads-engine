@@ -116,6 +116,88 @@ export function listTenantHeader(tenantId: string | null): { "x-tenant-id": stri
   return { "x-tenant-id": id };
 }
 
+export const SCOPE_UNAVAILABLE = "没有可用的工作范围。今天、线索和接待不会改去看别的客户。";
+
+export interface ShellWhoamiBody {
+  tenant_id?: unknown;
+  email?: unknown;
+}
+
+export interface ShellWhoamiResult {
+  ok: boolean;
+  email: string | null;
+  sessionTenant: string | null;
+  memoryTenantId: string | null;
+  storage: string | null;
+  persist: boolean;
+  switcher: WorkScope[];
+  fault: string;
+  requestedTenant: string | null;
+}
+
+async function browserWhoami(path: string, init: { headers: Record<string, string> }): Promise<{ ok: boolean; body: ShellWhoamiBody }> {
+  const res = await fetch(path, { headers: init.headers });
+  const body = (await res.json().catch(() => ({}))) as ShellWhoamiBody;
+  return { ok: res.ok, body };
+}
+
+// 已有存储或登录租户时必须带上 x-tenant-id。空头会在进 whoami 之前被拒，登录租户就进不了允许集合。
+export async function runShellWhoami(input: {
+  storedId: string | null;
+  membershipScopes: WorkScope[];
+  fetchImpl?: (path: string, init: { headers: Record<string, string> }) => Promise<{ ok: boolean; body: ShellWhoamiBody }>;
+}): Promise<ShellWhoamiResult> {
+  const header = listTenantHeader(input.storedId);
+  const headers: Record<string, string> = header ? { ...header } : {};
+  let ok = false;
+  let session: string | null = null;
+  let email: string | null = null;
+  try {
+    const res = await (input.fetchImpl ?? browserWhoami)("/api/whoami", { headers });
+    ok = res.ok === true;
+    if (ok && typeof res.body?.tenant_id === "string" && res.body.tenant_id.trim()) session = res.body.tenant_id.trim();
+    if (ok && typeof res.body?.email === "string" && res.body.email.trim()) email = res.body.email.trim();
+  } catch {
+    ok = false;
+  }
+  const settlement = settleWorkTenant({
+    membershipScopes: input.membershipScopes,
+    whoamiOk: ok,
+    sessionTenant: session,
+    storedId: input.storedId,
+  });
+  const applied = applyWorkTenant(input.storedId, input.storedId, settlement);
+  const confirmed = Boolean(applied.memoryTenantId);
+  return {
+    ok,
+    email,
+    sessionTenant: ok ? session : null,
+    memoryTenantId: applied.memoryTenantId,
+    storage: applied.storage,
+    persist: settlement.persist,
+    switcher: confirmed ? withSessionScope(input.membershipScopes, session) : [],
+    fault: confirmed ? "" : SCOPE_UNAVAILABLE,
+    requestedTenant: header?.["x-tenant-id"] ?? null,
+  };
+}
+
+export function guardTenantCommit(switcher: WorkScope[], tenantId: string): string | null {
+  return chooseScope(switcher, tenantId)?.tenant_id ?? null;
+}
+
+export function nextLeadTicket(previousSeq: number, tenantId: string): { seq: number; tenantId: string } {
+  return { seq: previousSeq + 1, tenantId };
+}
+
+export function acceptLeadRows<T>(
+  active: { seq: number; tenantId: string },
+  ticket: { seq: number; tenantId: string },
+  rows: T,
+): T | null {
+  if (active.seq !== ticket.seq || active.tenantId !== ticket.tenantId) return null;
+  return rows;
+}
+
 export function acceptDeskPayload<T>(
   active: { seq: number; tenantId: string },
   arrivedSeq: number,

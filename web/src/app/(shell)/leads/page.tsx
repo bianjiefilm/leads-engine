@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, acceptLeadRows, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 
 // 原生线索页（HUI-1680）。只打本站 BFF。租户由工作区选择，服务端再校验成员身份。
 // 未分配的线索明确写「待分配」，不把空负责人伪装成已分派。
@@ -43,57 +43,63 @@ export default function LeadsPage() {
   const width = useShellWidth();
   const [rows, setRows] = useState<Array<LeadRow & { name: string; source: string }> | null>(null);
   const [error, setError] = useState("");
-
-  const load = useCallback(async (tenantID: string) => {
-    setError("");
-    setRows(null);
-    if (!tenantID.trim()) {
-      setRows([]);
-      return;
-    }
-    const headers = listTenantHeader(tenantID);
-    if (!headers) {
-      setRows([]);
-      return;
-    }
-    try {
-      const [leadRes, contactRes] = await Promise.all([
-        fetch("/api/leads", { headers }),
-        fetch("/api/contacts", { headers }),
-      ]);
-      const leadsBody = await leadRes.json();
-      const contactsBody = await contactRes.json();
-      if (!leadRes.ok) {
-        setError(failureText(leadsBody, leadRes.status));
-        setRows([]);
-        return;
-      }
-      const contacts = new Map<string, ContactRow>();
-      if (contactRes.ok) {
-        for (const item of (contactsBody.items ?? []) as ContactRow[]) {
-          contacts.set(item.id, item);
-        }
-      }
-      const items = ((leadsBody.items ?? []) as LeadRow[]).map((lead) => {
-        const contact = contacts.get(lead.contact_id);
-        return {
-          ...lead,
-          name: contact?.name || "未命名",
-          source: SOURCE_TEXT[contact?.source_type ?? ""] ?? contact?.source_type ?? "未知来源",
-        };
-      });
-      setRows(items);
-    } catch (e) {
-      setError(productError((e as Error).message));
-      setRows([]);
-    }
-  }, []);
+  const gen = useRef({ seq: 0, tenantId: "" });
 
   useEffect(() => {
+    const tenantID = scope.tenantId ?? "";
+    const ticket = { seq: gen.current.seq + 1, tenantId: tenantID };
+    gen.current = ticket;
+    setError("");
+    if (!tenantID) {
+      setRows([]);
+      return;
+    }
     setRows(null);
-    if (scope.tenantId) void load(scope.tenantId);
-    else setRows([]);
-  }, [scope.epoch, scope.tenantId, load]);
+    let cancelled = false;
+    void (async () => {
+      const headers = listTenantHeader(tenantID);
+      if (!headers) {
+        if (!cancelled && acceptLeadRows(gen.current, ticket, []) !== null) setRows([]);
+        return;
+      }
+      try {
+        const [leadRes, contactRes] = await Promise.all([
+          fetch("/api/leads", { headers }),
+          fetch("/api/contacts", { headers }),
+        ]);
+        const leadsBody = await leadRes.json();
+        const contactsBody = await contactRes.json();
+        if (!leadRes.ok) {
+          if (cancelled || acceptLeadRows(gen.current, ticket, []) === null) return;
+          setError(failureText(leadsBody, leadRes.status));
+          setRows([]);
+          return;
+        }
+        const contacts = new Map<string, ContactRow>();
+        if (contactRes.ok) {
+          for (const item of (contactsBody.items ?? []) as ContactRow[]) contacts.set(item.id, item);
+        }
+        const items = ((leadsBody.items ?? []) as LeadRow[]).map((lead) => {
+          const contact = contacts.get(lead.contact_id);
+          return {
+            ...lead,
+            name: contact?.name || "未命名",
+            source: SOURCE_TEXT[contact?.source_type ?? ""] ?? contact?.source_type ?? "未知来源",
+          };
+        });
+        const accepted = acceptLeadRows(gen.current, ticket, items);
+        if (cancelled || accepted === null) return;
+        setRows(accepted);
+      } catch (e) {
+        if (cancelled || acceptLeadRows(gen.current, ticket, []) === null) return;
+        setError(productError((e as Error).message));
+        setRows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scope.epoch, scope.tenantId]);
 
   return (
     <main data-page="leads">

@@ -6,17 +6,21 @@ import { RecordFrame, SurfaceState, WorkbenchChrome } from "@/components/workben
 import {
   MISSING_SCOPE,
   acceptDeskPayload,
+  acceptLeadRows,
   applyWorkTenant,
   chooseScope,
   droppedTenantRows,
   factTone,
   failureText,
+  guardTenantCommit,
   listTenantHeader,
+  nextLeadTicket,
   pagePrimary,
   productError,
   receptionSessionFrame,
   reconcileTenant,
   scopeChoices,
+  runShellWhoami,
   settleWorkTenant,
   shellStructure,
   toneLabel,
@@ -185,6 +189,80 @@ describe("sales workbench shell", () => {
         expect(settlement.persist).toBe(false);
       }
     }
+  });
+
+  it("sends the stored tenant on whoami and hides the preview fixtures after failure", async () => {
+    const fixture = scopeChoices([
+      { tenant_id: "tenant-a", display_name: "客户甲" },
+      { tenant_id: "tenant-b", display_name: "客户乙" },
+    ]);
+    const withReal = scopeChoices([
+      ...fixture,
+      { tenant_id: "tenant-real", display_name: "真实客户" },
+    ]);
+    const confirmed = await runShellWhoami({
+      storedId: "tenant-real",
+      membershipScopes: withReal,
+      fetchImpl: async (_path, init) => {
+        expect(init.headers["x-tenant-id"]).toBe("tenant-real");
+        return { ok: true, body: { tenant_id: "tenant-real" } };
+      },
+    });
+    expect(confirmed.memoryTenantId).toBe("tenant-real");
+    expect(listTenantHeader(confirmed.memoryTenantId)).toEqual({ "x-tenant-id": "tenant-real" });
+    expect(confirmed.storage).toBe("tenant-real");
+    expect(guardTenantCommit(confirmed.switcher, "tenant-real")).toBe("tenant-real");
+
+    const failed = await runShellWhoami({
+      storedId: "not-a-real-id",
+      membershipScopes: fixture,
+      fetchImpl: async (_path, init) => {
+        expect(init.headers["x-tenant-id"] ?? "").not.toBe("tenant-a");
+        return { ok: false, body: {} };
+      },
+    });
+    expect(failed.switcher.map((scope) => scope.tenant_id)).not.toEqual(expect.arrayContaining(["tenant-a", "tenant-b"]));
+    expect(failed.switcher).toEqual([]);
+    expect(guardTenantCommit(failed.switcher, "tenant-a")).toBeNull();
+    expect(guardTenantCommit(failed.switcher, "tenant-b")).toBeNull();
+    expect(failed.memoryTenantId).toBeNull();
+    expect(failed.storage).toBe("not-a-real-id");
+    expect(listTenantHeader(failed.memoryTenantId)).toBeNull();
+    expect(failed.fault).toContain("没有可用的工作范围");
+
+    const denied = await runShellWhoami({
+      storedId: "tenant-real",
+      membershipScopes: fixture,
+      fetchImpl: async () => ({ ok: false, body: {} }),
+    });
+    expect(denied.requestedTenant).toBe("tenant-real");
+    expect(denied.switcher).toEqual([]);
+    expect(denied.storage).toBe("tenant-real");
+    expect(listTenantHeader(denied.memoryTenantId)?.["x-tenant-id"] ?? "").not.toBe("tenant-a");
+  });
+
+  it("drops a late lead list after the tenant switches or clears", async () => {
+    const pending = new Map<string, (rows: { id: string }[]) => void>();
+    const fetchRows = (tenantId: string) =>
+      new Promise<{ id: string }[]>((resolve) => {
+        pending.set(tenantId, resolve);
+      });
+    let active = nextLeadTicket(0, "tenant-a");
+    const ticketA = active;
+    const flightA = fetchRows("tenant-a").then((rows) => acceptLeadRows(active, ticketA, rows));
+    active = nextLeadTicket(active.seq, "tenant-b");
+    const ticketB = active;
+    const flightB = fetchRows("tenant-b").then((rows) => acceptLeadRows(active, ticketB, rows));
+    pending.get("tenant-b")?.([{ id: "lead-b" }]);
+    pending.get("tenant-a")?.([{ id: "lead-a" }]);
+    expect(await flightA).toBeNull();
+    expect(await flightB).toEqual([{ id: "lead-b" }]);
+
+    active = nextLeadTicket(active.seq, "");
+    const flightCleared = fetchRows("tenant-a-late").then((rows) => acceptLeadRows(active, ticketA, rows));
+    pending.get("tenant-a-late")?.([{ id: "lead-a" }]);
+    expect(await flightCleared).toBeNull();
+    expect(acceptLeadRows(active, ticketB, [{ id: "lead-b" }])).toBeNull();
   });
 
   it("drops a late reception desk response and the previous session frame", () => {
