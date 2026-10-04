@@ -396,6 +396,8 @@ func (s *Server) Handler() http.Handler {
 	s.mountOutbound(mux)
 	// HUI-1682 场景内轻文案。默认 off。无模型时生成失败，不发送，不建制作工程。
 	s.mountLightCopy(mux)
+	// HUI-2747 活动动效交出。默认 off。不调用模型，不生成成片，不写创作工程。
+	s.mountCampaignMotion(mux)
 	// HUI-1684 意向分级。默认 off 时整组不注册。
 	s.mountIntentGrade(mux)
 

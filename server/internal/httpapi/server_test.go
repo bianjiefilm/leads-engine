@@ -151,6 +151,7 @@ type harnessOpts struct {
 	featureSOP              bool // FEATURE_SOP_REACH=on (HUI-1689)
 	featureLightCopy        bool // FEATURE_LIGHT_COPY=on (HUI-1682)
 	featureOutbound         bool // FEATURE_OUTBOUND_CALL=on (HUI-1687)
+	featureCampaignMotion   bool // FEATURE_CAMPAIGN_MOTION=on (HUI-2747)
 	omitVisitorPepper       bool // reception routes fail closed without RECEPTION_VISITOR_PEPPER
 	ingestFetchBase         string
 	ingestSecret            string
@@ -261,6 +262,11 @@ func newHarnessOpts(t *testing.T, opts harnessOpts) *harness {
 			return ""
 		case "FEATURE_OUTBOUND_CALL":
 			if opts.featureOutbound {
+				return "on"
+			}
+			return ""
+		case "FEATURE_CAMPAIGN_MOTION":
+			if opts.featureCampaignMotion {
 				return "on"
 			}
 			return ""

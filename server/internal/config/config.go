@@ -102,6 +102,10 @@ const (
 	// On still does not place a call: this process has no phone line, and
 	// production auto-dial stays closed.
 	EnvFeatureOutbound = "FEATURE_OUTBOUND_CALL"
+	// EnvFeatureCampaignMotion gates the leads-side campaign handoff
+	// (HUI-2747). Default off: routes are not registered. On still does not
+	// call a model, render a piece, or write a creative project.
+	EnvFeatureCampaignMotion = "FEATURE_CAMPAIGN_MOTION"
 	// EnvReceptionVisitorPepper HMACs anonymous visitor keys. It is never a
 	// billing secret and never a long-lived presentation token.
 	EnvReceptionVisitorPepper = "RECEPTION_VISITOR_PEPPER"
@@ -219,6 +223,9 @@ type Config struct {
 	// FeatureOutbound mounts HUI-1687 call gates. Default off. There is no
 	// live line, so isolation runs stay simulated and nothing is charged.
 	FeatureOutbound bool
+	// FeatureCampaignMotion mounts the HUI-2747 leads-side handoff.
+	// Default off. This process does not render or send a finished piece.
+	FeatureCampaignMotion bool
 	// VisitorPepper HMACs anonymous reception visitor keys.
 	VisitorPepper string
 	// TaskBaseURL, TaskToken, and TaskAccountID are optional. Reception calls
@@ -326,6 +333,7 @@ func fromEnv(get func(string) string) Config {
 		FeatureSOPReach:            isTruthy(get(EnvFeatureSOPReach)),
 		FeatureLightCopy:           isTruthy(get(EnvFeatureLightCopy)),
 		FeatureOutbound:            isTruthy(get(EnvFeatureOutbound)),
+		FeatureCampaignMotion:      isTruthy(get(EnvFeatureCampaignMotion)),
 		VisitorPepper:              get(EnvReceptionVisitorPepper),
 		TaskBaseURL:                get("PLATFORM_TASK_BASE_URL"),
 		TaskToken:                  get("PLATFORM_TASK_TOKEN"),
@@ -402,6 +410,7 @@ func (c Config) Describe() string {
 		{"sop_reach", c.FeatureSOPReach},
 		{"light_copy", c.FeatureLightCopy},
 		{"outbound_call", c.FeatureOutbound},
+		{"campaign_motion", c.FeatureCampaignMotion},
 	} {
 		v := "off"
 		if f.on {
