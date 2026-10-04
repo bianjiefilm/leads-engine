@@ -14,16 +14,18 @@ type DeskFacts struct {
 	Leads  []workbench.LeadView
 	Opps   []workbench.OpportunityView
 	Desk   []workbench.ReceptionView
+	Drafts []workbench.DraftView
 	Events map[string][]workbench.TimelineEvent
 }
 
 type followSnap struct {
-	contactID string
-	leadID    string
-	note      string
-	next      string
-	done      string
-	createdAt string
+	contactID   string
+	leadID      string
+	note        string
+	next        string
+	done        string
+	createdAt   string
+	disposition string
 }
 
 // LoadDeskFacts reads leads, opportunities, follow-ups, consents, provenance
@@ -65,27 +67,74 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 	if err != nil {
 		return DeskFacts{}, err
 	}
+	drafts, err := s.loadDeskDrafts(tenantID)
+	if err != nil {
+		return DeskFacts{}, err
+	}
 
-	openNext := map[string]string{}
-	completed := map[string]bool{}
+	// Own follow-ups stay on that lead. A blank lead_id is contact-level and
+	// must not pull a still-new lead, or a sibling lead, out of 新咨询.
+	ownOpen := map[string]string{}
+	ownDone := map[string]bool{}
+	ownLatest := map[string]followSnap{}
+	ownAny := map[string]bool{}
+	contactOpen := map[string]string{}
+	contactDone := map[string]bool{}
+	contactLatest := map[string]followSnap{}
+	anyOpen := map[string]string{}
 	for _, f := range follows {
 		if f.done == "" && f.next != "" {
-			if cur, ok := openNext[f.contactID]; !ok || f.next < cur {
-				openNext[f.contactID] = f.next
+			if cur, ok := anyOpen[f.contactID]; !ok || f.next < cur {
+				anyOpen[f.contactID] = f.next
+			}
+		}
+		if f.leadID != "" {
+			ownAny[f.leadID] = true
+			if f.done == "" && f.next != "" {
+				if cur, ok := ownOpen[f.leadID]; !ok || f.next < cur {
+					ownOpen[f.leadID] = f.next
+				}
+			}
+			if f.done != "" {
+				ownDone[f.leadID] = true
+			}
+			if cur, ok := ownLatest[f.leadID]; !ok || f.createdAt >= cur.createdAt {
+				ownLatest[f.leadID] = f
+			}
+			continue
+		}
+		if f.done == "" && f.next != "" {
+			if cur, ok := contactOpen[f.contactID]; !ok || f.next < cur {
+				contactOpen[f.contactID] = f.next
 			}
 		}
 		if f.done != "" {
-			completed[f.contactID] = true
+			contactDone[f.contactID] = true
+		}
+		if cur, ok := contactLatest[f.contactID]; !ok || f.createdAt >= cur.createdAt {
+			contactLatest[f.contactID] = f
 		}
 	}
 	for i := range leads {
 		lead := &leads[i]
 		contactID := lead.ContactID
-		if next, ok := openNext[contactID]; ok {
-			lead.HasOpenFollowUp = true
-			lead.ManualNextAt = next
+		var latest followSnap
+		hasLatest := false
+		if ownAny[lead.ID] {
+			if next, ok := ownOpen[lead.ID]; ok {
+				lead.HasOpenFollowUp = true
+				lead.ManualNextAt = next
+			}
+			lead.HasCompletedFollowUp = ownDone[lead.ID]
+			latest, hasLatest = ownLatest[lead.ID]
+		} else if lead.Status != "new" {
+			if next, ok := contactOpen[contactID]; ok {
+				lead.HasOpenFollowUp = true
+				lead.ManualNextAt = next
+			}
+			lead.HasCompletedFollowUp = contactDone[contactID]
+			latest, hasLatest = contactLatest[contactID]
 		}
-		lead.HasCompletedFollowUp = completed[contactID]
 		applyConsentFacts(lead, consents[contactID])
 		if form, ok := forms[lead.ID]; ok {
 			lead.SourceForm = form.key
@@ -101,12 +150,22 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 		if lead.SourceAt == "" {
 			lead.SourceAt = lead.CreatedAt
 		}
-		if lead.SourceChannel == "" {
+		if lead.SourceType == "touch_campaign" {
+			lead.SourceChannel = "碰一碰"
+		} else if lead.SourceChannel == "" {
 			lead.SourceChannel = sourceChannelLabel(contacts[contactID].sourceType)
+		}
+		if hasLatest {
+			lead.WaitingCustomer = latest.disposition == "waiting_customer" && latest.done != "" && !lead.HasOpenFollowUp
+			lead.LastInteraction = latest.note
+			lead.LastInteractionAt = latest.createdAt
+		} else {
+			lead.LastInteraction = sourceSummary(*lead)
+			lead.LastInteractionAt = lead.SourceAt
 		}
 	}
 	for i := range opps {
-		if _, ok := openNext[opps[i].ContactID]; ok {
+		if _, ok := anyOpen[opps[i].ContactID]; ok {
 			opps[i].HasManualNext = true
 		}
 	}
@@ -156,7 +215,7 @@ func (s *Store) LoadDeskFacts(tenantID string) (DeskFacts, error) {
 		}
 		events[lead.ID] = ev
 	}
-	return DeskFacts{Leads: leads, Opps: opps, Desk: desk, Events: events}, nil
+	return DeskFacts{Leads: leads, Opps: opps, Desk: desk, Drafts: drafts, Events: events}, nil
 }
 
 type contactSnap struct {
@@ -187,7 +246,7 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 	rows, err := s.DB.Query(`
 		SELECT l.id, l.contact_id, l.status, l.filter_reason, COALESCE(l.assigned_member_id,''),
 		       l.created_at, l.updated_at,
-		       c.phone, c.source_type, c.consent_status,
+		       c.name, c.business_category, c.phone, c.source_type, c.consent_status,
 		       COALESCE(sr.source_app,''), COALESCE(sr.source_ref,''), COALESCE(sr.auth_scope_snapshot,''), COALESCE(sr.created_at,''),
 		       COALESCE(m.display_name,'')
 		FROM leads l
@@ -204,12 +263,19 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 	contacts := map[string]contactSnap{}
 	for rows.Next() {
 		var lead workbench.LeadView
-		var phone, sourceType, consent, app, ref, snapshot, refAt string
+		var name, business, phone, sourceType, consent, app, ref, snapshot, refAt string
 		if err := rows.Scan(&lead.ID, &lead.ContactID, &lead.Status, &lead.FilterReason, &lead.Assignee,
-			&lead.CreatedAt, &lead.UpdatedAt, &phone, &sourceType, &consent, &app, &ref, &snapshot, &refAt, &lead.OwnerLabel); err != nil {
+			&lead.CreatedAt, &lead.UpdatedAt, &name, &business, &phone, &sourceType, &consent, &app, &ref, &snapshot, &refAt, &lead.OwnerLabel); err != nil {
 			return nil, nil, err
 		}
 		lead.TenantID = tenantID
+		lead.ContactName = name
+		lead.BusinessCategory = business
+		lead.SourceType = sourceType
+		lead.ConsentStatus = consent
+		if sourceType == "touch_campaign" {
+			lead.SourceChannel = "碰一碰"
+		}
 		lead.SourceSubmission = ref
 		lead.SourceActivity = ref
 		if campaign := campaignRefFromSnapshot(snapshot); campaign != "" {
@@ -229,7 +295,7 @@ func (s *Store) loadDeskLeads(tenantID string) ([]workbench.LeadView, map[string
 
 func (s *Store) loadDeskFollowUps(tenantID string) ([]followSnap, error) {
 	rows, err := s.DB.Query(`
-		SELECT contact_id, COALESCE(lead_id,''), note, COALESCE(next_follow_up_at,''), COALESCE(completed_at,''), created_at
+		SELECT contact_id, COALESCE(lead_id,''), note, COALESCE(next_follow_up_at,''), COALESCE(completed_at,''), created_at, COALESCE(disposition,'')
 		FROM follow_ups WHERE tenant_id=?`, tenantID)
 	if err != nil {
 		return nil, err
@@ -238,7 +304,7 @@ func (s *Store) loadDeskFollowUps(tenantID string) ([]followSnap, error) {
 	var out []followSnap
 	for rows.Next() {
 		var f followSnap
-		if err := rows.Scan(&f.contactID, &f.leadID, &f.note, &f.next, &f.done, &f.createdAt); err != nil {
+		if err := rows.Scan(&f.contactID, &f.leadID, &f.note, &f.next, &f.done, &f.createdAt, &f.disposition); err != nil {
 			return nil, err
 		}
 		out = append(out, f)
@@ -416,6 +482,31 @@ func (s *Store) loadDeskReception(tenantID string) ([]workbench.ReceptionView, e
 		item.TenantID = tenantID
 		item.WaitingReply = item.PendingReason == "waiting_reply" || item.PendingReason == "awaiting_customer"
 		item.HumanTodo = item.Mode == "human" || item.PendingReason == "clarify_or_handoff" || item.PendingReason == "awaiting_approval" || item.PendingReason == "model_unavailable" || item.PendingReason == "human_takeover"
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) loadDeskDrafts(tenantID string) ([]workbench.DraftView, error) {
+	rows, err := s.DB.Query(`
+		SELECT r.id, r.session_id, COALESCE(s.lead_id,''), COALESCE(s.owner_member_id,''),
+		       COALESCE(m.display_name,''), r.kind, r.status, r.body
+		FROM reception_replies r
+		JOIN reception_sessions s ON s.id = r.session_id AND s.tenant_id = r.tenant_id
+		LEFT JOIN members m ON m.id = s.owner_member_id AND m.tenant_id = s.tenant_id
+		WHERE r.tenant_id=? AND s.status='open' AND r.status='generated' AND r.kind IN ('ai','draft')
+		ORDER BY r.created_at, r.id`, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []workbench.DraftView
+	for rows.Next() {
+		var item workbench.DraftView
+		if err := rows.Scan(&item.ID, &item.SessionID, &item.LeadID, &item.Assignee, &item.OwnerLabel, &item.Kind, &item.Status, &item.Body); err != nil {
+			return nil, err
+		}
+		item.TenantID = tenantID
 		out = append(out, item)
 	}
 	return out, rows.Err()

@@ -230,12 +230,12 @@ func TestTimelineHidesPlaintextWithoutPermission(t *testing.T) {
 }
 
 func TestFollowThroughKeyStableAndDistinct(t *testing.T) {
-	a := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1")
-	b := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1")
+	a := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1", "")
+	b := FollowThroughKey("lead_1", "已联系", "2026-09-29T02:00:00Z", "", false, "mem_1", "")
 	if a == "" || a != b {
 		t.Fatalf("same follow-up changed key: %q %q", a, b)
 	}
-	other := FollowThroughKey("lead_1", "另一条", "2026-09-29T02:00:00Z", "", false, "mem_1")
+	other := FollowThroughKey("lead_1", "另一条", "2026-09-29T02:00:00Z", "", false, "mem_1", "")
 	if other == a {
 		t.Fatal("a different note reused the same fact key")
 	}

@@ -225,6 +225,19 @@ button.primary:disabled {
   margin-bottom: 0.75rem;
 }
 
+.stack-form fieldset,
+fieldset.stack-form {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0.75rem 0;
+}
+
+fieldset.stack-form label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .stack-form textarea,
 .stack-form input,
 .stack-form select {

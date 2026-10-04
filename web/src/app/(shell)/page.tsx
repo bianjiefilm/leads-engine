@@ -1,27 +1,39 @@
 "use client";
 
+// 获客唯一首页：today-next。HUI-2626 只换这一页的视觉外壳，不要另做首页。
+
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import {
-  BUCKETS,
-  BUCKET_LABELS,
-  acceptDesk,
+  HOME_SURFACE,
+  NARROW_ACTIONS,
+  TODAY_GROUPS,
+  TODAY_LABELS,
+  acceptToday,
   allowedContactText,
   billingCaption,
-  centsText,
   jointChainLine,
   modelAdviceLine,
+  centsText,
   moneyView,
+  followNote,
+  questionsFor,
+  recallToday,
+  reviseBody,
   receptionFactLine,
+  rememberToday,
+  todaySaveReady,
   renderLeadFacts,
   scopeCaption,
   serviceDraftClick,
   serviceDraftControl,
   visibleOutreach,
-  type BucketKey,
   type DeskItem,
   type MoneyFacts,
+  type TodayDraft,
+  type TodayGroup,
+  type TodayMemory,
 } from "@/lib/workbench";
 
 interface JointChain {
@@ -31,7 +43,7 @@ interface JointChain {
 
 interface DeskResponse {
   scope?: string;
-  buckets?: Partial<Record<BucketKey, DeskItem[]>>;
+  today?: Partial<Record<TodayGroup, DeskItem[]>>;
   money?: MoneyFacts;
   billing?: { ordinary_crm_charge_cents?: number };
   automation?: { auto_call?: boolean; auto_message?: boolean; create_order?: boolean };
@@ -47,27 +59,65 @@ const EMPTY_MONEY: MoneyFacts = {
   platform_tool_spend_cents: null,
 };
 
+const MEMORY_KEY = "leads_today_memory";
+
+function emptyDraft(): TodayDraft {
+  return { note: "", nextAt: "", disposition: "next", changed: [] };
+}
+
+function readMemory(): TodayMemory {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(MEMORY_KEY);
+    return raw ? (JSON.parse(raw) as TodayMemory) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeMemory(memory: TodayMemory) {
+  window.localStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
+}
+
 export default function Home() {
   const scope = useCrmScope();
   const [tenant, setTenant] = useState("");
   const [reload, setReload] = useState(0);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
-  const [buckets, setBuckets] = useState<Record<BucketKey, DeskItem[]> | null>(null);
+  const [groups, setGroups] = useState<Record<TodayGroup, DeskItem[]> | null>(null);
   const [money, setMoney] = useState<MoneyFacts>(EMPTY_MONEY);
   const [scopeLabel, setScopeLabel] = useState("");
   const [jointChain, setJointChain] = useState<JointChain | null>(null);
   const [err, setErr] = useState("");
   const [draftMsg, setDraftMsg] = useState("");
+  const [focusId, setFocusId] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, TodayDraft>>({});
+  const appliedTenant = useRef<string | null>(null);
+
+  useEffect(() => {
+    const restored = recallToday(readMemory(), scope.tenantId);
+    setDrafts(restored.drafts);
+    setFocusId(restored.focusId);
+    appliedTenant.current = null;
+  }, [scope.tenantId]);
+
+  useEffect(() => {
+    if (!todaySaveReady(appliedTenant.current, scope.tenantId)) {
+      appliedTenant.current = scope.tenantId ?? null;
+      return;
+    }
+    writeMemory(rememberToday(readMemory(), scope.tenantId ?? "", focusId, drafts));
+  }, [scope.tenantId, focusId, drafts]);
 
   useEffect(() => {
     setTenant(scope.tenantId ?? "");
     setLoadedFor(null);
-    setBuckets(null);
+    setGroups(null);
     setMoney(EMPTY_MONEY);
     setJointChain(null);
     if (!scope.tenantId) {
       setErr("先填写当前租户");
-      setBuckets(acceptDesk(null, null));
+      setGroups(acceptToday(null, null));
       setLoadedFor("");
       return;
     }
@@ -79,14 +129,14 @@ export default function Home() {
         if (cancelled) return;
         if (!res.ok) {
           setErr(body.message ?? body.error ?? `HTTP ${res.status}`);
-          setBuckets(acceptDesk(tenantId, null));
+          setGroups(acceptToday(tenantId, null));
           setJointChain(body.joint_chain ?? null);
           setLoadedFor(tenantId);
           return;
         }
         setErr("");
         setScopeLabel(scopeCaption(body.scope));
-        setBuckets(acceptDesk(tenantId, body.buckets ?? null));
+        setGroups(acceptToday(tenantId, body.today ?? null));
         setMoney(body.money ?? EMPTY_MONEY);
         setJointChain(body.joint_chain ?? null);
         setLoadedFor(tenantId);
@@ -99,12 +149,95 @@ export default function Home() {
     };
   }, [scope.epoch, scope.tenantId, reload]);
 
-  const visible = loadedFor === (scope.tenantId ?? "") ? buckets : null;
+  const visible = loadedFor === (scope.tenantId ?? "") ? groups : null;
   const lines = moneyView(visible ? money : EMPTY_MONEY);
 
+  useEffect(() => {
+    if (!focusId || !visible) return;
+    document.getElementById(`today-item-${focusId}`)?.scrollIntoView({ block: "center" });
+  }, [focusId, visible]);
+
+  function draftFor(id: string): TodayDraft {
+    return drafts[id] ?? emptyDraft();
+  }
+
+  function updateDraft(id: string, patch: Partial<TodayDraft>) {
+    setFocusId(id);
+    setDrafts((current) => ({ ...current, [id]: { ...draftFor(id), ...current[id], ...patch } }));
+  }
+
+  async function submitFollow(item: DeskItem, mode: "note" | "schedule") {
+    if (!scope.tenantId || !item.lead_id) return;
+    const draft = draftFor(item.id);
+    const note = followNote(draft.note);
+    if (!note) return;
+    if (mode === "schedule" && !draft.nextAt) return;
+    setDraftMsg("");
+    const waiting = mode === "note" && draft.disposition === "waiting_customer";
+    const payload: Record<string, unknown> = {
+      note,
+      complete: true,
+      disposition: waiting ? "waiting_customer" : "next",
+    };
+    if (!waiting && draft.nextAt) {
+      payload.next_follow_up_at = new Date(draft.nextAt).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+    const res = await fetch(`/api/leads/${item.lead_id}/follow-through`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      body: JSON.stringify(payload),
+    });
+    const out = await res.json();
+    if (!res.ok) {
+      setDraftMsg(out.message ?? out.error ?? `HTTP ${res.status}`);
+      return;
+    }
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setDraftMsg(out.today_group === "scheduled_next" ? "已安排下一步，不在今天的待办里" : (out.next?.label ?? "已记下"));
+    setReload((n) => n + 1);
+  }
+
+  async function reviseDraft(item: DeskItem) {
+    if (!scope.tenantId) return;
+    const body = reviseBody(draftFor(item.id).draftBody, item.draft_body).trim();
+    if (!body) return;
+    const res = await fetch(`/api/workbench/drafts/${item.id}/revise`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      body: JSON.stringify({ body }),
+    });
+    const out = await res.json();
+    if (!res.ok || out.sent === true) {
+      setDraftMsg(out.message ?? out.error ?? "没有修改");
+      return;
+    }
+    setDraftMsg("草稿已修改，尚未发送");
+    setReload((n) => n + 1);
+  }
+
+  async function ignoreDraft(item: DeskItem) {
+    if (!scope.tenantId) return;
+    const res = await fetch(`/api/workbench/drafts/${item.id}/ignore`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+      body: JSON.stringify({}),
+    });
+    const out = await res.json();
+    if (!res.ok || out.sent === true) {
+      setDraftMsg(out.message ?? out.error ?? "没有忽略");
+      return;
+    }
+    setDraftMsg("已忽略草稿，没有发送");
+    setReload((n) => n + 1);
+  }
+
   return (
-    <main>
-      <h1>我的工作</h1>
+    <main data-today-home={HOME_SURFACE}>
+      <h1>今天要完成的客户工作</h1>
       <p>
         <Link href="/channel-interactions">授权互动</Link>
         {" · "}
@@ -123,14 +256,14 @@ export default function Home() {
             const value = tenant.trim();
             if (!value) {
               setErr("先填写当前租户");
-              setBuckets(null);
+              setGroups(null);
               setLoadedFor(null);
               setJointChain(null);
               return;
             }
             if (value === scope.tenantId) {
               setLoadedFor(null);
-              setBuckets(null);
+              setGroups(null);
               setMoney(EMPTY_MONEY);
               setJointChain(null);
               setReload((n) => n + 1);
@@ -163,52 +296,28 @@ export default function Home() {
       {visible === null ? (
         <p className="muted">加载中…</p>
       ) : (
-        BUCKETS.map((key) => (
+        TODAY_GROUPS.map((key) => (
           <section className="card" key={key}>
             <h2>
-              {BUCKET_LABELS[key]}（{visible[key].length}）
+              {TODAY_LABELS[key]}（{visible[key].length}）
             </h2>
             {visible[key].length === 0 ? (
               <p className="muted">没有待办。</p>
             ) : (
               <ul className="desk-list">
-                {visible[key].map((item) => {
-                  const draft = serviceDraftControl(item.service_draft);
-                  const facts = renderLeadFacts(item, jointChain);
-                  const outreach = visibleOutreach(item.outreach_notice);
-                  const receptionLine = receptionFactLine(item);
-                  return (
-                  <li key={`${key}-${item.id}`}>
-                    {item.kind === "reception" ? (
-                      <p data-reception-fact="owner">{receptionLine}</p>
-                    ) : (
-                      <>
-                        <p>来源：{facts.source}</p>
-                        <p>负责人：{facts.owner}</p>
-                        <p>状态：{facts.state}</p>
-                        <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
-                        <p>下一步：{facts.next}</p>
-                        <p>{facts.sync}</p>
-                      </>
-                    )}
-                    <p data-joint-chain="incomplete">{facts.chain}</p>
-                    {outreach ? <p className="muted">{outreach}</p> : null}
-                    <p className="muted">{modelAdviceLine()}</p>
-                    {item.reason && item.kind !== "reception" ? <p className="muted">{item.reason}</p> : null}
-                    <div className="queue-actions">
-                      {item.kind === "reception" ? <Link href="/reception">打开接待</Link> : null}
-                      {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action="查看新线索">查看新线索</Link> : null}
-                      {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
-                      {draft.present ? (
-                        <button type="button" disabled={!draft.enabled} onClick={() => setDraftMsg(serviceDraftClick().message)}>
-                          创建服务需求草稿
-                        </button>
-                      ) : null}
-                    </div>
-                    {draft.present && !draft.enabled ? <p className="muted">{draft.reason}</p> : null}
-                  </li>
-                  );
-                })}
+                {visible[key].map((item) => (
+                  <TodayRow
+                    key={`${key}-${item.id}`}
+                    item={item}
+                    jointChain={jointChain}
+                    draft={draftFor(item.id)}
+                    onDraft={(patch) => updateDraft(item.id, patch)}
+                    onFollow={(mode) => void submitFollow(item, mode)}
+                    onRevise={() => void reviseDraft(item)}
+                    onIgnore={() => void ignoreDraft(item)}
+                    onService={() => setDraftMsg(serviceDraftClick().message)}
+                  />
+                ))}
               </ul>
             )}
           </section>
@@ -220,5 +329,126 @@ export default function Home() {
         <Link href="/isolation">租户隔离与导出</Link>
       </p>
     </main>
+  );
+}
+
+function TodayRow({
+  item,
+  jointChain,
+  draft,
+  onDraft,
+  onFollow,
+  onRevise,
+  onIgnore,
+  onService,
+}: {
+  item: DeskItem;
+  jointChain: JointChain | null;
+  draft: TodayDraft;
+  onDraft: (patch: Partial<TodayDraft>) => void;
+  onFollow: (mode: "note" | "schedule") => void;
+  onRevise: () => void;
+  onIgnore: () => void;
+  onService: () => void;
+}) {
+  const facts = renderLeadFacts(item, jointChain);
+  const outreach = visibleOutreach(item.outreach_notice);
+  const receptionLine = receptionFactLine(item);
+  const service = serviceDraftControl(item.service_draft);
+  const confirmed = item.context?.facts ?? [];
+  const questions = questionsFor(confirmed, item.context?.ask ?? item.ask ?? [], []);
+  return (
+    <li id={`today-item-${item.id}`}>
+      {item.kind === "reception" ? <p data-reception-fact="owner">{receptionLine}</p> : null}
+      <p>来源：{facts.source}</p>
+      <p>已确认：{item.context?.customer || "客户未记录"}{item.context?.business ? ` · ${item.context.business}` : ""}{confirmed.length ? ` · ${confirmed.join("、")}` : ""}</p>
+      <p>负责人：{facts.owner}</p>
+      <p>状态：{facts.state}</p>
+      <p>允许的联系方式：{allowedContactText(item.allowed_contacts)}</p>
+      <p>最近一次互动：{item.last_interaction?.summary || "还没有互动"}{item.last_interaction?.at ? ` · ${item.last_interaction.at}` : ""}</p>
+      <p>下一步：{facts.next}</p>
+      <p className="muted">{item.basis || modelAdviceLine()}</p>
+      <p>{facts.sync}</p>
+      <p data-joint-chain="incomplete">{facts.chain}</p>
+      {outreach ? <p className="muted">{outreach}</p> : null}
+      <p className="muted">{modelAdviceLine()}</p>
+      {item.reason && item.kind !== "reception" ? <p className="muted">{item.reason}</p> : null}
+      {questions.length > 0 ? <p>待补充：{questions.join("、")}</p> : null}
+      {item.kind === "ai_draft" ? <p>草稿：{item.draft_body || "未记录"}</p> : null}
+      <div className="queue-actions">
+        {item.kind === "reception" && !item.lead_id ? (
+          <Link href="/reception">打开接待，本屏尚未完成这一步</Link>
+        ) : item.kind === "reception" || item.session_id ? (
+          <Link href="/reception">打开接待</Link>
+        ) : null}
+        {item.lead_id ? <Link href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link> : null}
+        {item.opportunity_id ? <Link href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
+        {service.present ? (
+          <button type="button" disabled={!service.enabled} onClick={onService}>
+            创建服务需求草稿
+          </button>
+        ) : null}
+      </div>
+      {service.present && !service.enabled ? <p className="muted">{service.reason}</p> : null}
+      {item.lead_id ? (
+        <form
+          className="stack-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onFollow(draft.disposition === "waiting_customer" ? "note" : "schedule");
+          }}
+        >
+          <label>
+            记录
+            <textarea
+              value={draft.note}
+              placeholder={item.next?.label || "这次跟进了什么"}
+              onFocus={() => onDraft({})}
+              onChange={(e) => onDraft({ note: e.target.value })}
+            />
+          </label>
+          <label>
+            处理
+            <select
+              value={draft.disposition}
+              onChange={(e) => onDraft({ disposition: e.target.value as TodayDraft["disposition"] })}
+            >
+              <option value="next">安排下一步</option>
+              <option value="waiting_customer">等待客户</option>
+            </select>
+          </label>
+          <label>
+            下一次（北京时间）
+            <input type="datetime-local" value={draft.nextAt} onChange={(e) => onDraft({ nextAt: e.target.value })} />
+          </label>
+          <div className="queue-actions">
+            <button className="primary" type="button" data-desk-action={NARROW_ACTIONS[1]} disabled={!draft.note.trim()} onClick={() => onFollow("note")}>
+              {NARROW_ACTIONS[1]}
+            </button>
+            <button className="primary" type="button" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
+              {NARROW_ACTIONS[2]}
+            </button>
+          </div>
+        </form>
+      ) : null}
+      {item.kind === "ai_draft" ? (
+        <form
+          className="stack-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onRevise();
+          }}
+        >
+          <label>
+            修改草稿
+            <textarea value={reviseBody(draft.draftBody, item.draft_body)} onChange={(e) => onDraft({ draftBody: e.target.value })} placeholder="改成要保留的措辞" />
+          </label>
+          <div className="queue-actions">
+            <button className="primary" type="submit">保存修改</button>
+            <button type="button" onClick={onIgnore}>忽略</button>
+          </div>
+        </form>
+      ) : null}
+    </li>
   );
 }

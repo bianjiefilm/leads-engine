@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { emptyCrmCache, rememberRows, switchCrmTenant, visibleRows } from "@/lib/eco-nav/crm-scope";
 import {
@@ -22,6 +22,16 @@ import {
   statusLine,
   syncLine,
   visibleOutreach,
+  HOME_SURFACE,
+  TODAY_GROUPS,
+  TODAY_LABELS,
+  acceptToday,
+  questionsFor,
+  rememberToday,
+  recallToday,
+  todaySaveReady,
+  followNote,
+  reviseBody,
 } from "@/lib/workbench";
 import fixture from "./fixtures/hui-1893-local-lead.json";
 
@@ -209,5 +219,84 @@ describe("sales desk", () => {
     expect(desk).toContain("自动触达已成功");
     expect(desk).toContain("销售已收到");
     expect(desk).toContain("白标经营链");
+  });
+
+  it("uses one today surface and drops the other tenant's work", () => {
+    expect(HOME_SURFACE).toBe("today-next");
+    expect([...TODAY_GROUPS]).toEqual([
+      "new_inquiry",
+      "due_today",
+      "waiting_customer",
+      "overdue",
+      "ai_draft",
+      "human_takeover",
+      "info_or_permission",
+    ]);
+    expect(TODAY_LABELS.new_inquiry).toBe("新咨询待处理");
+    expect(TODAY_LABELS.due_today).toBe("今天应跟进");
+    expect(TODAY_LABELS.waiting_customer).toBe("等待客户");
+    expect(TODAY_LABELS.overdue).toBe("逾期");
+    expect(TODAY_LABELS.ai_draft).toBe("AI 草稿待确认");
+    expect(TODAY_LABELS.human_takeover).toBe("需要人工接管的会话");
+    expect(TODAY_LABELS.info_or_permission).toBe("信息缺失或权限异常");
+    const kept = acceptToday("tnt_B", {
+      new_inquiry: [
+        { id: "lead_a", tenant_id: "tnt_A", kind: "lead", lead_id: "lead_a" },
+        { id: "lead_b", tenant_id: "tnt_B", kind: "lead", lead_id: "lead_b" },
+      ],
+    });
+    expect(kept.new_inquiry.map((row) => row.id)).toEqual(["lead_b"]);
+    expect(kept.due_today).toEqual([]);
+    expect(kept.waiting_customer).toEqual([]);
+  });
+
+  it("reuses confirmed facts and restores only the current tenant draft", () => {
+    expect(questionsFor(["客户姓名", "来源"], ["联系许可"], [])).toEqual(["联系许可"]);
+    expect(questionsFor(["客户姓名", "来源"], ["联系许可"], ["客户姓名", "客户姓名"])).toEqual(["客户姓名"]);
+    expect(questionsFor(["客户姓名"], [], ["不存在"])).toEqual([]);
+    let memory = rememberToday({}, "tnt_A", "lead_a", {
+      lead_a: { note: "未提交草稿", nextAt: "2026-10-04T15:00", disposition: "waiting_customer", changed: ["客户姓名"] },
+    });
+    memory = rememberToday(memory, "tnt_B", "lead_b", {
+      lead_b: { note: "乙的草稿", nextAt: "", disposition: "next", changed: [] },
+    });
+    expect(recallToday(memory, "tnt_B")).toEqual({
+      focusId: "lead_b",
+      drafts: { lead_b: { note: "乙的草稿", nextAt: "", disposition: "next", changed: [] } },
+    });
+    expect(recallToday(memory, "tnt_A").drafts.lead_a.note).toBe("未提交草稿");
+    expect(recallToday(memory, "tnt_A").focusId).toBe("lead_a");
+    expect(recallToday(null, "tnt_A")).toEqual({ focusId: "", drafts: {} });
+    expect(todaySaveReady(null, "tnt_B")).toBe(false);
+    expect(todaySaveReady("tnt_A", "tnt_B")).toBe(false);
+    expect(todaySaveReady("tnt_B", "tnt_B")).toBe(true);
+    expect(todaySaveReady("tnt_B", null)).toBe(false);
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    expect(home).toContain(HOME_SURFACE);
+    expect(home).toContain("TODAY_GROUPS");
+    expect(home).toContain("follow-through");
+    expect(home).toContain("questionsFor");
+    expect(home).toContain("recallToday");
+    expect(home).toContain("todaySaveReady");
+    expect(home).toContain("data-today-home");
+    expect(home).not.toContain("自动触达已成功");
+    expect(existsSync("src/app/(shell)/today/page.tsx")).toBe(false);
+    expect(existsSync("src/app/today/page.tsx")).toBe(false);
+    expect(existsSync("src/app/page.tsx")).toBe(false);
+  });
+
+  it("keeps a follow-up note out of the draft revise body", () => {
+    const generated = "请确认这段回复";
+    const note = "跟进备注不要进草稿";
+    expect(reviseBody(undefined, generated)).toBe(generated);
+    expect(reviseBody("改过的草稿", generated)).toBe("改过的草稿");
+    expect(reviseBody(undefined, generated)).not.toBe(note);
+    expect(followNote(note)).toBe(note);
+    expect(reviseBody("改过的草稿", generated)).not.toBe(followNote(note));
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    expect(home).toContain("reviseBody");
+    expect(home).toContain("followNote");
+    expect(home).not.toContain("只改变化项");
+    expect(home).not.toMatch(/修改草稿[\s\S]*value=\{draft\.note\}/);
   });
 });

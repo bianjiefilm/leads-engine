@@ -143,6 +143,33 @@ func scanFollowUpScoped(row *sql.Row) (FollowUp, string, error) {
 	return f, scope.String, nil
 }
 
+// SetFollowUpDisposition marks a stored follow-up as waiting on the customer
+// or as an ordinary next step. It does not send anything.
+func (s *Store) SetFollowUpDisposition(tenantID, id, disposition string) error {
+	switch disposition {
+	case "", "next", "waiting_customer":
+	default:
+		return errors.New("follow-up disposition must be empty, next, or waiting_customer")
+	}
+	if disposition == "next" {
+		disposition = ""
+	}
+	res, err := s.DB.Exec(
+		`UPDATE follow_ups SET disposition=?, updated_at=? WHERE tenant_id=? AND id=?`,
+		disposition, now(), tenantID, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // FollowUpPatch carries optional field updates; nil leaves the field unchanged.
 type FollowUpPatch struct {
 	Note *string
