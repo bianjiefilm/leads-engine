@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { failureText } from "@/lib/productShell";
 import { draftStatus, presentLightCopy, type LightCapability } from "@/lib/lightCopy";
 
 interface DraftRow {
@@ -104,7 +105,7 @@ export function LightCopyPanel({
       }));
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data.message ?? data.error ?? `HTTP ${res.status}`);
+        setMessage(failureText(data, res.status));
         return data;
       }
       return data;

@@ -2,34 +2,32 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi";
 
 // HUI-1696 来源链与费用复算页。只打本站 BFF。页面不保存第二份线索或费用。
 
 export default function AttributionPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState(scope.tenantId ?? "");
+  const tenantId = scope.tenantId ?? "";
   const [raw, setRaw] = useState("");
   const [report, setReport] = useState<RoiReport | null>(null);
   const [err, setErr] = useState("");
   const view = presentRoi(report);
 
   async function recalculate() {
-    const tenantId = tenant.trim();
     if (!tenantId) {
-      setErr("先填写当前租户");
+      setErr(MISSING_SCOPE);
       setReport(null);
       return;
-    }
-    if (tenantId !== scope.tenantId) {
-      commitCrmTenant(tenantId);
     }
     let body: unknown;
     try {
       body = raw.trim() ? JSON.parse(raw) : {};
     } catch {
-      setErr("引用需要是 JSON");
+      setErr("引用没有读成可复算的记录。");
       setReport(null);
       return;
     }
@@ -42,44 +40,40 @@ export default function AttributionPage() {
     const data = (await res.json().catch(() => ({}))) as RoiReport & { message?: string; error?: string };
     if (!res.ok) {
       setReport(null);
-      setErr(data.message ?? data.error ?? `HTTP ${res.status}`);
+      setErr(failureText(data, res.status));
       return;
     }
     setReport(data);
   }
 
   return (
-    <main>
-      <h1>来源与费用复算</h1>
-      <p className="muted">
-        <Link href="/">返回工作台</Link>
-      </p>
+    <main data-page="attribution">
+      <header className="page-head">
+        <h1>来源与费用复算</h1>
+        <Link className="btn" href="/">返回工作台</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p>{view.disclaimer}</p>
         <p className="muted">{view.funnelReuse}</p>
         <p className="muted">当前状态：{STATUS_LABELS[view.roiStatus] ?? view.roiStatus}。这不是营销提升证明。</p>
       </div>
       <div className="card">
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>
         <p>
           <label>
-            引用 JSON
+            来源、事件与费用引用
             <textarea
               value={raw}
               onChange={(e) => setRaw(e.target.value)}
               rows={8}
-              style={{ display: "block", width: "100%", marginTop: "0.4rem" }}
-              placeholder="粘贴来源链、事件、费用与收入引用"
+              placeholder="写下来源、事件、费用和收入引用"
             />
           </label>
         </p>
-        <button type="button" onClick={() => void recalculate()}>
-          复算
+        <button className="primary" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
+          {pagePrimary("attribution")}
         </button>
-        {err ? <p className="muted">{err}</p> : null}
+        {err ? <SurfaceState kind="error" title="没有复算出来" detail={productError(err)} /> : null}
       </div>
       <div className="card">
         <h2>收入分开看</h2>

@@ -13,7 +13,9 @@ import {
   type ConsentSummary,
   type FollowupRow,
 } from "@/lib/contact";
+import { SurfaceState } from "@/components/workbench/chrome";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 
 // 客户档案详情(HUI-1691 / FEAT-0192):基本信息/联系方式/标签/备注、
 // consent 来源明细(每来源独立可查、独立撤销,撤销后显示「已撤销(不可恢复)」,
@@ -78,7 +80,7 @@ export default function ContactDetailPage() {
       if (whoRes.ok) setMe(await whoRes.json());
       const cBody = await cRes.json();
       if (!cRes.ok) {
-        setMsg(cBody.message ?? `HTTP ${cRes.status}`);
+        setMsg(failureText(cBody, cRes.status));
         setContact(null);
         return;
       }
@@ -118,7 +120,7 @@ export default function ContactDetailPage() {
       }));
       const b = await res.json();
       if (!res.ok) {
-        setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);
+        setMsg(failureText(b, res.status));
         return;
       }
       await load();
@@ -140,7 +142,7 @@ export default function ContactDetailPage() {
       }));
       const b = await res.json();
       if (!res.ok) {
-        setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);
+        setMsg(failureText(b, res.status));
         return;
       }
       setMsg("档案已更新");
@@ -159,7 +161,7 @@ export default function ContactDetailPage() {
       const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId, { method: "DELETE" }));
       const b = await res.json();
       if (!res.ok) {
-        setMsg(b.message ?? b.error ?? `HTTP ${res.status}`);
+        setMsg(failureText(b, res.status));
         return;
       }
       setMsg("已删除(软删除:档案脱敏,授权/跟进记录保留审计)");
@@ -171,7 +173,20 @@ export default function ContactDetailPage() {
     }
   };
 
-  if (!contact && !msg) return <main><p className="muted">加载中…</p></main>;
+  if (!scope.tenantId) {
+    return (
+      <main data-page="contact-detail">
+        <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} />
+      </main>
+    );
+  }
+  if (!contact && !msg) {
+    return (
+      <main data-page="contact-detail">
+        <SurfaceState kind="loading" title="正在打开档案" detail="联系方式、授权和跟进马上就位。" />
+      </main>
+    );
+  }
   if (!contact) {
     return (
       <main>
@@ -220,7 +235,7 @@ export default function ContactDetailPage() {
           </div>
           <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="备注" />
           <div>
-            <button disabled={busy} onClick={patchProfile}>保存修改</button>{" "}
+            <button className="primary" type="button" data-page-primary="true" disabled={busy} onClick={patchProfile}>{pagePrimary("contact-detail")}</button>{" "}
             <button disabled={busy} onClick={() => post("/revoke-marketing", { reason: "商家在档案页停止营销" })}>
               停止营销(撤销全部来源授权)
             </button>

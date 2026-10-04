@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import {
   NARROW_ACTIONS,
   allowedContactText,
@@ -67,7 +69,7 @@ export default function LeadDeskPage() {
     setLoadedFor("");
     setErr("");
     if (!scope.tenantId || !id) {
-      setErr("先填写当前租户");
+      setErr("");
       return;
     }
     const tenantId = scope.tenantId;
@@ -77,7 +79,7 @@ export default function LeadDeskPage() {
         const payload = (await res.json()) as TimelineResponse;
         if (cancelled) return;
         if (!res.ok) {
-          setErr(payload.message ?? payload.error ?? `HTTP ${res.status}`);
+          setErr(failureText(payload, res.status));
           setBody(null);
           setLoadedFor(tenantId);
           return;
@@ -86,13 +88,14 @@ export default function LeadDeskPage() {
         setLoadedFor(tenantId);
       })
       .catch((e: Error) => {
-        if (!cancelled) setErr(e.message);
+        if (!cancelled) setErr(productError(e.message));
       });
     return () => {
       cancelled = true;
     };
   }, [scope.epoch, scope.tenantId, id]);
 
+  const width = useShellWidth();
   const visible = loadedFor === scope.tenantId ? body : null;
   const channel = visible?.next?.kind === "channel_follow_up";
 
@@ -112,7 +115,7 @@ export default function LeadDeskPage() {
       });
       const out = await res.json();
       if (!res.ok) {
-        setMsg(out.message ?? out.error ?? `HTTP ${res.status}`);
+        setMsg(failureText(out, res.status));
         return;
       }
       setNote("");
@@ -124,37 +127,44 @@ export default function LeadDeskPage() {
       if (again.ok) setBody(nextBody);
       setLoadedFor(scope.tenantId);
     } catch (e) {
-      setMsg((e as Error).message);
+      setMsg(productError((e as Error).message));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main>
-      <p>
-        <Link href="/">返回工作台</Link>
-      </p>
-      <h1>线索</h1>
-      {err ? <p className="muted">{err}</p> : null}
-      {visible === null && !err ? <p className="muted">加载中…</p> : null}
+    <main data-page="lead-detail">
+      <header className="page-head">
+        <h1>线索</h1>
+        <Link className="btn" href="/">返回工作台</Link>
+      </header>
+      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {err ? <SurfaceState kind="error" title="这条线索没有打开" detail={err} /> : null}
+      {scope.tenantId && visible === null && !err ? <SurfaceState kind="loading" title="正在打开线索" detail="来源、负责人和下一步马上就位。" /> : null}
       {visible ? (
         <>
-          <div className="card">
-            <p>来源：{sourceText(visible.source)}</p>
-            <p>负责人：{ownerLine(visible.owner_label, visible.assignment_reason)}</p>
-            <p>允许的联系方式：{allowedContactText(visible.allowed_contacts)}</p>
-            <p>状态：{deskState(visible.statuses, visible.sync)}</p>
-            <p>{syncLine(visible.sync)}</p>
+          <RecordFrame
+            width={width}
+            tone="human"
+            title="这条线索"
+            facts={[
+              { label: "来源", value: sourceText(visible.source) },
+              { label: "负责人", value: ownerLine(visible.owner_label, visible.assignment_reason) },
+              { label: "允许的联系方式", value: allowedContactText(visible.allowed_contacts) },
+              { label: "状态", value: `状态：${deskState(visible.statuses, visible.sync)}` },
+              { label: "同步", value: syncLine(visible.sync) },
+              { label: "下一步", value: nextLine(visible.next) },
+              { label: "建议", value: modelAdviceLine() },
+              ...(visibleOutreach(visible.outreach_notice) ? [{ label: "触达", value: visibleOutreach(visible.outreach_notice) }] : []),
+              ...(visible.next?.at ? [{ label: "时间", value: visible.next.at }] : []),
+            ]}
+          >
             <p data-joint-chain="incomplete">{jointChainLine(visible.joint_chain)}</p>
-            {visibleOutreach(visible.outreach_notice) ? <p className="muted">{visibleOutreach(visible.outreach_notice)}</p> : null}
-            <p>下一步：{nextLine(visible.next)}</p>
-            <p className="muted">{modelAdviceLine()}</p>
-            {visible.next?.at ? <p className="muted">时间 {visible.next.at}</p> : null}
-          </div>
+          </RecordFrame>
           <div className="card">
             <h2>时间线</h2>
-            {(visible.events ?? []).length === 0 ? <p className="muted">还没有记录。</p> : null}
+            {(visible.events ?? []).length === 0 ? <SurfaceState kind="empty" title="还没有记录" detail="记一次跟进后，时间线会出现在这里。" /> : null}
             <ol className="desk-list">
               {(visible.events ?? []).map((event, index) => (
                 <li key={`${event.kind}-${event.at}-${index}`}>
@@ -185,15 +195,15 @@ export default function LeadDeskPage() {
               <input type="datetime-local" value={nextAt} onChange={(e) => setNextAt(e.target.value)} />
             </label>
             <div className="queue-actions">
-              <Link href={`/leads/${id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
-              <button className="primary" type="submit" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
-                {NARROW_ACTIONS[1]}
+              <Link className="btn" href={`/leads/${id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
+              <button className="primary" type="submit" data-page-primary="true" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
+                {pagePrimary("lead-detail")}
               </button>
-              <button className="primary" type="submit" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
+              <button className="btn" type="submit" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
                 {NARROW_ACTIONS[2]}
               </button>
               {channel ? (
-                <button className="primary" type="button" disabled={busy || !note.trim() || !nextAt} onClick={() => void submit(true)}>
+                <button className="btn" type="button" disabled={busy || !note.trim() || !nextAt} onClick={() => void submit(true)}>
                   安排渠道内跟进
                 </button>
               ) : null}

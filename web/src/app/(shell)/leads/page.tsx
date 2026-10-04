@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 
 // 原生线索页（HUI-1680）。只打本站 BFF。租户由工作区选择，服务端再校验成员身份。
 // 未分配的线索明确写「待分配」，不把空负责人伪装成已分派。
@@ -38,7 +40,7 @@ const STATUS_TEXT: Record<string, string> = {
 
 export default function LeadsPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const width = useShellWidth();
   const [rows, setRows] = useState<Array<LeadRow & { name: string; source: string }> | null>(null);
   const [error, setError] = useState("");
 
@@ -47,7 +49,6 @@ export default function LeadsPage() {
     setRows(null);
     if (!tenantID.trim()) {
       setRows([]);
-      setError("先填写当前租户");
       return;
     }
     const headers = { "x-tenant-id": tenantID.trim() };
@@ -59,7 +60,7 @@ export default function LeadsPage() {
       const leadsBody = await leadRes.json();
       const contactsBody = await contactRes.json();
       if (!leadRes.ok) {
-        setError(leadsBody.message ?? leadsBody.error ?? `HTTP ${leadRes.status}`);
+        setError(failureText(leadsBody, leadRes.status));
         setRows([]);
         return;
       }
@@ -79,77 +80,49 @@ export default function LeadsPage() {
       });
       setRows(items);
     } catch (e) {
-      setError((e as Error).message);
+      setError(productError((e as Error).message));
       setRows([]);
     }
   }, []);
 
   useEffect(() => {
     setRows(null);
-    setTenant(scope.tenantId ?? "");
-    if (scope.tenantId) load(scope.tenantId);
-    else {
-      setRows([]);
-      setError("先填写当前租户");
-    }
+    if (scope.tenantId) void load(scope.tenantId);
+    else setRows([]);
   }, [scope.epoch, scope.tenantId, load]);
 
-  const saveTenant = () => {
-    const value = tenant.trim();
-    if (!value) {
-      setError("先填写当前租户");
-      setRows([]);
-      return;
-    }
-    if (value === scope.tenantId) load(value);
-    else commitCrmTenant(value);
-  };
-
   return (
-    <main>
-      <p>
-        <Link href="/">返回工作台</Link>
-      </p>
-      <h1>线索</h1>
-      <div className="card">
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button type="button" onClick={saveTenant}>
-          加载
-        </button>
-        <p className="muted">来源、负责人和待分配原因以服务端记录为准。这里不创建线索，也不发起触达。</p>
-      </div>
-      {error ? <p className="muted">{error}</p> : null}
-      <div className="card">
-        {rows === null ? (
-          <p className="muted">加载中…</p>
-        ) : rows.length === 0 ? (
-          <p className="muted">这个租户还没有线索。</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>姓名</th>
-                <th>来源</th>
-                <th>状态</th>
-                <th>负责人</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.source}</td>
-                  <td>{STATUS_TEXT[row.status] ?? row.status}</td>
-                  <td>{row.assigned_member_id ? row.assigned_member_id : "待分配（接收时没有指定负责人）"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+    <main data-page="leads">
+      <header className="page-head">
+        <h1>线索</h1>
+        <Link className="btn primary" data-page-primary="true" href={rows && rows[0] ? `/leads/${rows[0].id}` : "/"}>
+          {pagePrimary("leads")}
+        </Link>
+      </header>
+      <p className="muted">来源、负责人和待分配原因以记录为准。这里不创建线索，也不发起触达。</p>
+      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {error ? <SurfaceState kind="error" title="线索没有载入" detail={error} /> : null}
+      {rows === null ? <SurfaceState kind="loading" title="正在读取线索" detail="姓名、来源和负责人马上就位。" /> : null}
+      {rows !== null && rows.length === 0 && !error ? (
+        <SurfaceState kind="empty" title="还没有线索" detail="这个工作范围里还没有可跟进的线索。" />
+      ) : null}
+      {rows && rows.length > 0 ? (
+        <RecordList
+          width={width}
+          rows={rows.map((row) => ({
+            id: row.id,
+            title: row.name,
+            href: `/leads/${row.id}`,
+            action: "打开",
+            primary: false,
+            facts: [
+              { label: "来源", value: row.source },
+              { label: "状态", value: STATUS_TEXT[row.status] ?? row.status },
+              { label: "负责人", value: row.assigned_member_id ? row.assigned_member_id : "待分配（接收时没有指定负责人）" },
+            ],
+          }))}
+        />
+      ) : null}
     </main>
   );
 }

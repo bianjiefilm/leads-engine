@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 
 // HUI-1678 企业资料筛选。只打本站 BFF。
 // 没有官方公开库。导入的是客户声明有权再利用的资料。
@@ -63,7 +65,7 @@ async function readJSON(res: Response): Promise<Record<string, unknown>> {
 
 export default function EnterprisesPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const tenantId = scope.tenantId ?? "";
   const [capability, setCapability] = useState<Capability | null>(null);
   const [rows, setRows] = useState<EnterpriseRow[] | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -86,13 +88,12 @@ export default function EnterprisesPage() {
   const [filterRegion, setFilterRegion] = useState("");
   const [filterScale, setFilterScale] = useState("");
 
-  const headers = useCallback((): HeadersInit => ({ "x-tenant-id": tenant.trim(), "content-type": "application/json" }), [tenant]);
+  const headers = useCallback((): HeadersInit => ({ "x-tenant-id": tenantId, "content-type": "application/json" }), [tenantId]);
 
   const load = useCallback(async (tenantID: string, filter?: { industry: string; region: string; scale: string }) => {
     setError("");
     setConfirmText("");
     if (!tenantID.trim()) {
-      setError("先填写当前租户");
       setCapability(null);
       setRows([]);
       return;
@@ -103,7 +104,7 @@ export default function EnterprisesPage() {
     if (!capRes.ok) {
       setCapability(null);
       setRows([]);
-      setError(cap.message ?? cap.error ?? `HTTP ${capRes.status}`);
+      setError(failureText(cap, capRes.status));
       return;
     }
     setCapability(cap);
@@ -116,7 +117,7 @@ export default function EnterprisesPage() {
     const listRes = await fetch("/api/enterprise-directory/records" + (q ? `?${q}` : ""), { headers: h });
     const list = await readJSON(listRes);
     if (!listRes.ok) {
-      setError(String(list.message ?? list.error ?? `HTTP ${listRes.status}`));
+      setError(failureText(list, listRes.status));
       setRows([]);
       return;
     }
@@ -131,24 +132,12 @@ export default function EnterprisesPage() {
     setPreview(null);
     setConfirmText("");
     setRows(null);
-    setTenant(scope.tenantId ?? "");
     if (scope.tenantId) {
       void load(scope.tenantId, { industry: "", region: "", scale: "" });
     } else {
       setRows([]);
-      setError("先填写当前租户");
     }
   }, [scope.epoch, scope.tenantId, load]);
-
-  const saveTenant = () => {
-    const value = tenant.trim();
-    if (!value) {
-      setError("先填写当前租户");
-      return;
-    }
-    if (value === scope.tenantId) void load(value);
-    else commitCrmTenant(value);
-  };
 
   const importBatch = async () => {
     setError("");
@@ -179,20 +168,20 @@ export default function EnterprisesPage() {
     });
     const body = await readJSON(res);
     if (!res.ok) {
-      setError(String(body.message ?? body.error ?? `HTTP ${res.status}`));
+      setError(failureText(body, res.status));
       return;
     }
-    await load(tenant);
+    await load(tenantId);
   };
 
   const openPreview = async (id: string) => {
     setError("");
     setConfirmText("");
-    const res = await fetch(`/api/enterprise-directory/records/${id}/preview`, { headers: { "x-tenant-id": tenant.trim() } });
+    const res = await fetch(`/api/enterprise-directory/records/${id}/preview`, { headers: { "x-tenant-id": tenantId } });
     const body = (await readJSON(res)) as Preview;
     if (!res.ok) {
       setPreview(null);
-      setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      setError(failureText(body, res.status));
       return;
     }
     setPreview(body);
@@ -206,7 +195,7 @@ export default function EnterprisesPage() {
     });
     const body = await readJSON(res);
     if (!res.ok) {
-      setConfirmText(String(body.message ?? body.error ?? `HTTP ${res.status}`));
+      setConfirmText(failureText(body, res.status));
       return;
     }
     const done =
@@ -216,33 +205,27 @@ export default function EnterprisesPage() {
           ? "已拒绝。同一来源再次导入这家企业不能恢复营销。"
           : "已删除。同一来源再次导入这家企业不能恢复营销。";
     setPreview(null);
-    await load(tenant);
+    await load(tenantId);
     setConfirmText(done);
   };
 
   return (
-    <main>
-      <p>
-        <Link href="/">返回工作台</Link>
-      </p>
-      <h1>企业资料筛选</h1>
+    <main data-page="enterprises">
+      <header className="page-head">
+        <h1>企业资料筛选</h1>
+        <Link className="btn" href="/">返回工作台</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card" id="capability">
         <h2>数据源</h2>
         {capability ? (
-          <p>
+          <p data-tone="automation">
             官方企业公开库：{capability.official_directory}。{capability.reason} 可用来源：
             {capability.accepted_source}。营销不会因公开资料自动成立，也不会联动外呼、短信或 SOP。
           </p>
         ) : (
-          <p className="muted">填写租户后加载。未开启时这里不会假装已经接上公开库。</p>
+          <SurfaceState kind="empty" title="还没有数据源" detail="选择工作范围后才会显示。未开启时这里不会假装已经接上公开库。" />
         )}
-        <label>
-          当前租户{" "}
-          <input id="tenant-input" value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button id="load-tenant" type="button" onClick={saveTenant}>
-          加载
-        </button>
       </div>
 
       <div className="card">
@@ -308,7 +291,7 @@ export default function EnterprisesPage() {
             联系人电话（可选） <input id="person-phone" value={personPhone} onChange={(e) => setPersonPhone(e.target.value)} />
           </label>
         </p>
-        <button id="import-submit" type="button" onClick={() => void importBatch()}>
+        <button id="import-submit" className="primary" data-page-primary="true" type="button" onClick={() => void importBatch()}>
           导入到本租户
         </button>
       </div>
@@ -324,7 +307,7 @@ export default function EnterprisesPage() {
         <label>
           规模 <input id="filter-scale" value={filterScale} onChange={(e) => setFilterScale(e.target.value)} />
         </label>{" "}
-        <button id="filter-submit" type="button" onClick={() => void load(tenant)}>
+        <button id="filter-submit" className="btn" type="button" onClick={() => void load(tenantId)}>
           筛选
         </button>
         {error ? <p className="muted">{error}</p> : null}

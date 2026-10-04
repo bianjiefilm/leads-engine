@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { centsLabel, presentSubscription, rechargeReturn, type SubscriptionFacts } from "@/lib/subscription";
 
 interface SubscriptionResponse extends SubscriptionFacts {
@@ -21,7 +23,7 @@ interface SubscriptionResponse extends SubscriptionFacts {
 
 export default function SubscriptionPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState(scope.tenantId ?? "");
+  const [reload, setReload] = useState(0);
   const [facts, setFacts] = useState<SubscriptionFacts>({ status: "unconfigured" });
   const [err, setErr] = useState("");
   const view = presentSubscription(facts);
@@ -33,7 +35,6 @@ export default function SubscriptionPage() {
   });
 
   useEffect(() => {
-    setTenant(scope.tenantId ?? "");
     if (!scope.tenantId) return;
     const tenantId = scope.tenantId;
     let cancelled = false;
@@ -42,7 +43,7 @@ export default function SubscriptionPage() {
         const body = (await res.json()) as SubscriptionResponse;
         if (cancelled) return;
         if (!res.ok) {
-          setErr(body.message ?? body.error ?? `HTTP ${res.status}`);
+          setErr(failureText(body, res.status));
           setFacts({ status: "unconfigured" });
           return;
         }
@@ -58,36 +59,28 @@ export default function SubscriptionPage() {
         });
       })
       .catch((e: Error) => {
-        if (!cancelled) setErr(e.message);
+        if (!cancelled) setErr(productError(e.message));
       });
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenantId]);
+  }, [scope.epoch, scope.tenantId, reload]);
 
   return (
-    <main>
-      <h1>订阅与用量</h1>
-      <p className="muted">
-        <Link href="/">返回工作台</Link>
-      </p>
-      <div className="card">
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button
-          type="button"
-          onClick={() => {
-            const value = tenant.trim();
-            if (!value) return;
-            if (value !== scope.tenantId) commitCrmTenant(value);
-          }}
-        >
-          读取
+    <main data-page="billing">
+      <header className="page-head">
+        <h1>订阅与用量</h1>
+        <button className="primary" type="button" data-page-primary="true" disabled={!scope.tenantId} onClick={() => setReload((n) => n + 1)}>
+          {pagePrimary("billing")}
         </button>
-        <p className="muted">钱包余额不代表 CRM 套餐已开通。商家成交额不进入平台钱包。这里不会扣款、外呼或发消息。</p>
-        {err ? <p className="muted">{err}</p> : null}
+      </header>
+      <p className="muted">
+        <Link className="btn" href="/">返回工作台</Link>
+      </p>
+      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      <div className="card">
+        <p data-tone="automation">钱包余额不代表 CRM 套餐已开通。商家成交额不进入平台钱包。这里不会扣款、外呼或发消息。</p>
+        {err ? <SurfaceState kind="error" title="用量没有载入" detail={err} /> : null}
       </div>
       <div className="card">
         <h2>三本账分开</h2>

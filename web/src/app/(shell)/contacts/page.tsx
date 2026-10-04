@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { canExportContacts, searchGuard } from "@/lib/contact";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 
 // 客户档案列表(HUI-1691 / FEAT-0192)。搜索只按姓名/标签 —— 手机号不作为
 // 搜索参数、不进 URL(服务端对疑似手机号输入一律 400,前端同规则先行拦截);
@@ -32,6 +34,7 @@ const CATEGORY_TEXT: Record<string, string> = {
 
 export default function ContactsPage() {
   const scope = useCrmScope();
+  const width = useShellWidth();
   const [items, setItems] = useState<ContactRow[] | null>(null);
   const [me, setMe] = useState<Whoami | null>(null);
   const [name, setName] = useState("");
@@ -50,13 +53,13 @@ export default function ContactsPage() {
       const res = await fetch(`/api/contacts${q}`, scopeInit(scope.tenantId));
       const body = await res.json();
       if (!res.ok) {
-        setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setError(failureText(body, res.status));
         setItems([]);
         return;
       }
       setItems(body.items ?? []);
     } catch (e) {
-      setError((e as Error).message);
+      setError(productError((e as Error).message));
     }
   }, [scope.tenantId]);
 
@@ -94,13 +97,13 @@ export default function ContactsPage() {
       }));
       const body = await res.json();
       if (!res.ok) {
-        setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setError(failureText(body, res.status));
         return;
       }
       setForm({ ...form, name: "", phone: "", email: "", notes: "", tags: "" });
       await load("");
     } catch (e) {
-      setError((e as Error).message);
+      setError(productError((e as Error).message));
     } finally {
       setCreating(false);
     }
@@ -112,36 +115,35 @@ export default function ContactsPage() {
   };
 
   return (
-    <main>
-      <h1>客户档案</h1>
+    <main data-page="contacts">
+      <header className="page-head">
+        <h1>客户档案</h1>
+      </header>
+      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <p className="muted">
-        档案、联系方式、来源、标签、授权(consent)与跟进均归属当前商家租户;
-        服务端同时核验租户成员资格与销售记录权限。平台账号与 CRM 联系人是不同对象:
-        联系人手机号不会自动注册平台账号。搜索只按姓名/标签,不按手机号;查档请用联系人链接。
+        档案、联系方式、来源、标签和授权都留在当前商家。联系人手机号不会自动注册平台账号。搜索只按姓名或标签，不按手机号。
       </p>
 
       <div className="card">
         <h2>搜索</h2>
         <input placeholder="按姓名搜索" value={name} onChange={(e) => setName(e.target.value)} />
         <input placeholder="按标签搜索(如 vip)" value={tag} onChange={(e) => setTag(e.target.value)} />
-        <button onClick={search}>搜索</button>{" "}
-        <button onClick={() => { setName(""); setTag(""); load(""); }}>重置</button>
+        <button className="btn" type="button" onClick={search}>搜索</button>{" "}
+        <button className="btn" type="button" onClick={() => { setName(""); setTag(""); load(""); }}>重置</button>
         {me && canExportContacts(me) ? (
           <>
             {" "}
-            <button onClick={exportCsv}>导出 CSV(owner)</button>
+            <button className="btn" type="button" onClick={exportCsv}>导出 CSV(owner)</button>
           </>
         ) : null}
         <p className="muted">不支持按手机号搜索或导出筛选;导出仅 owner 可用且会在服务端留痕。</p>
       </div>
 
-      {error ? <p className="muted">{error}</p> : null}
+      {error ? <SurfaceState kind="error" title="档案没有载入" detail={error} /> : null}
 
       <div className="card">
         <h2>新建档案</h2>
-        <p className="muted">
-          来源类型为 form / touch_campaign 时必须提供来源留痕(source_app/source_ref),否则服务端 400。
-        </p>
+        <p className="muted">表单或活动来源需要留下活动名称，否则建不成档案。</p>
         <div>
           <input placeholder="姓名(必填)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input placeholder="手机号(仅存档,不用于搜索)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
@@ -168,22 +170,30 @@ export default function ContactsPage() {
         </div>
         <textarea placeholder="备注(不超过 2000 字)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         <div>
-          <button disabled={creating || !form.name.trim()} onClick={create}>创建档案</button>
+          <button className="primary" type="button" data-page-primary="true" disabled={creating || !form.name.trim()} onClick={create}>{pagePrimary("contacts")}</button>
         </div>
       </div>
 
-      {items === null ? <p className="muted">加载中…</p> : null}
+      {items === null ? <SurfaceState kind="loading" title="正在读取客户" detail="姓名、来源和授权马上就位。" /> : null}
       {items !== null && items.length === 0 && !error ? (
-        <p className="muted">暂无档案(或无权查看他人名下档案:非 assignee 一律不可见)。</p>
+        <SurfaceState kind="empty" title="还没有客户" detail="这个范围里还没有你能查看的档案。别人名下的档案不会出现在这里。" />
       ) : null}
-      <ul>
-        {(items ?? []).map((c) => (
-          <li key={c.id}>
-            <Link href={`/contacts/${c.id}`}>{c.name}</Link> — {CATEGORY_TEXT[c.business_category] ?? c.business_category} ·{" "}
-            {parseLocalTags(c.tags)} · 授权:{c.consent_status}
-          </li>
-        ))}
-      </ul>
+      {items && items.length > 0 ? (
+        <RecordList
+          width={width}
+          rows={items.map((c) => ({
+            id: c.id,
+            title: c.name,
+            href: `/contacts/${c.id}`,
+            action: "打开档案",
+            facts: [
+              { label: "类别", value: CATEGORY_TEXT[c.business_category] ?? c.business_category },
+              { label: "标签", value: parseLocalTags(c.tags) || "无" },
+              { label: "授权", value: c.consent_status },
+            ],
+          }))}
+        />
+      ) : null}
 
       <p>
         <Link href="/">返回首页</Link> · <Link href="/opportunities">商机管理</Link>

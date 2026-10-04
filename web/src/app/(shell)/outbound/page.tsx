@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { commitCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { SurfaceState } from "@/components/workbench/chrome";
+import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentOutbound, receiptLabel, type OutboundCapability } from "@/lib/outboundCall";
 
 interface OutboundReceipt {
@@ -30,7 +32,7 @@ const EMPTY_VIEW = presentOutbound(null);
 
 export default function OutboundPage() {
   const scope = useCrmScope();
-  const [tenant, setTenant] = useState("");
+  const tenantId = scope.tenantId ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [error, setError] = useState("");
   const [contactId, setContactId] = useState("");
@@ -41,29 +43,25 @@ export default function OutboundPage() {
   const [busy, setBusy] = useState(false);
 
   const headers = useCallback(
-    () => ({ "content-type": "application/json", "x-tenant-id": tenant.trim() }),
-    [tenant],
+    () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
+    [tenantId],
   );
 
   const load = useCallback(async (tenantID: string) => {
     setError("");
     setView(EMPTY_VIEW);
-    if (!tenantID.trim()) {
-      setError("先填写当前租户");
-      return;
-    }
+    if (!tenantID.trim()) return;
     try {
       const res = await fetch("/api/outbound/capability", { headers: { "x-tenant-id": tenantID.trim() } });
       const body = (await res.json()) as OutboundCapability & { message?: string; error?: string };
       setView(presentOutbound(body));
-      if (!res.ok) setError(body.message ?? body.error ?? `HTTP ${res.status}`);
+      if (!res.ok) setError(failureText(body, res.status));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
+      setError(e instanceof Error ? productError(e.message) : "加载失败");
     }
   }, []);
 
   useEffect(() => {
-    setTenant(scope.tenantId ?? "");
     void load(scope.tenantId ?? "");
   }, [scope.epoch, scope.tenantId, load]);
 
@@ -74,10 +72,10 @@ export default function OutboundPage() {
       const res = await fetch(path, { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       const data = (await res.json()) as OutboundTask & { message?: string };
       if (typeof data.id === "string") setTask(data);
-      if (!res.ok) setError(data.message ?? data.error ?? `HTTP ${res.status}`);
+      if (!res.ok) setError(failureText(data, res.status));
       return data;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "提交失败");
+      setError(e instanceof Error ? productError(e.message) : "提交失败");
       return null;
     } finally {
       setBusy(false);
@@ -95,39 +93,18 @@ export default function OutboundPage() {
   };
 
   return (
-    <main>
-      <h1>外呼安全门</h1>
-      <p>
-        <Link href="/">我的工作</Link>
-        {" · "}
-        <Link href="/contacts">客户档案</Link>
-        {" · "}
-        <Link href="/sop">跟进提醒</Link>
-      </p>
+    <main data-page="outbound">
+      <header className="page-head">
+        <h1>外呼安全门</h1>
+        <Link className="btn" href="/">我的工作</Link>
+      </header>
+      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
-        <p data-testid="outbound-note">{view.note}</p>
+        <p data-testid="outbound-note" data-tone="automation">{view.note}</p>
         <p className="muted">
-          生产自动外呼：{view.productionAuto ? "开启" : "关闭"}。真实线路：{view.realLine ? "已接入" : "没有"}。
+          <span data-tone="automation">自动化状态</span> 生产自动外呼：{view.productionAuto ? "开启" : "关闭"}。真实线路：{view.realLine ? "已接入" : "没有"}。
           费用：{view.cost === "unknown" ? "未知" : view.cost}。本次记录：{view.simulation ? "模拟" : "未标明"}。
         </p>
-        <label>
-          当前租户{" "}
-          <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="租户 id" />
-        </label>{" "}
-        <button
-          type="button"
-          onClick={() => {
-            const value = tenant.trim();
-            if (!value) {
-              setError("先填写当前租户");
-              return;
-            }
-            if (value === scope.tenantId) void load(value);
-            else commitCrmTenant(value);
-          }}
-        >
-          加载
-        </button>
       </div>
       <div className="card">
         <h2>隔离演练</h2>
@@ -150,10 +127,11 @@ export default function OutboundPage() {
             活动 <input value={campaignId} onChange={(e) => setCampaignId(e.target.value)} />
           </label>
         </p>
-        <button type="button" disabled={busy} onClick={() => void post("/api/outbound/tasks", dial)}>
-          记录模拟提交
+        <button className="primary" type="button" data-page-primary="true" disabled={busy || !tenantId} onClick={() => void post("/api/outbound/tasks", dial)}>
+          {pagePrimary("outbound")}
         </button>{" "}
         <button
+          className="btn"
           type="button"
           disabled={busy || !task?.id}
           onClick={() => void post(`/api/outbound/tasks/${encodeURIComponent(task?.id ?? "")}/cancel`, {})}
@@ -161,13 +139,14 @@ export default function OutboundPage() {
           取消
         </button>{" "}
         <button
+          className="btn"
           type="button"
           disabled={busy || !task?.id}
           onClick={() => void post(`/api/outbound/tasks/${encodeURIComponent(task?.id ?? "")}/transfer`, {})}
         >
           转人工
         </button>
-        {error ? <p>{error}</p> : null}
+        {error ? <SurfaceState kind="error" title="外呼没有记下" detail={error} /> : null}
       </div>
       <div className="card">
         <h2>回执</h2>

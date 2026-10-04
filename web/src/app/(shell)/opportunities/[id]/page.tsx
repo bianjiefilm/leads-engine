@@ -25,7 +25,9 @@ import {
   type ServiceDraftHandoff,
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
+import { SurfaceState } from "@/components/workbench/chrome";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
+import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 import { IntentOnOpportunity } from "@/components/IntentOnOpportunity";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
 
@@ -109,7 +111,7 @@ export default function OpportunityDetailPage() {
       if (whoRes.ok) setMe(await whoRes.json());
       const oppBody = await oppRes.json();
       if (!oppRes.ok) {
-        setMsg(oppBody.message ?? `HTTP ${oppRes.status}`);
+        setMsg(failureText(oppBody, oppRes.status));
         setOpp(null);
         setHistory([]);
         return;
@@ -147,7 +149,7 @@ export default function OpportunityDetailPage() {
       }));
       const body = await res.json();
       if (!res.ok) {
-        setMsg(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setMsg(failureText(body, res.status));
       } else {
         setMsg(`已更新为「${STAGE_LABELS[to as keyof typeof STAGE_LABELS] ?? to}」`);
         await load();
@@ -193,7 +195,7 @@ export default function OpportunityDetailPage() {
       }));
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setDraftMsg(body.message ?? body.error ?? `HTTP ${res.status}`);
+        setDraftMsg(failureText(body, res.status));
         return null;
       }
       return body as Record<string, unknown>;
@@ -229,13 +231,26 @@ export default function OpportunityDetailPage() {
     }
   };
 
-  if (!opp && !msg) return <main><p className="muted">加载中…</p></main>;
+  if (!scope.tenantId) {
+    return (
+      <main data-page="opportunity-detail">
+        <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} />
+      </main>
+    );
+  }
+  if (!opp && !msg) {
+    return (
+      <main data-page="opportunity-detail">
+        <SurfaceState kind="loading" title="正在打开商机" detail="阶段、金额和下一步马上就位。" />
+      </main>
+    );
+  }
   if (!opp) {
     return (
-      <main>
+      <main data-page="opportunity-detail">
         <h1>商机详情</h1>
-        <p className="muted">不可见或不存在:{msg}(权限外记录一律 404,不泄露存在性)</p>
-        <Link href="/opportunities">返回商机列表</Link>
+        <SurfaceState kind="error" title="打不开这条商机" detail={productError(msg) || "不可见或不存在。"} />
+        <Link className="btn" href="/opportunities">返回商机列表</Link>
       </main>
     );
   }
@@ -260,10 +275,16 @@ export default function OpportunityDetailPage() {
       {allowed ? (
         <div>
           <h2>阶段操作</h2>
-          {actions.map((a) => (
-            <button key={a.to} disabled={busy} onClick={() => transition(a.to)}>
-              {a.label}
-            </button>
+          {actions.map((a, index) => (
+            index === 0 ? (
+              <button key={a.to} className="primary" type="button" data-page-primary="true" disabled={busy} onClick={() => transition(a.to)}>
+                {a.label}
+              </button>
+            ) : (
+              <button key={a.to} className="btn" type="button" disabled={busy} onClick={() => transition(a.to)}>
+                {a.label}
+              </button>
+            )
           ))}
           <p className="muted">每次转换都会写入审计历史;重复点击当前阶段为幂等操作,不产生新历史。</p>
         </div>
