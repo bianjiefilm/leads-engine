@@ -65,6 +65,12 @@ export interface DeskItem {
   sync?: { crm?: string };
   outreach_notice?: string;
   model_advice?: string;
+  context?: { contact_id?: string; customer?: string; business?: string; facts?: string[]; ask?: string[] };
+  last_interaction?: { at?: string; summary?: string };
+  basis?: string;
+  today_group?: string;
+  ask?: string[];
+  draft_body?: string;
 }
 
 export interface StatusFacts {
@@ -283,4 +289,102 @@ export function receptionFactLine(item: DeskItem): string {
   }
   if (fact.label !== "尚未接管") return "接待事实未记录";
   return `尚未接管 · 轮次 ${fact.epoch} · 版本 ${fact.version}`;
+}
+
+// 获客只有这一张 Today/Next 首页。HUI-2626 复用这里，不要再做第二张。
+export const HOME_SURFACE = "today-next";
+
+export const TODAY_GROUPS = [
+  "new_inquiry",
+  "due_today",
+  "waiting_customer",
+  "overdue",
+  "ai_draft",
+  "human_takeover",
+  "info_or_permission",
+] as const;
+
+export type TodayGroup = (typeof TODAY_GROUPS)[number];
+
+export const TODAY_LABELS: Record<TodayGroup, string> = {
+  new_inquiry: "新咨询待处理",
+  due_today: "今天应跟进",
+  waiting_customer: "等待客户",
+  overdue: "逾期",
+  ai_draft: "AI 草稿待确认",
+  human_takeover: "需要人工接管的会话",
+  info_or_permission: "信息缺失或权限异常",
+};
+
+export function emptyToday(): Record<TodayGroup, DeskItem[]> {
+  return {
+    new_inquiry: [],
+    due_today: [],
+    waiting_customer: [],
+    overdue: [],
+    ai_draft: [],
+    human_takeover: [],
+    info_or_permission: [],
+  };
+}
+
+// acceptToday keeps only the current tenant. Switching A/B drops the other queue.
+export function acceptToday(
+  tenantId: string | null,
+  groups: Partial<Record<TodayGroup, DeskItem[]>> | null,
+): Record<TodayGroup, DeskItem[]> {
+  const out = emptyToday();
+  if (!tenantId || !groups) return out;
+  for (const key of TODAY_GROUPS) {
+    out[key] = (groups[key] ?? []).filter((item) => item.tenant_id === tenantId);
+  }
+  return out;
+}
+
+export interface TodayDraft {
+  note: string;
+  nextAt: string;
+  disposition: "next" | "waiting_customer";
+  changed: string[];
+}
+
+export interface TodayMemory {
+  [tenantId: string]: { focusId: string; drafts: Record<string, TodayDraft> };
+}
+
+export function rememberToday(
+  memory: TodayMemory,
+  tenantId: string,
+  focusId: string,
+  drafts: Record<string, TodayDraft>,
+): TodayMemory {
+  if (!tenantId) return memory;
+  return { ...memory, [tenantId]: { focusId, drafts } };
+}
+
+export function recallToday(
+  memory: TodayMemory | null,
+  tenantId: string | null,
+): { focusId: string; drafts: Record<string, TodayDraft> } {
+  if (!memory || !tenantId || !memory[tenantId]) return { focusId: "", drafts: {} };
+  return memory[tenantId];
+}
+
+// todaySaveReady is false on the render that still holds the previous tenant's drafts.
+// appliedTenant stays null until that restore has been applied, so the other tenant is not overwritten.
+export function todaySaveReady(appliedTenant: string | null, tenantId: string | null): boolean {
+  return Boolean(tenantId) && appliedTenant === tenantId;
+}
+
+// questionsFor shows gaps, or only the changed confirmed facts. It never repeats the whole profile.
+export function questionsFor(confirmed: string[], ask: string[], changed: string[]): string[] {
+  if (changed.length > 0) {
+    const allow = new Set([...confirmed, ...ask]);
+    const out: string[] = [];
+    for (const item of changed) {
+      if (allow.has(item) && !out.includes(item)) out.push(item);
+    }
+    return out;
+  }
+  return [...ask];
 }

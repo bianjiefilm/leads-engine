@@ -24,7 +24,7 @@ func (s *Server) handleWorkbench(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, "internal", "workbench lookup failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, workbench.Build(deskScope(c), time.Now().UTC(), facts.Leads, facts.Opps, facts.Desk))
+	writeJSON(w, http.StatusOK, workbench.BuildWithDrafts(deskScope(c), time.Now().UTC(), facts.Leads, facts.Opps, facts.Desk, facts.Drafts))
 }
 
 func (s *Server) handleLeadTimeline(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +73,7 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 		Channel           string  `json:"channel"`
 		AIScore           int     `json:"ai_score"`
 		CreateOpportunity bool    `json:"create_opportunity"`
+		Disposition       string  `json:"disposition"`
 	}
 	if !decodeBody(w, r, &in) {
 		return
@@ -93,6 +94,14 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		fail(w, http.StatusBadRequest, "not_automatic", "工作台不创建商机，也不因分数自动触达")
+		return
+	}
+	disposition := strings.TrimSpace(in.Disposition)
+	if disposition == "next" {
+		disposition = ""
+	}
+	if disposition != "" && disposition != "waiting_customer" {
+		fail(w, http.StatusBadRequest, "bad_request", "disposition must be empty, next, or waiting_customer")
 		return
 	}
 	note := strings.TrimSpace(in.Note)
@@ -118,11 +127,17 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 		}
 		nextAt = normalized
 	}
-	key := workbench.FollowThroughKey(rec.ID, note, nextAt, channel, in.Complete, c.Member.ID)
+	key := workbench.FollowThroughKey(rec.ID, note, nextAt, channel, in.Complete, c.Member.ID, disposition)
 	if existing, found, err := s.St.FindFollowUpByDedupe(c.Member.TenantID, key); err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "follow-up lookup failed")
 		return
 	} else if found {
+		if disposition == "waiting_customer" {
+			if err := s.St.SetFollowUpDisposition(c.Member.TenantID, existing.ID, disposition); err != nil {
+				fail(w, http.StatusInternalServerError, "internal", "follow-up disposition failed")
+				return
+			}
+		}
 		s.finishFollowThrough(w, c, rec, existing.ID, true, nextAt, channel, in.AIScore)
 		return
 	}
@@ -136,6 +151,12 @@ func (s *Server) handleLeadFollowThrough(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "follow-up create failed")
 		return
+	}
+	if disposition == "waiting_customer" {
+		if err := s.St.SetFollowUpDisposition(c.Member.TenantID, created.ID, disposition); err != nil {
+			fail(w, http.StatusInternalServerError, "internal", "follow-up disposition failed")
+			return
+		}
 	}
 	s.finishFollowThrough(w, c, rec, created.ID, replay, nextAt, channel, in.AIScore)
 }
@@ -160,13 +181,90 @@ func (s *Server) finishFollowThrough(w http.ResponseWriter, c *caller, rec store
 	if replay {
 		status = http.StatusOK
 	}
+	now := time.Now().UTC()
 	writeJSON(w, status, map[string]any{
 		"follow_up_id": followID,
 		"replay":       replay,
-		"next":         workbench.ApplyAIScore(workbench.ResolveNext(lead, time.Now().UTC()), aiScore),
+		"next":         workbench.ApplyAIScore(workbench.ResolveNext(lead, now), aiScore),
+		"today_group":  workbench.PlaceToday(lead, now),
 		"billing":      workbench.Billing{OrdinaryCRMChargeCents: workbench.OrdinaryCRMChargeCents("manual_follow_up")},
 		"automation":   workbench.Automation{},
 	})
+}
+
+func (s *Server) handleDraftIgnore(w http.ResponseWriter, r *http.Request) {
+	c := callerFrom(r)
+	rp, sess, ok := s.draftForCaller(w, r, c)
+	if !ok {
+		return
+	}
+	decision := workbench.IgnoreDraft(rp.Status)
+	if !decision.Sent && rp.Status == "generated" {
+		updated, err := s.St.SupersedeGeneratedReply(c.Member.TenantID, rp.ID)
+		if err != nil {
+			fail(w, http.StatusConflict, "not_ignorable", "只有未发送的草稿可以忽略")
+			return
+		}
+		rp = updated
+		decision = workbench.IgnoreDraft("superseded")
+	}
+	_ = sess
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": rp.ID, "status": decision.Status, "sent": decision.Sent,
+		"auto_call": false, "auto_message": false,
+	})
+}
+
+func (s *Server) handleDraftRevise(w http.ResponseWriter, r *http.Request) {
+	c := callerFrom(r)
+	rp, _, ok := s.draftForCaller(w, r, c)
+	if !ok {
+		return
+	}
+	var in struct {
+		Body string `json:"body"`
+	}
+	if !decodeBody(w, r, &in) {
+		return
+	}
+	decision, body, err := workbench.ReviseDraft(rp.Status, in.Body)
+	if err != nil {
+		fail(w, http.StatusConflict, "not_editable", "只有未发送的草稿可以修改")
+		return
+	}
+	updated, err := s.St.ReviseGeneratedReply(c.Member.TenantID, rp.ID, body)
+	if err != nil {
+		fail(w, http.StatusConflict, "not_editable", "只有未发送的草稿可以修改")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id": updated.ID, "status": decision.Status, "sent": decision.Sent, "body": updated.Body,
+		"auto_call": false, "auto_message": false,
+	})
+}
+
+func (s *Server) draftForCaller(w http.ResponseWriter, r *http.Request, c *caller) (store.ReceptionReply, store.ReceptionSession, bool) {
+	if !s.requireAction(c, authz.ActionUpdate, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
+		return store.ReceptionReply{}, store.ReceptionSession{}, false
+	}
+	rp, err := s.St.GetReceptionReply(c.Member.TenantID, r.PathValue("id"))
+	if err != nil {
+		fail(w, http.StatusNotFound, "not_found", "record not found")
+		return store.ReceptionReply{}, store.ReceptionSession{}, false
+	}
+	sess, err := s.St.GetReceptionSession(c.Member.TenantID, rp.SessionID)
+	if err != nil {
+		fail(w, http.StatusNotFound, "not_found", "record not found")
+		return store.ReceptionReply{}, store.ReceptionSession{}, false
+	}
+	if !workbench.InScope(deskScope(c), sess.OwnerMemberID) {
+		fail(w, http.StatusNotFound, "not_found", "record not found")
+		return store.ReceptionReply{}, store.ReceptionSession{}, false
+	}
+	if !s.requireAction(c, authz.ActionUpdate, authz.RecordScope{TenantID: c.Member.TenantID, AssigneeMemberID: sess.OwnerMemberID}, w) {
+		return store.ReceptionReply{}, store.ReceptionSession{}, false
+	}
+	return rp, sess, true
 }
 
 func leadReadout(lead workbench.LeadView) map[string]any {

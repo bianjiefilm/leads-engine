@@ -8,6 +8,7 @@ package workbench
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +31,23 @@ const (
 	BucketAssignmentException = "assignment_exception"
 	BucketNeedsSchedule       = "needs_schedule"
 	BucketHumanTakeover       = "human_takeover"
-	staleAfterDays            = 7
+
+	// Today groups are the one homepage. HUI-2626 restyles this same
+	// projection; it must not grow a second desk or a second state machine.
+	TodayNewInquiry = "new_inquiry"
+	TodayDue        = "due_today"
+	TodayWaiting    = "waiting_customer"
+	TodayOverdue    = "overdue"
+	TodayAIDraft    = "ai_draft"
+	TodayHuman      = "human_takeover"
+	TodayInfo       = "info_or_permission"
+	TodayScheduled  = "scheduled_next"
+
+	staleAfterDays = 7
+	relNone        = 0
+	relBefore      = 1
+	relToday       = 2
+	relAfter       = 3
 )
 
 // Scope is the caller's existing record scope. Owner sees the tenant.
@@ -68,6 +85,13 @@ type LeadView struct {
 	AIScore              int
 	OwnerLabel           string
 	CRMReceiptAt         string
+	ContactName          string
+	BusinessCategory     string
+	SourceType           string
+	ConsentStatus        string
+	LastInteraction      string
+	LastInteractionAt    string
+	WaitingCustomer      bool
 }
 
 // OpportunityView is one native opportunity. AmountKind keeps the three
@@ -100,6 +124,45 @@ type ReceptionView struct {
 	WaitingReply  bool
 	HumanTodo     bool
 	Purpose       string
+}
+
+// DraftView is one generated reply still waiting for a person.
+// Confirming or ignoring it never sends.
+type DraftView struct {
+	ID         string
+	TenantID   string
+	SessionID  string
+	LeadID     string
+	Assignee   string
+	OwnerLabel string
+	Kind       string
+	Status     string
+	Body       string
+}
+
+// ConfirmedContext is what this customer already established.
+// Ask lists gaps only. A later change is asked by itself.
+type ConfirmedContext struct {
+	ContactID string   `json:"contact_id,omitempty"`
+	Customer  string   `json:"customer,omitempty"`
+	Business  string   `json:"business,omitempty"`
+	Facts     []string `json:"facts,omitempty"`
+	Ask       []string `json:"ask,omitempty"`
+}
+
+// Interaction is the latest stored moment, without a phone number.
+type Interaction struct {
+	At      string `json:"at,omitempty"`
+	Summary string `json:"summary,omitempty"`
+}
+
+// DraftDecision is the human choice on a generated draft. Sent stays false
+// unless the reply was already sent before this call.
+type DraftDecision struct {
+	Status      string
+	Sent        bool
+	AutoCall    bool
+	AutoMessage bool
 }
 
 // ReceptionFact is the only reception line this desk may show.
@@ -187,6 +250,12 @@ type Item struct {
 	ModelAdvice      string           `json:"model_advice,omitempty"`
 	ServiceDraft     ServiceDraftDesk `json:"service_draft"`
 	Reception        *ReceptionFact   `json:"reception,omitempty"`
+	Context          ConfirmedContext `json:"context"`
+	LastInteraction  Interaction      `json:"last_interaction"`
+	Basis            string           `json:"basis,omitempty"`
+	TodayGroup       string           `json:"today_group,omitempty"`
+	Ask              []string         `json:"ask,omitempty"`
+	DraftBody        string           `json:"draft_body,omitempty"`
 }
 
 // SyncFact is the external receipt. It has no count. Unknown is not zero
@@ -230,6 +299,7 @@ type Result struct {
 	Automation        Automation        `json:"automation"`
 	JointChain        JointChain        `json:"joint_chain"`
 	OutreachSubmitted bool              `json:"outreach_submitted"`
+	Today             map[string][]Item `json:"today"`
 }
 
 // OrdinaryCRMChargeCents is the fee for storing, opening, or hand-writing
@@ -292,6 +362,9 @@ func ResolveNext(lead LeadView, now time.Time) NextAction {
 		}
 		return safeAction(kind, "manual", lead.ManualNextAt)
 	}
+	if lead.WaitingCustomer {
+		return safeAction("wait_customer", "manual", "")
+	}
 	if channelEligible(lead) {
 		return safeAction("channel_follow_up", "suggestion", "")
 	}
@@ -322,6 +395,10 @@ func actionLabel(kind string) string {
 		return "在授权渠道内跟进"
 	case "suggest_schedule":
 		return "安排下一次跟进"
+	case "wait_customer":
+		return "等待客户回复"
+	case "confirm_draft":
+		return "确认或修改草稿"
 	default:
 		return "无系统动作"
 	}
@@ -333,13 +410,13 @@ func channelEligible(lead LeadView) bool {
 
 // FollowThroughKey identifies one saved follow-up. The same normalized
 // facts always hash to the same key; a different note does not.
-func FollowThroughKey(leadID, note, nextAt, channel string, complete bool, createdBy string) string {
+func FollowThroughKey(leadID, note, nextAt, channel string, complete bool, createdBy, disposition string) string {
 	bit := "0"
 	if complete {
 		bit = "1"
 	}
 	sum := sha256.Sum256([]byte(strings.Join([]string{
-		leadID, note, nextAt, channel, bit, createdBy,
+		leadID, note, nextAt, channel, bit, createdBy, disposition,
 	}, "\x1f")))
 	return hex.EncodeToString(sum[:])
 }
@@ -484,6 +561,15 @@ func sumKind(opps []OpportunityView, kind string) *int64 {
 
 // Build classifies the desk. Sales and agents only receive their own rows.
 func Build(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView, desk []ReceptionView) Result {
+	return buildDesk(scope, now, leads, opps, desk, nil)
+}
+
+// BuildWithDrafts is Build plus generated replies waiting for a person.
+func BuildWithDrafts(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView, desk []ReceptionView, drafts []DraftView) Result {
+	return buildDesk(scope, now, leads, opps, desk, drafts)
+}
+
+func buildDesk(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView, desk []ReceptionView, drafts []DraftView) Result {
 	buckets := map[string][]Item{}
 	for _, key := range []string{
 		BucketUnprocessed, BucketDueToday, BucketWaitingReply, BucketStale,
@@ -557,7 +643,7 @@ func Build(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView,
 	if scope.Role == "owner" {
 		name = "tenant"
 	}
-	return Result{
+	result := Result{
 		Scope:             name,
 		Buckets:           buckets,
 		Money:             SeparateMoney(visibleOpps),
@@ -566,6 +652,8 @@ func Build(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView,
 		JointChain:        ProjectJointChain(),
 		OutreachSubmitted: DeskSubmittedOutreach(),
 	}
+	result.Today = projectToday(scope, now, leads, opps, desk, drafts)
+	return result
 }
 
 // InScope applies the existing owner / assignee split.
@@ -589,7 +677,11 @@ func leadItem(lead LeadView, opps []OpportunityView) Item {
 		Sync:             ProjectSync(lead.CRMReceiptAt),
 		OutreachNotice:   OutreachNotice(lead.MarketingSMSOrPhone, false),
 		ModelAdvice:      ModelAdviceMissing,
+		Context:          ProjectContext(lead),
+		LastInteraction:  Interaction{At: lead.LastInteractionAt, Summary: lead.LastInteraction},
 	}
+	item.Ask = item.Context.Ask
+	item.Basis = NextBasis(item.Next, lead.AIScore)
 	if RefuseSalesPush(lead.Purpose) {
 		item.Reason = "不推进销售商机"
 	}
@@ -683,4 +775,291 @@ func AssembleTimeline(events []TimelineEvent, reveal bool) []TimelineEvent {
 		}
 	}
 	return out
+}
+
+var errDraftNotEditable = errors.New("draft is not editable")
+
+// IsTouchSource reports a lead that arrived from Touch.
+func IsTouchSource(lead LeadView) bool {
+	if lead.SourceType == "touch_campaign" {
+		return true
+	}
+	channel := strings.TrimSpace(lead.SourceChannel)
+	return channel == "碰一碰" || strings.EqualFold(channel, "touch")
+}
+
+// AllowCreativeHandoff is true only for a creative-service job.
+// After-sales and ordinary consults never grow that handoff.
+func AllowCreativeHandoff(purpose, category string) bool {
+	if RefuseSalesPush(purpose) {
+		return false
+	}
+	return category == "creative_service"
+}
+
+// NextBasis explains the next step without claiming a send or a call.
+func NextBasis(action NextAction, score int) string {
+	_ = score
+	if action.Source == "manual" {
+		return "手工 Next Action 优先于 AI 建议，不会自动外呼或发消息"
+	}
+	return "AI 建议可修改或忽略，分数不会自动外呼或发消息"
+}
+
+// PreferManual keeps a handwritten time ahead of any suggestion.
+func PreferManual(suggested NextAction, manualAt, manualKind string) NextAction {
+	if strings.TrimSpace(manualAt) == "" && strings.TrimSpace(manualKind) == "" {
+		suggested.AutoCall = false
+		suggested.AutoMessage = false
+		suggested.CreateOrder = false
+		return suggested
+	}
+	kind := strings.TrimSpace(manualKind)
+	if kind == "" {
+		kind = "manual_follow_up"
+	}
+	return safeAction(kind, "manual", strings.TrimSpace(manualAt))
+}
+
+// IgnoreSuggestion records a human dismissal. A manual action is left alone.
+func IgnoreSuggestion(action NextAction) NextAction {
+	action.AutoCall = false
+	action.AutoMessage = false
+	action.CreateOrder = false
+	if action.Source == "manual" {
+		return action
+	}
+	return safeAction("none", "manual", "")
+}
+
+// IgnoreDraft drops a generated reply. An already sent reply stays sent.
+func IgnoreDraft(status string) DraftDecision {
+	if status == "sent" {
+		return DraftDecision{Status: "sent", Sent: true}
+	}
+	return DraftDecision{Status: "superseded", Sent: false}
+}
+
+// ReviseDraft edits a generated body and never sends it.
+func ReviseDraft(status, body string) (DraftDecision, string, error) {
+	body = strings.TrimSpace(body)
+	if status != "generated" || body == "" {
+		return DraftDecision{Status: status, Sent: status == "sent"}, body, errDraftNotEditable
+	}
+	return DraftDecision{Status: "generated", Sent: false}, body, nil
+}
+
+// ProjectContext reuses confirmed customer facts and lists only the gaps.
+func ProjectContext(lead LeadView) ConfirmedContext {
+	ctx := ConfirmedContext{ContactID: lead.ContactID, Facts: []string{}, Ask: []string{}}
+	if name := strings.TrimSpace(lead.ContactName); name != "" {
+		ctx.Customer = name
+		ctx.Facts = append(ctx.Facts, "客户姓名")
+	} else {
+		ctx.Ask = append(ctx.Ask, "客户姓名")
+	}
+	if lead.BusinessCategory != "" {
+		ctx.Business = businessLabel(lead.BusinessCategory)
+		ctx.Facts = append(ctx.Facts, "业务类别")
+	} else {
+		ctx.Ask = append(ctx.Ask, "业务类别")
+	}
+	if lead.SourceChannel != "" || lead.SourceActivity != "" || lead.SourceForm != "" {
+		ctx.Facts = append(ctx.Facts, "来源")
+	}
+	if strings.TrimSpace(lead.Assignee) != "" && strings.TrimSpace(DisplayOwner(lead)) != "" {
+		ctx.Facts = append(ctx.Facts, "负责人")
+	} else if strings.TrimSpace(lead.Assignee) == "" {
+		ctx.Ask = append(ctx.Ask, "负责人")
+	}
+	if len(AllowedContacts(lead)) > 0 {
+		ctx.Facts = append(ctx.Facts, "允许的联系方式")
+	}
+	switch strings.TrimSpace(lead.ConsentStatus) {
+	case "pending", "denied":
+		ctx.Ask = append(ctx.Ask, "联系许可")
+	}
+	return ctx
+}
+
+func businessLabel(category string) string {
+	switch category {
+	case "creative_service":
+		return "创意服务"
+	case "merchant_customer":
+		return "门店经营"
+	default:
+		return category
+	}
+}
+
+// ChangedAsks returns the changed keys that this customer already knows.
+func ChangedAsks(known, changed []string) []string {
+	allow := map[string]bool{}
+	for _, item := range known {
+		allow[item] = true
+	}
+	out := []string{}
+	seen := map[string]bool{}
+	for _, item := range changed {
+		item = strings.TrimSpace(item)
+		if item == "" || seen[item] || !allow[item] {
+			continue
+		}
+		seen[item] = true
+		out = append(out, item)
+	}
+	return out
+}
+
+// SameCustomerAsks reuses confirmed facts. A change asks only that change.
+func SameCustomerAsks(confirmed, gaps, changed []string) []string {
+	if len(changed) > 0 {
+		known := append(append([]string{}, confirmed...), gaps...)
+		return ChangedAsks(known, changed)
+	}
+	return append([]string{}, gaps...)
+}
+
+// PlaceToday picks one homepage group from the same next-action facts.
+// scheduled_next is a later appointment, not one of the seven today groups.
+func PlaceToday(lead LeadView, now time.Time) string {
+	if infoException(lead) {
+		return TodayInfo
+	}
+	rel := relNone
+	if lead.HasOpenFollowUp {
+		rel = nextRelation(lead.ManualNextAt, now)
+	}
+	switch rel {
+	case relBefore:
+		return TodayOverdue
+	case relToday:
+		return TodayDue
+	}
+	if lead.WaitingCustomer {
+		return TodayWaiting
+	}
+	if rel == relAfter {
+		return TodayScheduled
+	}
+	if lead.Status == "new" && !lead.HasCompletedFollowUp && !lead.HasOpenFollowUp {
+		return TodayNewInquiry
+	}
+	if (lead.Status == "in_progress" || lead.HasCompletedFollowUp) && !futureNext(lead.ManualNextAt, now) {
+		if olderThan(lead.UpdatedAt, now, staleAfterDays) && !lead.HasOpenFollowUp && !lead.WaitingCustomer {
+			return TodayOverdue
+		}
+		return TodayDue
+	}
+	return ""
+}
+
+func infoException(lead LeadView) bool {
+	if strings.TrimSpace(lead.Assignee) == "" && (lead.Status == "new" || lead.Status == "in_progress") {
+		return true
+	}
+	if DisplayFilterReason(lead) != "" {
+		return true
+	}
+	return strings.TrimSpace(lead.ConsentStatus) == "denied"
+}
+
+func nextRelation(at string, now time.Time) int {
+	ts, ok := parseTime(at)
+	if !ok {
+		return relNone
+	}
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	end := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+	if ts.Before(start) {
+		return relBefore
+	}
+	if ts.After(end) {
+		return relAfter
+	}
+	return relToday
+}
+
+func projectToday(scope Scope, now time.Time, leads []LeadView, opps []OpportunityView, desk []ReceptionView, drafts []DraftView) map[string][]Item {
+	today := map[string][]Item{
+		TodayNewInquiry: {},
+		TodayDue:        {},
+		TodayWaiting:    {},
+		TodayOverdue:    {},
+		TodayAIDraft:    {},
+		TodayHuman:      {},
+		TodayInfo:       {},
+	}
+	for _, lead := range leads {
+		if !InScope(scope, lead.Assignee) {
+			continue
+		}
+		group := PlaceToday(lead, now)
+		if _, ok := today[group]; !ok {
+			continue
+		}
+		item := leadItem(lead, opps)
+		item.Bucket = group
+		item.TodayGroup = group
+		today[group] = append(today[group], item)
+	}
+	for _, opp := range opps {
+		if !InScope(scope, opp.Assignee) || !activeStage(opp.Stage) || opp.HasManualNext {
+			continue
+		}
+		canUpdate := scope.Role == "owner" || (opp.Assignee != "" && opp.Assignee == scope.MemberID)
+		item := Item{
+			ID: opp.ID, TenantID: opp.TenantID, Bucket: TodayDue, TodayGroup: TodayDue, Kind: "opportunity",
+			OpportunityID: opp.ID, Assignee: opp.Assignee,
+			ShowServiceDraft: ShowServiceDraft(opp.Category) && AllowCreativeHandoff("", opp.Category),
+			ServiceDraft:     DecideServiceDraft(scope.Role, opp.Category, canUpdate, false),
+			ForceOpportunity: false,
+			Next:             safeAction("suggest_schedule", "suggestion", ""),
+		}
+		if !AllowCreativeHandoff("", opp.Category) {
+			item.ShowServiceDraft = false
+			item.ServiceDraft = ServiceDraftDesk{}
+		}
+		item.Basis = NextBasis(item.Next, 0)
+		today[TodayDue] = append(today[TodayDue], item)
+	}
+	for _, session := range desk {
+		if !InScope(scope, session.Assignee) {
+			continue
+		}
+		if session.HumanTodo {
+			item := sessionItem(session, TodayHuman)
+			item.TodayGroup = TodayHuman
+			today[TodayHuman] = append(today[TodayHuman], item)
+			continue
+		}
+		if session.WaitingReply {
+			item := sessionItem(session, TodayWaiting)
+			item.TodayGroup = TodayWaiting
+			today[TodayWaiting] = append(today[TodayWaiting], item)
+		}
+	}
+	for _, draft := range drafts {
+		if draft.Status != "generated" || (draft.Kind != "ai" && draft.Kind != "draft") {
+			continue
+		}
+		if !InScope(scope, draft.Assignee) {
+			continue
+		}
+		today[TodayAIDraft] = append(today[TodayAIDraft], draftItem(draft))
+	}
+	return today
+}
+
+func draftItem(d DraftView) Item {
+	item := Item{
+		ID: d.ID, TenantID: d.TenantID, Bucket: TodayAIDraft, TodayGroup: TodayAIDraft, Kind: "ai_draft",
+		SessionID: d.SessionID, LeadID: d.LeadID, Assignee: d.Assignee, OwnerLabel: strings.TrimSpace(d.OwnerLabel),
+		DraftBody: d.Body, ForceOpportunity: false,
+		Next:        safeAction("confirm_draft", "suggestion", ""),
+		ModelAdvice: ModelAdviceMissing,
+	}
+	item.Basis = "AI 草稿待确认，可修改或忽略，不会自动发送"
+	return item
 }

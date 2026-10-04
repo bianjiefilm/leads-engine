@@ -608,6 +608,38 @@ func (s *Store) ReleaseSessionToAI(tenantID, sessionID, actorID, role string, ex
 	return s.GetReceptionSession(tenantID, sessionID)
 }
 
+// SupersedeGeneratedReply ignores a generated draft. It never marks the reply sent.
+func (s *Store) SupersedeGeneratedReply(tenantID, replyID string) (ReceptionReply, error) {
+	res, err := s.DB.Exec(
+		`UPDATE reception_replies SET status='superseded'
+		 WHERE id=? AND tenant_id=? AND status='generated' AND kind IN ('ai','draft')`,
+		replyID, tenantID)
+	if err != nil {
+		return ReceptionReply{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n != 1 {
+		return ReceptionReply{}, sql.ErrNoRows
+	}
+	return s.GetReceptionReply(tenantID, replyID)
+}
+
+// ReviseGeneratedReply replaces a generated body. Status stays generated and sent_at stays empty.
+func (s *Store) ReviseGeneratedReply(tenantID, replyID, body string) (ReceptionReply, error) {
+	res, err := s.DB.Exec(
+		`UPDATE reception_replies SET body=?
+		 WHERE id=? AND tenant_id=? AND status='generated' AND kind IN ('ai','draft')`,
+		body, replyID, tenantID)
+	if err != nil {
+		return ReceptionReply{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n != 1 {
+		return ReceptionReply{}, sql.ErrNoRows
+	}
+	return s.GetReceptionReply(tenantID, replyID)
+}
+
 // ApproveReceptionReply marks a current-epoch generated draft approved.
 func (s *Store) ApproveReceptionReply(tenantID, sessionID, replyID string) (ReceptionReply, error) {
 	tx, err := s.DB.Begin()

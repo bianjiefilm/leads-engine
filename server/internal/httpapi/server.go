@@ -267,6 +267,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/leads/{id}", s.requireSession(s.handleLeadPatch))
 	// HUI-1893 销售工作台。只读分类和人工跟进，不因分数外呼、发消息或建单。
 	mux.Handle("GET /api/v1/workbench", s.requireSession(s.handleWorkbench))
+	mux.Handle("POST /api/v1/workbench/drafts/{id}/ignore", s.requireSession(s.handleDraftIgnore))
+	mux.Handle("POST /api/v1/workbench/drafts/{id}/revise", s.requireSession(s.handleDraftRevise))
 	mux.Handle("GET /api/v1/leads/{id}/timeline", s.requireSession(s.handleLeadTimeline))
 	mux.Handle("POST /api/v1/leads/{id}/follow-through", s.requireSession(s.handleLeadFollowThrough))
 	// HUI-1685 / FEAT-0186 线索自动分配配置面:FEATURE_LEADS_ASSIGN 闸控,默认
