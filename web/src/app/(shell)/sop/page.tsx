@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentSOP, recordLabel, type SOPCapability } from "@/lib/sopReach";
+import {
+  consentChoices,
+  contactChoices,
+  sopSubmit,
+  type ScopeConsent,
+  type ScopeContact,
+} from "@/lib/scopePick";
 
 interface SOPAction {
   id: string;
@@ -20,13 +27,20 @@ interface SOPAction {
 
 const EMPTY_VIEW = presentSOP(null);
 
+function consentLabel(item: ScopeConsent): string {
+  const purpose = item.purpose || "授权";
+  return item.source_channel ? `${purpose} · ${item.source_channel}` : purpose;
+}
+
 export default function SOPPage() {
   const scope = useCrmScope();
   const tenantId = scope.tenantId ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [items, setItems] = useState<SOPAction[] | null>(null);
   const [error, setError] = useState("");
+  const [contacts, setContacts] = useState<ScopeContact[] | null>(null);
   const [contactId, setContactId] = useState("");
+  const [consents, setConsents] = useState<ScopeConsent[] | null>(null);
   const [consentId, setConsentId] = useState("");
   const [channel, setChannel] = useState("sms");
   const [recipient, setRecipient] = useState("");
@@ -34,76 +48,128 @@ export default function SOPPage() {
   const [body, setBody] = useState("");
   const [draftId, setDraftId] = useState("");
   const [busy, setBusy] = useState(false);
+  const loadSeq = useRef(0);
+  const consentSeq = useRef(0);
+  const tenantRef = useRef(tenantId);
+  tenantRef.current = tenantId;
 
   const headers = useCallback(
     () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
     [tenantId],
   );
 
-  const load = useCallback(async (tenantID: string) => {
+  const load = useCallback(async (tenantID: string, seq: number) => {
     setError("");
     setItems(null);
     setView(EMPTY_VIEW);
     if (!tenantID.trim()) {
       setItems([]);
+      setContacts([]);
       return;
     }
     const h = { "x-tenant-id": tenantID.trim() };
     try {
-      const [capRes, listRes] = await Promise.all([
+      const [capRes, listRes, contactRes] = await Promise.all([
         fetch("/api/sop/capability", { headers: h }),
         fetch("/api/sop/actions", { headers: h }),
+        fetch("/api/contacts", { headers: h }),
       ]);
+      if (loadSeq.current !== seq) return;
       const capBody = (await capRes.json()) as SOPCapability & { message?: string; error?: string };
       const listBody = await listRes.json();
       setView(presentSOP(capBody));
+      let nextContacts: ScopeContact[] = [];
+      if (contactRes.ok) {
+        const contactBody = await contactRes.json().catch(() => null);
+        nextContacts = contactChoices(contactBody?.items);
+      }
+      setContacts(nextContacts);
       if (!listRes.ok) {
         setError(failureText(listBody, listRes.status));
         setItems([]);
         return;
       }
+      if (!capRes.ok) setError(failureText(capBody, capRes.status));
       setItems((listBody.items ?? []) as SOPAction[]);
     } catch (e) {
+      if (loadSeq.current !== seq) return;
       setError(e instanceof Error ? productError(e.message) : "加载失败");
       setItems([]);
+      setContacts([]);
     }
   }, []);
 
   useEffect(() => {
-    void load(scope.tenantId ?? "");
+    const seq = ++loadSeq.current;
+    consentSeq.current += 1;
+    setContactId("");
+    setConsentId("");
+    setConsents(null);
+    setContacts(null);
+    setDraftId("");
+    setBusy(false);
+    void load(scope.tenantId ?? "", seq);
   }, [scope.epoch, scope.tenantId, load]);
 
-  async function post(path: string, payload: Record<string, unknown>) {
+  async function loadConsents(tenantID: string, id: string) {
+    const seq = ++consentSeq.current;
+    setConsentId("");
+    setConsents(null);
+    if (!tenantID.trim() || !id) {
+      setPurpose("follow_up");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/contacts/${encodeURIComponent(id)}/consents`, {
+        headers: { "x-tenant-id": tenantID.trim() },
+      });
+      const body = await res.json().catch(() => null);
+      if (consentSeq.current !== seq) return;
+      const choices = res.ok ? consentChoices(body?.items) : [];
+      setConsents(choices);
+      if (choices.length === 0) setPurpose("follow_up");
+    } catch {
+      if (consentSeq.current !== seq) return;
+      setConsents([]);
+      setPurpose("follow_up");
+    }
+  }
+
+  async function post(path: string, payload: object) {
+    const tenantAtSubmit = tenantId;
+    const seqAtSubmit = loadSeq.current;
     setBusy(true);
     setError("");
     try {
       const res = await fetch(path, { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       const data = await res.json();
+      if (tenantRef.current !== tenantAtSubmit || loadSeq.current !== seqAtSubmit) return data as { id?: string };
       if (!res.ok) {
         setError(failureText(data, res.status));
         return data as { id?: string };
       }
-      if (data.kind === "pending_draft" && typeof data.id === "string") setDraftId(data.id);
-      await load(tenantId);
+      if (data.kind === "pending_draft" && typeof data.id === "string" && data.id.trim()) setDraftId(data.id);
+      await load(tenantAtSubmit, seqAtSubmit);
       return data as { id?: string; kind?: string };
     } catch (e) {
-      setError(e instanceof Error ? productError(e.message) : "提交失败");
+      if (tenantRef.current === tenantAtSubmit) setError(e instanceof Error ? productError(e.message) : "提交失败");
       return {};
     } finally {
-      setBusy(false);
+      if (tenantRef.current === tenantAtSubmit) setBusy(false);
     }
   }
 
-  const bound = {
-    contact_id: contactId.trim(),
-    consent_id: consentId.trim(),
-    channel,
-    recipient: recipient.trim(),
+  const selected = contacts?.find((item) => item.id === contactId) ?? null;
+  const selectedConsent = consents?.find((item) => item.id === consentId) ?? null;
+  const payload = sopSubmit({
+    contact: selected,
     purpose,
-    content_version: 1,
-    budget_cents: 0,
-    body: body.trim(),
-  };
+    consent: selectedConsent,
+    channel,
+    recipient,
+    body,
+  });
+  const marketingOpen = (consents?.length ?? 0) > 0;
 
   return (
     <main data-page="sop">
@@ -123,14 +189,35 @@ export default function SOPPage() {
         <h2>提醒和草稿</h2>
         <p>
           <label>
-            联系人 <input value={contactId} onChange={(e) => setContactId(e.target.value)} />
+            客户{" "}
+            <select
+              value={contactId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setContactId(id);
+                void loadConsents(tenantId, id);
+              }}
+            >
+              <option value="">选择客户</option>
+              {contacts?.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
           </label>
         </p>
+        {tenantId && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
         <p>
           <label>
-            授权 <input value={consentId} onChange={(e) => setConsentId(e.target.value)} />
+            授权{" "}
+            <select value={consentId} onChange={(e) => setConsentId(e.target.value)} disabled={!marketingOpen}>
+              <option value="">不选择授权</option>
+              {consents?.map((item) => (
+                <option key={item.id} value={item.id}>{consentLabel(item)}</option>
+              ))}
+            </select>
           </label>
         </p>
+        {selected && consents && consents.length === 0 ? <p className="muted">还没有可选择的授权</p> : null}
         <p>
           <label>
             渠道{" "}
@@ -142,9 +229,16 @@ export default function SOPPage() {
           </label>{" "}
           <label>
             用途{" "}
-            <select value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+            <select
+              value={purpose}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next === "marketing" && !marketingOpen) return;
+                setPurpose(next);
+              }}
+            >
               <option value="follow_up">跟进</option>
-              <option value="marketing">营销</option>
+              <option value="marketing" disabled={!marketingOpen}>营销</option>
             </select>
           </label>
         </p>
@@ -159,10 +253,27 @@ export default function SOPPage() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
           </label>
         </p>
-        <button className="primary" type="button" data-page-primary="true" disabled={busy || !tenantId} onClick={() => void post("/api/sop/reminders", bound)}>
+        <button
+          className="primary"
+          type="button"
+          data-page-primary="true"
+          disabled={busy || !tenantId || !payload}
+          onClick={() => {
+            if (!payload) return;
+            void post("/api/sop/reminders", payload);
+          }}
+        >
           {pagePrimary("sop")}
         </button>{" "}
-        <button className="btn" type="button" disabled={busy || !tenantId} onClick={() => void post("/api/sop/drafts", bound)}>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy || !tenantId || !payload}
+          onClick={() => {
+            if (!payload) return;
+            void post("/api/sop/drafts", payload);
+          }}
+        >
           保存回复草稿
         </button>
         {error ? <SurfaceState kind="error" title="跟进没有记下" detail={error} /> : null}
@@ -170,10 +281,7 @@ export default function SOPPage() {
       <div className="card">
         <h2>人工确认</h2>
         <p className="muted">确认后停在待发送或未送达。没有渠道回执时不会写成已送达。</p>
-        <label>
-          草稿{" "}
-          <input value={draftId} onChange={(e) => setDraftId(e.target.value)} placeholder="草稿 id" />
-        </label>{" "}
+        <p className="muted">{draftId ? "已选用一条草稿，可以人工确认。" : "先保存草稿，或在下面的记录里选用。"}</p>
         <button
           className="btn"
           type="button"

@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentOutbound, receiptLabel, type OutboundCapability } from "@/lib/outboundCall";
+import {
+  campaignChoice,
+  consentChoices,
+  contactChoices,
+  outboundSubmit,
+  type ScopeConsent,
+  type ScopeContact,
+} from "@/lib/scopePick";
 
 interface OutboundReceipt {
   id: string;
@@ -30,67 +38,123 @@ interface OutboundTask {
 
 const EMPTY_VIEW = presentOutbound(null);
 
+function flagText(value: boolean | undefined, yes: string, no: string, missing: string): string {
+  if (value === true) return yes;
+  if (value === false) return no;
+  return missing;
+}
+
+function consentLabel(item: ScopeConsent): string {
+  const purpose = item.purpose || "授权";
+  return item.source_channel ? `${purpose} · ${item.source_channel}` : purpose;
+}
+
 export default function OutboundPage() {
   const scope = useCrmScope();
   const tenantId = scope.tenantId ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [error, setError] = useState("");
+  const [contacts, setContacts] = useState<ScopeContact[] | null>(null);
   const [contactId, setContactId] = useState("");
+  const [consents, setConsents] = useState<ScopeConsent[] | null>(null);
   const [consentId, setConsentId] = useState("");
-  const [taskKey, setTaskKey] = useState("");
-  const [campaignId, setCampaignId] = useState("camp-a");
   const [task, setTask] = useState<OutboundTask | null>(null);
   const [busy, setBusy] = useState(false);
+  const loadSeq = useRef(0);
+  const consentSeq = useRef(0);
+  const tenantRef = useRef(tenantId);
+  tenantRef.current = tenantId;
 
   const headers = useCallback(
     () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
     [tenantId],
   );
 
-  const load = useCallback(async (tenantID: string) => {
+  const load = useCallback(async (tenantID: string, seq: number) => {
     setError("");
     setView(EMPTY_VIEW);
-    if (!tenantID.trim()) return;
+    if (!tenantID.trim()) {
+      setContacts([]);
+      return;
+    }
+    const h = { "x-tenant-id": tenantID.trim() };
     try {
-      const res = await fetch("/api/outbound/capability", { headers: { "x-tenant-id": tenantID.trim() } });
-      const body = (await res.json()) as OutboundCapability & { message?: string; error?: string };
+      const [capRes, contactRes] = await Promise.all([
+        fetch("/api/outbound/capability", { headers: h }),
+        fetch("/api/contacts", { headers: h }),
+      ]);
+      if (loadSeq.current !== seq) return;
+      const body = (await capRes.json()) as OutboundCapability & { message?: string; error?: string };
       setView(presentOutbound(body));
-      if (!res.ok) setError(failureText(body, res.status));
+      if (!capRes.ok) setError(failureText(body, capRes.status));
+      let nextContacts: ScopeContact[] = [];
+      if (contactRes.ok) {
+        const contactBody = await contactRes.json().catch(() => null);
+        nextContacts = contactChoices(contactBody?.items);
+      }
+      setContacts(nextContacts);
     } catch (e) {
+      if (loadSeq.current !== seq) return;
       setError(e instanceof Error ? productError(e.message) : "加载失败");
+      setContacts([]);
     }
   }, []);
 
   useEffect(() => {
-    void load(scope.tenantId ?? "");
+    const seq = ++loadSeq.current;
+    consentSeq.current += 1;
+    setContactId("");
+    setConsentId("");
+    setConsents(null);
+    setContacts(null);
+    setTask(null);
+    setBusy(false);
+    void load(scope.tenantId ?? "", seq);
   }, [scope.epoch, scope.tenantId, load]);
 
-  async function post(path: string, payload: Record<string, unknown>) {
+  async function loadConsents(tenantID: string, id: string) {
+    const seq = ++consentSeq.current;
+    setConsentId("");
+    setConsents(null);
+    if (!tenantID.trim() || !id) return;
+    try {
+      const res = await fetch(`/api/contacts/${encodeURIComponent(id)}/consents`, {
+        headers: { "x-tenant-id": tenantID.trim() },
+      });
+      const body = await res.json().catch(() => null);
+      if (consentSeq.current !== seq) return;
+      setConsents(res.ok ? consentChoices(body?.items) : []);
+    } catch {
+      if (consentSeq.current !== seq) return;
+      setConsents([]);
+    }
+  }
+
+  async function post(path: string, payload: object) {
+    const tenantAtSubmit = tenantId;
+    const seqAtSubmit = loadSeq.current;
     setBusy(true);
     setError("");
     try {
       const res = await fetch(path, { method: "POST", headers: headers(), body: JSON.stringify(payload) });
       const data = (await res.json()) as OutboundTask & { message?: string };
+      if (tenantRef.current !== tenantAtSubmit || loadSeq.current !== seqAtSubmit) return data;
       if (typeof data.id === "string") setTask(data);
       if (!res.ok) setError(failureText(data, res.status));
       return data;
     } catch (e) {
-      setError(e instanceof Error ? productError(e.message) : "提交失败");
+      if (tenantRef.current === tenantAtSubmit) setError(e instanceof Error ? productError(e.message) : "提交失败");
       return null;
     } finally {
-      setBusy(false);
+      if (tenantRef.current === tenantAtSubmit) setBusy(false);
     }
   }
 
-  const dial = {
-    task_key: taskKey.trim(),
-    contact_id: contactId.trim(),
-    consent_id: consentId.trim(),
-    campaign_id: campaignId.trim(),
-    mode: "isolation",
-    budget_cents: 0,
-    op: "dial",
-  };
+  const selected = contacts?.find((item) => item.id === contactId) ?? null;
+  const selectedConsent = consents?.find((item) => item.id === consentId) ?? null;
+  const campaignId = campaignChoice(selected);
+  const dial = task ? flagText(task.dial_succeeded, "拨打成功：是", "拨打成功：否", "没有拨打回执") : "";
+  const connected = task ? flagText(task.real_connected, "真实接通：是", "真实接通：否", "没有接通回执") : "";
 
   return (
     <main data-page="outbound">
@@ -108,26 +172,54 @@ export default function OutboundPage() {
       </div>
       <div className="card">
         <h2>隔离演练</h2>
-        <p className="muted">只写入模拟任务。公开号码和高分都不会变成拨打成功。拒绝之后换活动也不能再打。</p>
+        <p className="muted">只写入模拟任务，不会自动发送，也不会扣费。公开号码和高分都不会变成拨打成功。拒绝之后换活动也不能再打。</p>
         <p>
           <label>
-            联系人 <input value={contactId} onChange={(e) => setContactId(e.target.value)} />
+            客户{" "}
+            <select
+              value={contactId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setContactId(id);
+                void loadConsents(tenantId, id);
+              }}
+            >
+              <option value="">选择客户</option>
+              {contacts?.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
           </label>
         </p>
+        {tenantId && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
         <p>
           <label>
-            语音营销授权 <input value={consentId} onChange={(e) => setConsentId(e.target.value)} />
+            语音营销授权{" "}
+            <select value={consentId} onChange={(e) => setConsentId(e.target.value)} disabled={!consents || consents.length === 0}>
+              <option value="">不选择授权</option>
+              {consents?.map((item) => (
+                <option key={item.id} value={item.id}>{consentLabel(item)}</option>
+              ))}
+            </select>
           </label>
         </p>
-        <p>
-          <label>
-            任务键 <input value={taskKey} onChange={(e) => setTaskKey(e.target.value)} />
-          </label>{" "}
-          <label>
-            活动 <input value={campaignId} onChange={(e) => setCampaignId(e.target.value)} />
-          </label>
-        </p>
-        <button className="primary" type="button" data-page-primary="true" disabled={busy || !tenantId} onClick={() => void post("/api/outbound/tasks", dial)}>
+        {selected && consents && consents.length === 0 ? <p className="muted">还没有可选择的授权</p> : null}
+        {selected && !campaignId ? <p className="muted">还没有可选的活动</p> : null}
+        <button
+          className="primary"
+          type="button"
+          data-page-primary="true"
+          disabled={busy || !tenantId || !selected || !campaignId}
+          onClick={() => {
+            const payload = outboundSubmit({
+              contact: selected,
+              consent: selectedConsent,
+              newKey: () => crypto.randomUUID(),
+            });
+            if (!payload) return;
+            void post("/api/outbound/tasks", payload);
+          }}
+        >
           {pagePrimary("outbound")}
         </button>{" "}
         <button
@@ -152,7 +244,7 @@ export default function OutboundPage() {
         <h2>回执</h2>
         <p className="muted" data-testid="outbound-result">
           {task
-            ? `模拟：${task.simulation ? "是" : "否"}。拨打成功：${task.dial_succeeded ? "是" : "否"}。真实接通：${task.real_connected ? "是" : "否"}。费用：${task.cost === "unknown" || !task.cost ? "未知" : task.cost}。`
+            ? `模拟：${task.simulation ? "是" : "否"}。${dial}。${connected}。费用：${task.cost === "unknown" || !task.cost ? "未知" : task.cost}。`
             : "还没有任务。"}
         </p>
         <ul>
