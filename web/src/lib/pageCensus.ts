@@ -18,6 +18,10 @@ export const HALF_PRODUCT_MARKERS = [
   "inline style",
   "接口说明",
   "架构说明",
+  "raw button",
+  "raw input",
+  "raw table",
+  "bare hex",
 ] as const;
 
 export type HalfProductMarker = (typeof HALF_PRODUCT_MARKERS)[number];
@@ -67,6 +71,11 @@ export function scanHalfProduct(source: string): HalfProductHit[] {
     { marker: "inline style", re: /style\s*=\s*(?:\{\{|["'{])/g },
     { marker: "接口说明", re: /接口说明/g },
     { marker: "架构说明", re: /架构说明/g },
+    // 大小写敏感。<Button 不算。# 后恰好 3 或 6 位十六进制才算，多一位或少一位都不计。
+    { marker: "raw button", re: /(?<![A-Za-z0-9_])<button/g },
+    { marker: "raw input", re: /(?<![A-Za-z0-9_])<input/g },
+    { marker: "raw table", re: /(?<![A-Za-z0-9_])<table/g },
+    { marker: "bare hex", re: /(?<![A-Za-z0-9_])#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})(?![0-9A-Fa-f])/g },
   ];
   const found: { index: number; hit: HalfProductHit }[] = [];
   for (const rule of rules) {
