@@ -1,0 +1,15 @@
+/* Painuo 1.0.0; source 4e6dec90bd5f5822ae092dc2b06c90f8c18368518984f262c3144dedc5979a40; explicit scope only; profile leads-web */
+[data-pn-surface="work.light"][data-pn-theme="dark"] {
+  --accent: var(--pn-brand-accent);
+  --bg: var(--pn-bg-page);
+  --fg: var(--pn-text-primary);
+  --line: var(--pn-border-default);
+  --muted: var(--pn-text-muted);
+}
+[data-pn-surface="work.light"][data-pn-theme="light"] {
+  --accent: var(--pn-brand-accent);
+  --bg: var(--pn-bg-page);
+  --fg: var(--pn-text-primary);
+  --line: var(--pn-border-default);
+  --muted: var(--pn-text-muted);
+}

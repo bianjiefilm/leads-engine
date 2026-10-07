@@ -1,0 +1,26 @@
+{
+  "aliasesDeprecatedUntil": {
+    "minimumDays": 90,
+    "minimumRetainedVersion": "1.2.0",
+    "producerExpectedRepo": "github.com/bianjiefilm/public-ai",
+    "removalMajor": 2,
+    "v1FirstReleasedAt": null,
+    "windowRule": "laterOfV1_2ReleaseAnd90DaysAfterV1FirstRelease"
+  },
+  "consumerId": "leads-web",
+  "defaultSurface": "work.light",
+  "defaultTheme": "light",
+  "files": {
+    "web/src/styles/generated/painuo/v1/aliases.css": "fdde1a8b9eb07b81bba3450552eb8ad864ce2430b3beb2ef4fce28f5bbf07832",
+    "web/src/styles/generated/painuo/v1/aliases.scss": "05e1f028168907ece7068e1e37d2ff24ffe7383aaabb7999cb76a7297b0a904a",
+    "web/src/styles/generated/painuo/v1/lint-allowlist.json": "5beff127aed2341dbdccd2adcd2da529b3952dcb2de9b40c00e347a270fd3ad3",
+    "web/src/styles/generated/painuo/v1/resolved.json": "a7c0d54643b49488e246304f8b05c1a74cad50c056c274e2e6455cd1ca43725c",
+    "web/src/styles/generated/painuo/v1/token-table.md": "4d2ea10361a06962a8210f63a8d76f0364bf5216a100cf41bec5fbc4a6f526e1",
+    "web/src/styles/generated/painuo/v1/tokens.css": "c2ccd5eb534687f425f19ae6a004a6af9f7f9fc7923d7e50cc60b057a806670c",
+    "web/src/styles/generated/painuo/v1/tokens.scss": "d89fef7429488f199542972adecdaaf7d6dff9ad20c6d86a6a1c50ec9250e235"
+  },
+  "schemaVersion": "painuo-token-lock/v1",
+  "sourceCanonicalSha256": "4e6dec90bd5f5822ae092dc2b06c90f8c18368518984f262c3144dedc5979a40",
+  "sourceCommit": "01e67653b0e394f9a6d4f74497945c33681a6bc2",
+  "tokenVersion": "1.0.0"
+}
