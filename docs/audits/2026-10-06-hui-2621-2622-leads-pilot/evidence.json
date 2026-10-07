@@ -321,6 +321,17 @@
    "stderrSha256": "6fa42f93b76bf40ad8b752bf7909786c6840040eac9c8c9b6223dad627e0529f",
    "stdoutBytes": 2187,
    "stdoutSha256": "71c072f33e5f4b09ca9915baa59b2f22e528c7125199dae3642a64ab7aff035f"
+  },
+  {
+   "argv": "git diff --name-only 687f9d0..HEAD + per-commit git show --name-status vs design §9 owned set",
+   "duration_s": 1.0,
+   "exit": 0,
+   "note": "PASS — 100 changed paths, 0 outside §9; per-commit explicit adds: 8991812 (61A+3M), 2d70591 (5A+4M), 169e699 (2A+1M) all owned; leg-1 commits fef9f01/0540a7a/e035b47 re-audited in g7/per-commit-audit.txt; first checker run flagged v1.lock.json = checker omission (fixed), not a scope breach",
+   "slot": "G7-scope-audit",
+   "stderrBytes": 0,
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdoutBytes": 100,
+   "stdoutSha256": "a8c6df7a7f5f128a8f48b99ca4f01388bc5eb193718860fa02a1b1106b916917"
   }
  ],
  "executor": "codex dispatch (leads-engine pilot implementer), model GLM (ZCode)",
@@ -341,7 +352,7 @@
   "letterResult": "FAIL"
  },
  "generatedAt": "2026-10-07",
- "ledgerLastAppendedAt": "2026-10-07T12:34:01+00:00",
+ "ledgerLastAppendedAt": "2026-10-07T12:35:21+00:00",
  "pins": {
   "leadsEngineBase": {
    "actual": "687f9d0f38c63a41d9aacab676c438ea0f09f279",

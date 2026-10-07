@@ -1,0 +1,169 @@
+===== fef9f01 =====
+fef9f01 RED(hui-2621+2622): painuo tokens lock/importer + renderer identity/Status + roiStatus mapping tests (7-item RED per pilot design §5; producer pinned public-ai@01e6765 per Root r1 re-pin ruling; zero product code)
+(author: jimfu, date: Wed Oct 7 19:19:08 2026 +0800)
+
+ web/tests/painuoRenderer.identity.test.ts | 112 ++++++++++++++++++++++++++++++
+ web/tests/painuoRenderer.status.test.tsx  |  61 ++++++++++++++++
+ web/tests/painuoStatus.test.ts            |  24 +++++++
+ web/tests/painuoTokens.importer.test.ts   |  41 +++++++++++
+ web/tests/painuoTokens.lock.test.ts       |  91 ++++++++++++++++++++++++
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+A	web/tests/painuoRenderer.identity.test.ts
+A	web/tests/painuoRenderer.status.test.tsx
+A	web/tests/painuoStatus.test.ts
+A	web/tests/painuoTokens.importer.test.ts
+A	web/tests/painuoTokens.lock.test.ts
+
+===== 0540a7a =====
+0540a7a feat(hui-2621): adopt leads-web semantic tokens via sync.py --apply (producer public-ai@01e6765)
+(author: jimfu, date: Wed Oct 7 19:21:15 2026 +0800)
+
+ web/src/styles/generated/painuo/v1/aliases.css     |    15 +
+ web/src/styles/generated/painuo/v1/aliases.scss    |     7 +
+ .../styles/generated/painuo/v1/lint-allowlist.json | 11744 ++++++++
+ .../generated/painuo/v1/painuo-tokens.lock.json    |    26 +
+ web/src/styles/generated/painuo/v1/resolved.json   | 27794 +++++++++++++++++++
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+A	web/src/styles/generated/painuo/v1/aliases.css
+A	web/src/styles/generated/painuo/v1/aliases.scss
+A	web/src/styles/generated/painuo/v1/lint-allowlist.json
+A	web/src/styles/generated/painuo/v1/painuo-tokens.lock.json
+A	web/src/styles/generated/painuo/v1/resolved.json
+A	web/src/styles/generated/painuo/v1/token-table.md
+A	web/src/styles/generated/painuo/v1/tokens.css
+A	web/src/styles/generated/painuo/v1/tokens.scss
+
+===== e035b47 =====
+e035b47 docs(hui-2621+2622): G3 stop-gate evidence — lint delta FAIL inherited from base pin (18 findings in globals.css from merged 2598/2626 commits); zero-increment proven; G4-G9 not executed, awaiting Root ruling
+(author: jimfu, date: Wed Oct 7 19:28:34 2026 +0800)
+
+ .../G3-STOP-NOTE.md                                |   33 +
+ .../SHA256SUMS.txt                                 |   16 +
+ .../evidence.json                                  |  254 ++++
+ .../g3/lint-delta.basepin-687f9d0.json             |  357 ++++++
+ .../g3/lint-delta.head-0540a7a.json                |  357 ++++++
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/G3-STOP-NOTE.md
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/SHA256SUMS.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/evidence.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/lint-delta.basepin-687f9d0.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/lint-delta.head-0540a7a.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/lint-delta.rehearsal-368eaa0.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/lint-lock.verdict.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/sync-apply.first.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/sync-apply.old-lock-required.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/sync-apply.second-idempotent.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/sync-check.first.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g3/sync-check.second-idempotent.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/painuo-style-baseline.v1.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/toolchain-python.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/toolchain-versions.txt
+
+===== 8991812 =====
+8991812 feat(hui-2621+2622): G4 vendor painuo react renderer v1 (40 files byte-identical @ producer 01e6765) + consumer lock + exact dep pins
+(author: jimfu, date: Wed Oct 7 20:26:51 2026 +0800)
+
+ .../evidence.json                                  | 602 ++++++++++++---------
+ .../g4/npm-ci.stderr.txt                           |   0
+ .../g4/npm-ci.stdout.txt                           |   2 +
+ .../g4/npm-install.stderr.txt                      |   0
+ .../g4/npm-install.stdout.txt                      |   2 +
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+M	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/evidence.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/npm-ci.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/npm-ci.stdout.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/npm-install.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/npm-install.stdout.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/stage-dir-sha256.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.export.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.export.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.post.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.post.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.pre.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-check.pre.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-identity-40.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.ok.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.ok.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.resolved.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.resolved.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vendor-stageout.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vitest-identity.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g4/vitest-identity.stdout.txt
+M	web/package-lock.json
+M	web/package.json
+A	web/src/vendor/painuo/react/v1.lock.json
+A	web/src/vendor/painuo/react/v1/contract/api.json
+A	web/src/vendor/painuo/react/v1/contract/behavior-vectors.json
+A	web/src/vendor/painuo/react/v1/contract/profile-scopes.json
+A	web/src/vendor/painuo/react/v1/contract/renderer-lock.schema.json
+A	web/src/vendor/painuo/react/v1/src/Badge.tsx
+A	web/src/vendor/painuo/react/v1/src/Button.tsx
+A	web/src/vendor/painuo/react/v1/src/Card.tsx
+A	web/src/vendor/painuo/react/v1/src/Checkbox.tsx
+A	web/src/vendor/painuo/react/v1/src/ConfirmDialog.tsx
+A	web/src/vendor/painuo/react/v1/src/Dialog.tsx
+A	web/src/vendor/painuo/react/v1/src/Drawer.tsx
+A	web/src/vendor/painuo/react/v1/src/Dropdown.tsx
+A	web/src/vendor/painuo/react/v1/src/EmptyState.tsx
+A	web/src/vendor/painuo/react/v1/src/IconButton.tsx
+A	web/src/vendor/painuo/react/v1/src/InlineError.tsx
+A	web/src/vendor/painuo/react/v1/src/Input.tsx
+A	web/src/vendor/painuo/react/v1/src/PageHeader.tsx
+A	web/src/vendor/painuo/react/v1/src/Popover.tsx
+A	web/src/vendor/painuo/react/v1/src/Radio.tsx
+A	web/src/vendor/painuo/react/v1/src/RecoveryPanel.tsx
+A	web/src/vendor/painuo/react/v1/src/RendererProvider.tsx
+A	web/src/vendor/painuo/react/v1/src/SectionHeader.tsx
+A	web/src/vendor/painuo/react/v1/src/SegmentedControl.tsx
+A	web/src/vendor/painuo/react/v1/src/Select.tsx
+A	web/src/vendor/painuo/react/v1/src/Skeleton.tsx
+A	web/src/vendor/painuo/react/v1/src/Status.tsx
+A	web/src/vendor/painuo/react/v1/src/Switch.tsx
+A	web/src/vendor/painuo/react/v1/src/Tabs.tsx
+A	web/src/vendor/painuo/react/v1/src/Textarea.tsx
+A	web/src/vendor/painuo/react/v1/src/Toast.tsx
+A	web/src/vendor/painuo/react/v1/src/Tooltip.tsx
+A	web/src/vendor/painuo/react/v1/src/index.ts
+A	web/src/vendor/painuo/react/v1/src/internal/Field.tsx
+A	web/src/vendor/painuo/react/v1/src/internal/ModalPresence.tsx
+A	web/src/vendor/painuo/react/v1/src/internal/PendingGate.ts
+A	web/src/vendor/painuo/react/v1/src/internal/SafeError.tsx
+A	web/src/vendor/painuo/react/v1/src/internal/ScopeContext.tsx
+A	web/src/vendor/painuo/react/v1/src/internal/ScopedPortal.tsx
+A	web/src/vendor/painuo/react/v1/src/internal/ToastQueue.ts
+A	web/src/vendor/painuo/react/v1/src/styles.css
+
+===== 2d70591 =====
+2d70591 feat(hui-2621+2622): G5 adopt tokens via root layout importer + page-level RendererProvider + Status badge on attribution ROI row — RED->GREEN
+(author: jimfu, date: Wed Oct 7 20:32:41 2026 +0800)
+
+ .../evidence.json                                  | 13 +++-
+ .../g5/vitest-full.stderr.txt                      |  1 +
+ .../g5/vitest-full.stdout.txt                      | 41 +++++++++++
+ .../g5/vitest-status-prerefix.stderr.txt           | 79 ++++++++++++++++++++++
+ .../g5/vitest-status-prerefix.stdout.txt           | 20 ++++++
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+M	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/evidence.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g5/vitest-full.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g5/vitest-full.stdout.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g5/vitest-status-prerefix.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g5/vitest-status-prerefix.stdout.txt
+M	web/src/app/(shell)/attribution/page.tsx
+M	web/src/app/layout.tsx
+A	web/src/lib/painuoStatus.ts
+M	web/tests/painuoRenderer.status.test.tsx
+
+===== 169e699 =====
+169e699 chore(hui-2621+2622): G6 next build production exit0 — /attribution prerenders with vendored renderer + tokens importer (evidence g6/)
+(author: jimfu, date: Wed Oct 7 20:34:01 2026 +0800)
+
+ .../evidence.json                                  | 13 +++++-
+ .../g6/next-build.stderr.txt                       |  7 ++++
+ .../g6/next-build.stdout.txt                       | 48 ++++++++++++++++++++++
+ 3 files changed, 67 insertions(+), 1 deletion(-)
+--- explicit paths added in this commit (name-status, diff vs first parent) ---
+M	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/evidence.json
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g6/next-build.stderr.txt
+A	docs/audits/2026-10-06-hui-2621-2622-leads-pilot/g6/next-build.stdout.txt
+
