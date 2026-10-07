@@ -1,0 +1,357 @@
+{
+  "base": "b58ea1732f4a51d7bb061a3d71611f00174c1ec9",
+  "baselineHash": "88f610887dc3711d44194245ec14ac57c0c7de74f12987877cb0edee6e9c7554",
+  "findings": [
+    {
+      "byteSpan": [
+        104,
+        119
+      ],
+      "declaration": "--surface : #ffffff",
+      "declarationHash": "4b6753eb607d58b52e21783e2a929af2457cc432c50871f42ecf10a507b6438f",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "--surface",
+      "reason": null,
+      "references": [],
+      "scope": "/:root",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        123,
+        140
+      ],
+      "declaration": "--danger : #b42318",
+      "declarationHash": "c99ddd9e760922c03c9032ceb09f0ceb7ca4d31e132df70352f1a509fa7e799c",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "--danger",
+      "reason": null,
+      "references": [],
+      "scope": "/:root",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        144,
+        159
+      ],
+      "declaration": "--warn : #f5c16c",
+      "declarationHash": "529b78467744656061b288dc396d994f56aff5ad081a7fe2e071d432c166696a",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "--warn",
+      "reason": null,
+      "references": [],
+      "scope": "/:root",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        4135,
+        4161
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "e7b9d9f217daeda41d69a526185ec55f047af6d5464aeaa0c60e7fb2f4ee5709",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/button, .btn",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        4462,
+        4473
+      ],
+      "declaration": "color : #ffffff",
+      "declarationHash": "f8da720840c4ccabcdf520dcab55df7818cb72a9e4c6c62359df2ea1ec8701c4",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "color",
+      "reason": null,
+      "references": [],
+      "scope": "/button.primary, .btn.primary",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        4893,
+        4919
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "0912af089af177e131ee9598465e3c89b9d2a53b656d0df4ea37c4429ba5140b",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.desk-context",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        5065,
+        5091
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "d708acebfadced7856fe12b16cbd8c4b0851ee5a6835b4c0577206f21a62f179",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.desk-context select",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        5207,
+        5233
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "d91b5cd211c567a89ab1795ff20274462ca9cfb1a355c04fee27138e4eec1fb2",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.desk-nav",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        5632,
+        5661
+      ],
+      "declaration": "border : 1px solid transparent",
+      "declarationHash": "03bfb91b10d13c5d922f1ac30f61f137f8711822dbbf429de70dc2ddc483e258",
+      "kind": "dynamic",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "border",
+      "reason": "unrecognized_color_value",
+      "references": [],
+      "scope": "/.desk-nav a",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        5911,
+        5937
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "cff0fa9c6ad70990970610c7494a0175130d59c7ff3edea32132a1b14dfa5800",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.record-frame",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        6493,
+        6518
+      ],
+      "declaration": "border-color : var ( --warn )",
+      "declarationHash": "8cfd65a1b61d17e1fe4e6540b8b1d3cedf3b4c7ea9df925099b10e92d549de29",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "border-color",
+      "reason": null,
+      "references": [
+        {
+          "name": "--warn",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/[data-tone=\"automation\"]",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        6522,
+        6541
+      ],
+      "declaration": "background : #fff8eb",
+      "declarationHash": "16d8feefc020a25bc02a7cfac961b255d804831ba274989983ea3f5d4e5e2da9",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [],
+      "scope": "/[data-tone=\"automation\"]",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        7481,
+        7507
+      ],
+      "declaration": "background : var ( --surface )",
+      "declarationHash": "bf47df89aeff142649bc9e3e9993bf225c541b5831e044725658743c8039ad3a",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--surface",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.surface-state",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        7850,
+        7926
+      ],
+      "declaration": "background : linear-gradient ( 90deg , var ( --line ) , var ( --surface ) , var ( --line ) )",
+      "declarationHash": "3f8cb73b5680fa388930deebe8c022b0029fb55028e4c86e330ac2dee403a9bb",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [
+        {
+          "name": "--line",
+          "syntax": "css"
+        },
+        {
+          "name": "--surface",
+          "syntax": "css"
+        },
+        {
+          "name": "--line",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.state-mark-loading",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        8035,
+        8054
+      ],
+      "declaration": "background : #fdecec",
+      "declarationHash": "a73301c99caaa5c1e79326f302334481a98e9464c04d5ba3b133bbf8b564fc70",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [],
+      "scope": "/.state-mark-error",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        8058,
+        8099
+      ],
+      "declaration": "box-shadow : inset 0 0 0 2px var ( --danger )",
+      "declarationHash": "dd628a59fad4b132244be1eb6f8a82925e41deb8793a7f21ca72fa9ebbb66736",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "box-shadow",
+      "reason": null,
+      "references": [
+        {
+          "name": "--danger",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.state-mark-error",
+      "verdict": "reviewRequired"
+    },
+    {
+      "byteSpan": [
+        8129,
+        8148
+      ],
+      "declaration": "background : #fff8eb",
+      "declarationHash": "b21d62313176579d4ad3f31a385762c0c0a16bc93626db0c97a072a8b5ad9232",
+      "kind": "literal",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "background",
+      "reason": null,
+      "references": [],
+      "scope": "/.state-mark-recovery",
+      "verdict": "violation"
+    },
+    {
+      "byteSpan": [
+        8152,
+        8191
+      ],
+      "declaration": "box-shadow : inset 0 0 0 2px var ( --warn )",
+      "declarationHash": "a40350cbbc4bbcbad1af639a97c676e559bd7b97712b28d1e7a8337085afd119",
+      "kind": "token",
+      "path": "web/src/app/globals.css",
+      "profile": "leads-web",
+      "property": "box-shadow",
+      "reason": null,
+      "references": [
+        {
+          "name": "--warn",
+          "syntax": "css"
+        }
+      ],
+      "scope": "/.state-mark-recovery",
+      "verdict": "reviewRequired"
+    }
+  ],
+  "head": "0540a7a92daafe6065ef3f95282b4b2d85c30cf7",
+  "policyHash": "5beff127aed2341dbdccd2adcd2da529b3952dcb2de9b40c00e347a270fd3ad3",
+  "profile": "leads-web",
+  "repo": "github.com/bianjiefilm/leads-engine",
+  "verdict": "fail"
+}

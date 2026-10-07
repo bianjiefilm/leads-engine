@@ -1,0 +1,10 @@
+{
+  "consumerId": "leads-web",
+  "files": 7,
+  "head": "0540a7a92daafe6065ef3f95282b4b2d85c30cf7",
+  "lockHash": "68d378305b9020920dbd75707fa928a0311b873d8d0da11ac37f2f91af5b2334",
+  "repo": "github.com/bianjiefilm/leads-engine",
+  "sourceCanonicalSha256": "4e6dec90bd5f5822ae092dc2b06c90f8c18368518984f262c3144dedc5979a40",
+  "sourceCommit": "01e67653b0e394f9a6d4f74497945c33681a6bc2",
+  "verdict": "pass"
+}
