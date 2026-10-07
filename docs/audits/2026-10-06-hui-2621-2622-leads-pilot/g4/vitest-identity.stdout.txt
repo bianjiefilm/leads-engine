@@ -1,0 +1,10 @@
+
+ RUN  v2.1.8 /Volumes/MobileHD/Work/派诺生态/_worktrees/codex-20261004/leads-engine/HUI-2621-2622/web
+
+ ✓ tests/painuoRenderer.identity.test.ts (5 tests) 41ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  20:26:20
+   Duration  537ms (transform 28ms, setup 0ms, collect 26ms, tests 41ms, environment 0ms, prepare 147ms)
+

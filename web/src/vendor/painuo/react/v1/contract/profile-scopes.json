@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "sourceSubject": "4df00ece5b9196396aed878c590f418e8cd5f2a6",
+  "canonicalSha256": "a46310d3a401f0992d346d6c90c1643e84fca4181b990312278d2c7808d581db",
+  "rawSha256": "20a8e65f86e9c2582230280708a93c6af896e4168c0b3f443fba4146dbc461d2",
+  "profiles": {
+    "goboost-web": {
+      "defaultSurface": "editor.dark",
+      "defaultTheme": "dark",
+      "surfaceThemes": [
+        "portal.brand/light",
+        "editor.dark/dark",
+        "work.light/light"
+      ],
+      "generatedRoot": "app/generated/painuo/v1",
+      "importers": [
+        "app/layout.tsx"
+      ],
+      "reactEligible": true
+    },
+    "leads-web": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark"
+      ],
+      "generatedRoot": "web/src/styles/generated/painuo/v1",
+      "importers": [
+        "web/src/app/layout.tsx"
+      ],
+      "reactEligible": true
+    },
+    "product-image-web": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark"
+      ],
+      "generatedRoot": "web/src/styles/generated/painuo/v1",
+      "importers": [
+        "web/src/app/layout.tsx"
+      ],
+      "reactEligible": true
+    },
+    "touch-web": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark",
+        "public.consumer/light",
+        "public.consumer/dark",
+        "admin.compact/light",
+        "admin.compact/dark"
+      ],
+      "generatedRoot": "web/src/styles/generated/painuo/v1",
+      "importers": [
+        "web/src/app/layout.tsx"
+      ],
+      "reactEligible": true
+    },
+    "orders-web": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark",
+        "admin.compact/light",
+        "admin.compact/dark"
+      ],
+      "generatedRoot": "web/src/styles/generated/painuo/v1",
+      "importers": [
+        "web/src/app/globals.css"
+      ],
+      "reactEligible": true
+    },
+    "orders-native": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark"
+      ],
+      "generatedRoot": "Orderfrontend/styles/generated/painuo/v1",
+      "importers": [
+        "Orderfrontend/App.uvue"
+      ],
+      "reactEligible": false
+    },
+    "dhuman-web": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark"
+      ],
+      "generatedRoot": "web/lib/generated/painuo/v1",
+      "importers": [
+        "web/app/globals.css"
+      ],
+      "reactEligible": true
+    },
+    "dhuman-native": {
+      "defaultSurface": "work.light",
+      "defaultTheme": "light",
+      "surfaceThemes": [
+        "work.light/light",
+        "work.light/dark"
+      ],
+      "generatedRoot": "frontend/styles/generated/painuo/v1",
+      "importers": [
+        "frontend/uni.scss"
+      ],
+      "reactEligible": false
+    },
+    "aicut-desktop": {
+      "defaultSurface": "editor.dark",
+      "defaultTheme": "dark",
+      "surfaceThemes": [
+        "editor.dark/dark",
+        "work.light/light"
+      ],
+      "generatedRoot": "apps/desktop/src/styles/generated/painuo/v1",
+      "importers": [
+        "apps/desktop/src/styles.css"
+      ],
+      "reactEligible": true
+    },
+    "aicut-admin": {
+      "defaultSurface": "admin.compact",
+      "defaultTheme": "dark",
+      "surfaceThemes": [
+        "admin.compact/light",
+        "admin.compact/dark"
+      ],
+      "generatedRoot": "apps/web-admin/src/styles/generated/painuo/v1",
+      "importers": [
+        "apps/web-admin/src/styles/index.css"
+      ],
+      "reactEligible": true
+    }
+  }
+}

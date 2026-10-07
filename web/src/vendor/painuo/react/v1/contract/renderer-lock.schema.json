@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "producerCommit",
+    "producerTree",
+    "manifestSha256",
+    "consumerRepo",
+    "profile",
+    "files",
+    "host",
+    "token",
+    "contractHashes"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "producerCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "producerTree": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "consumerRepo": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "destination",
+          "sha256"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lockPath",
+        "lockSha256",
+        "manifestPath",
+        "manifestSha256",
+        "expected"
+      ],
+      "properties": {
+        "lockPath": {
+          "type": "string"
+        },
+        "lockSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "manifestPath": {
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "react",
+            "react-dom",
+            "@base-ui/react",
+            "lucide-react"
+          ],
+          "properties": {
+            "react": {
+              "type": "string"
+            },
+            "react-dom": {
+              "type": "string"
+            },
+            "@base-ui/react": {
+              "type": "string"
+            },
+            "lucide-react": {
+              "type": "string"
+            },
+            "next": {
+              "type": "string"
+            },
+            "vite": {
+              "type": "string"
+            },
+            "typescript": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSubject",
+        "canonicalSha256",
+        "rawSha256",
+        "cssSha256",
+        "testOnly",
+        "productionAdopted"
+      ],
+      "properties": {
+        "sourceSubject": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "canonicalSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "rawSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cssSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "testOnly": {
+          "const": true
+        },
+        "productionAdopted": {
+          "const": false
+        }
+      }
+    },
+    "contractHashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract/api.json",
+        "contract/behavior-vectors.json",
+        "contract/profile-scopes.json",
+        "contract/renderer-lock.schema.json"
+      ],
+      "properties": {
+        "contract/api.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract/behavior-vectors.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract/profile-scopes.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contract/renderer-lock.schema.json": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
