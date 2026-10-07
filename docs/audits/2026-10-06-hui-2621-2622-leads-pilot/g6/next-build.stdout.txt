@@ -1,0 +1,48 @@
+
+> leads-engine-web@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.25
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 6.6s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/16) ...
+   Generating static pages (4/16) 
+   Generating static pages (8/16) 
+   Generating static pages (12/16) 
+ ✓ Generating static pages (16/16)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                    6.06 kB         116 kB
+├ ○ /_not-found                            994 B         104 kB
+├ ƒ /api/[...path]                         122 B         103 kB
+├ ○ /attribution                         35.9 kB         146 kB
+├ ○ /channel-interactions                3.04 kB         113 kB
+├ ○ /contacts                            2.92 kB         113 kB
+├ ƒ /contacts/[id]                       3.63 kB         113 kB
+├ ○ /enterprises                         3.46 kB         113 kB
+├ ƒ /f/[id]                              2.76 kB         105 kB
+├ ○ /intent                              3.98 kB         114 kB
+├ ○ /isolation                           2.04 kB         112 kB
+├ ○ /leads                               1.58 kB         111 kB
+├ ƒ /leads/[id]                          7.11 kB         117 kB
+├ ○ /opportunities                       2.35 kB         112 kB
+├ ƒ /opportunities/[id]                  8.66 kB         118 kB
+├ ○ /outbound                            3.39 kB         113 kB
+├ ƒ /r/[id]                              3.57 kB         106 kB
+├ ○ /reception                           5.25 kB         115 kB
+├ ○ /sop                                 3.63 kB         113 kB
+└ ○ /subscription                        1.88 kB         112 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/255-37e0f0325134c4d7.js       46.4 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  └ other shared chunks (total)          1.93 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

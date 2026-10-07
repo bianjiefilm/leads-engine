@@ -310,6 +310,17 @@
    "stderrSha256": "6a013b71d94eadb16a930c32d667b41cd78de87ee97381f3cb81ed13fbe986e3",
    "stdoutBytes": 1658,
    "stdoutSha256": "af612ea34d3b079320b14fa8b315527215d3e28f9c1a2b73e1f4a68d01cc0707"
+  },
+  {
+   "argv": "npm run build (next build production, Next 15.5.25, Node v22.20.0)",
+   "duration_s": 33.0,
+   "exit": 0,
+   "note": "exit0; compiled successfully + type check pass + 16/16 static pages; /attribution 35.9kB FirstLoad 146kB; stderr = pre-existing multi-lockfile outputFileTracingRoot warning (environmental, non-blocking); .next/ gitignored",
+   "slot": "G6-next-build",
+   "stderrBytes": 616,
+   "stderrSha256": "6fa42f93b76bf40ad8b752bf7909786c6840040eac9c8c9b6223dad627e0529f",
+   "stdoutBytes": 2187,
+   "stdoutSha256": "71c072f33e5f4b09ca9915baa59b2f22e528c7125199dae3642a64ab7aff035f"
   }
  ],
  "executor": "codex dispatch (leads-engine pilot implementer), model GLM (ZCode)",
@@ -330,7 +341,7 @@
   "letterResult": "FAIL"
  },
  "generatedAt": "2026-10-07",
- "ledgerLastAppendedAt": "2026-10-07T12:32:23+00:00",
+ "ledgerLastAppendedAt": "2026-10-07T12:34:01+00:00",
  "pins": {
   "leadsEngineBase": {
    "actual": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
