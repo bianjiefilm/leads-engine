@@ -332,6 +332,17 @@
    "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
    "stdoutBytes": 100,
    "stdoutSha256": "a8c6df7a7f5f128a8f48b99ca4f01388bc5eb193718860fa02a1b1106b916917"
+  },
+  {
+   "argv": "write diff-report.md + evidence.json gates + SHA256SUMS.txt regeneration (46 entries, self-check 0 mismatch)",
+   "duration_s": 1.0,
+   "exit": 0,
+   "note": "G8 deliverables in place and hash-consistent",
+   "slot": "G8-report-evidence",
+   "stderrBytes": 0,
+   "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdoutBytes": 4323,
+   "stdoutSha256": "5820a113524f5dd1d1a3b2bf3328c04273140f3ff52f8fc3bbcb1db5d45e40ba"
   }
  ],
  "executor": "codex dispatch (leads-engine pilot implementer), model GLM (ZCode)",
@@ -351,8 +362,8 @@
   "gate": "G3",
   "letterResult": "FAIL"
  },
- "generatedAt": "2026-10-07",
- "ledgerLastAppendedAt": "2026-10-07T12:35:21+00:00",
+ "generatedAt": "2026-10-07T12:35:21+00:00",
+ "ledgerLastAppendedAt": "2026-10-07T12:38:35+00:00",
  "pins": {
   "leadsEngineBase": {
    "actual": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
@@ -368,6 +379,46 @@
    "reason": "renderer src/contract subtree changed after 34280a7 in 01e6765..bd0c1a4 (6 commits: 40d8be59,bab9cf9c,0455d642,665fea37,a1a3cb97,01d2dd7a); generated subtree still zero-change since f1a495c; 01e6765 reachable",
    "rootR1RepinRuling": "pin new origin/main only if semantic faces zero-change since f1a495c/34280a7"
   }
+ },
+ "resumeLeg2": {
+  "date": "2026-10-07",
+  "gates": {
+   "G4": {
+    "commit": "8991812",
+    "detail": "vendor.py pre-check missing -> manifest-pruned git-archive export -> stage-out ok (refused /tmp symlink form first: recorded) -> copy-in -> post-check ok:true; independent 40/40 sha256; identity vitest 5/5; deps exact pins react/react-dom 19.1.1 + @base-ui/react 1.8.0 + lucide-react 1.44.0; npm install + npm ci exit0; lock sha256 d65296ce98453171e1ff5c21fa0a146d4f9a7d7d1920a90addbad4bb6eda0940",
+    "verdict": "PASS"
+   },
+   "G5": {
+    "commit": "2d70591",
+    "detail": "layout.tsx +2 imports (aliases.css dormant); attribution page-level RendererProvider(leads-web/work.light/light) + append-only Status badge (STATUS_LABELS copy untouched); lib/painuoStatus pure map; vitest full 28 files/187 tests ALL PASS exit0; test-infra fix disclosed: 1-line React import in RED-committed status.test.tsx (classic JSX runtime), assertions byte-identical to fef9f01, repro evidence g5/vitest-status-prerefix.*",
+    "verdict": "PASS"
+   },
+   "G6": {
+    "commit": "169e699",
+    "detail": "next build exit0 33s; 16/16 pages prerendered; /attribution 35.9kB/146kB; no type or hydration errors; stderr = pre-existing multi-lockfile outputFileTracingRoot warning (environmental)",
+    "verdict": "PASS"
+   },
+   "G7": {
+    "commit": "b7fd59a",
+    "detail": "100 changed paths 687f9d0..HEAD, 0 outside design §9 owned set; per-commit explicit adds: 8991812 (61A+3M), 2d70591 (5A+4M), 169e699 (2A+1M) — all owned",
+    "verdict": "PASS"
+   },
+   "G8": {
+    "detail": "diff-report.md + evidence.json ledger (G4-G8) + SHA256SUMS.txt regenerated over whole audit dir",
+    "verdict": "PASS"
+   },
+   "G9": {
+    "detail": "branch left for Root; no push, no PR, no Linear",
+    "verdict": "STOP"
+   }
+  },
+  "preflightFetch": {
+   "leadsOriginMain": "687f9d0f38c63a41d9aacab676c438ea0f09f279 (0 new commits since base pin)",
+   "producer": "origin/main advanced but renderers/react/v1 src+contract changed in 01e6765..origin/main (6 commits) -> Root r1 fallback pin 01e6765 kept, same as leg-1 G0 decision"
+  },
+  "redGreenMapping": "diff-report.md §2 (R1-R7 with actual RED failure shapes from fef9f01)",
+  "resumePoint": "e035b47 (leg-1 branch top after Root r2 ruling)",
+  "ruling": "design §14 — G3 delta pass by zero-increment semantics; G4-G9 resume per standard gates"
  },
  "slice": "HUI-2621+2622 leads-engine consumption pilot",
  "toolchain": {
