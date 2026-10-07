@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { RendererProvider, Status } from "@/vendor/painuo/react/v1/src/index";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { roiStatusToState } from "@/lib/painuoStatus";
 import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi";
 
 // HUI-1696 来源链与费用复算页。只打本站 BFF。页面不保存第二份线索或费用。
@@ -47,6 +49,8 @@ export default function AttributionPage() {
   }
 
   return (
+    // HUI-2622：页级 renderer scope（profile-scopes.json leads-web 合法组合）；provider 自带 pn-r-scope data 属性，样式子树自洽零外溢
+    <RendererProvider profile="leads-web" surface="work.light" theme="light">
     <main data-page="attribution">
       <header className="page-head">
         <h1>来源与费用复算</h1>
@@ -56,7 +60,14 @@ export default function AttributionPage() {
       <div className="card">
         <p>{view.disclaimer}</p>
         <p className="muted">{view.funnelReuse}</p>
-        <p className="muted">当前状态：{STATUS_LABELS[view.roiStatus] ?? view.roiStatus}。这不是营销提升证明。</p>
+        <p className="muted">
+          当前状态：{STATUS_LABELS[view.roiStatus] ?? view.roiStatus}。这不是营销提升证明。
+          {/* HUI-2622：painuo renderer Status 徽章，加法式追加；STATUS_LABELS 文字原样保留，颜色不单独立义 */}
+          <Status
+            state={roiStatusToState(view.roiStatus)}
+            label={(STATUS_LABELS[view.roiStatus] ?? view.roiStatus).trim() || "未知"}
+          />
+        </p>
       </div>
       <div className="card">
         <p>
@@ -126,5 +137,6 @@ export default function AttributionPage() {
         </div>
       ) : null}
     </main>
+    </RendererProvider>
   );
 }

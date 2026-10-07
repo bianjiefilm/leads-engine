@@ -299,6 +299,17 @@
    "stderrSha256": "6a013b71d94eadb16a930c32d667b41cd78de87ee97381f3cb81ed13fbe986e3",
    "stdoutBytes": 347,
    "stdoutSha256": "2d38c4770775a9bc3ab459ad7552dfffd2954e9e6780253b7f08a03d22afc131"
+  },
+  {
+   "argv": "npm run test (vitest run full suite, Node v22.20.0)",
+   "duration_s": 6.0,
+   "exit": 0,
+   "note": "28 files / 187 tests ALL PASS exit0 — RED(12F/1P @fef9f01) -> GREEN; includes R1-R7; pre-fix infra correction: RED-committed status.test.tsx lacked React import for classic JSX runtime (5 fails 'React is not defined', repro evidence g5/vitest-status-prerefix.*), fixed by 1-line infra import, assertions byte-identical to fef9f01",
+   "slot": "G5-vitest-full",
+   "stderrBytes": 153,
+   "stderrSha256": "6a013b71d94eadb16a930c32d667b41cd78de87ee97381f3cb81ed13fbe986e3",
+   "stdoutBytes": 1658,
+   "stdoutSha256": "af612ea34d3b079320b14fa8b315527215d3e28f9c1a2b73e1f4a68d01cc0707"
   }
  ],
  "executor": "codex dispatch (leads-engine pilot implementer), model GLM (ZCode)",
@@ -319,7 +330,7 @@
   "letterResult": "FAIL"
  },
  "generatedAt": "2026-10-07",
- "ledgerLastAppendedAt": "2026-10-07T12:26:35+00:00",
+ "ledgerLastAppendedAt": "2026-10-07T12:32:23+00:00",
  "pins": {
   "leadsEngineBase": {
    "actual": "687f9d0f38c63a41d9aacab676c438ea0f09f279",

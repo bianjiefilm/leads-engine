@@ -1,0 +1,79 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/painuoRenderer.status.test.tsx > painuo renderer Status under node SSR (HUI-2622 R-face) > R4: SSR renders the provider scope and the status badge
+ReferenceError: React is not defined
+ ❯ tree tests/painuoRenderer.status.test.tsx:9:3
+      7| 
+      8| function tree(state: StatusState = "failed", label = "失败") {
+      9|   return (
+       |   ^
+     10|     <RendererProvider profile="leads-web" surface="work.light" theme="…
+     11|       <Status state={state} label={label} />
+ ❯ tests/painuoRenderer.status.test.tsx:18:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/painuoRenderer.status.test.tsx > painuo renderer Status under node SSR (HUI-2622 R-face) > R4: state outside the closed enum degrades to neutral unknown without throwing
+ReferenceError: React is not defined
+ ❯ tree tests/painuoRenderer.status.test.tsx:9:3
+      7| 
+      8| function tree(state: StatusState = "failed", label = "失败") {
+      9|   return (
+       |   ^
+     10|     <RendererProvider profile="leads-web" surface="work.light" theme="…
+     11|       <Status state={state} label={label} />
+ ❯ tests/painuoRenderer.status.test.tsx:30:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/painuoRenderer.status.test.tsx > painuo renderer Status under node SSR (HUI-2622 R-face) > R4: Status without a provider throws 'renderer provider required'
+AssertionError: expected [Function] to throw error matching /renderer provider required/ but got 'React is not defined'
+
+- Expected: 
+/renderer provider required/
+
++ Received: 
+"React is not defined"
+
+ ❯ tests/painuoRenderer.status.test.tsx:37:72
+     35| 
+     36|   it("R4: Status without a provider throws 'renderer provider required…
+     37|     expect(() => renderToString(<Status state="failed" label="失败" />…
+       |                                                                        ^
+     38|       /renderer provider required/,
+     39|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/painuoRenderer.status.test.tsx > painuo renderer Status under node SSR (HUI-2622 R-face) > R5: leads-web with an illegal surface/theme combo throws 'renderer scope invalid'
+AssertionError: expected [Function] to throw error matching /renderer scope invalid/ but got 'React is not defined'
+
+- Expected: 
+/renderer scope invalid/
+
++ Received: 
+"React is not defined"
+
+ ❯ tests/painuoRenderer.status.test.tsx:49:7
+     47|         </RendererProvider>,
+     48|       ),
+     49|     ).toThrow(/renderer scope invalid/);
+       |       ^
+     50|   });
+     51| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/painuoRenderer.status.test.tsx > painuo renderer Status under node SSR (HUI-2622 R-face) > R5: leads-web work.light/dark is registered but this slice keeps light; dark still renders legally
+ReferenceError: React is not defined
+ ❯ tests/painuoRenderer.status.test.tsx:55:7
+     53|     // work.light/dark 是登记合法组合（profile-scopes.json）；本切片不…
+     54|     const html = renderToString(
+     55|       <RendererProvider profile="leads-web" surface="work.light" theme…
+       |       ^
+     56|         <Status state="resultReady" label="完成" />
+     57|       </RendererProvider>,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+

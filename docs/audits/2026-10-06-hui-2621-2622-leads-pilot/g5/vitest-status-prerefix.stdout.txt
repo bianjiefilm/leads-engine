@@ -1,0 +1,20 @@
+
+ RUN  v2.1.8 /Volumes/MobileHD/Work/派诺生态/_worktrees/codex-20261004/leads-engine/HUI-2621-2622/web
+
+ ❯ tests/painuoRenderer.status.test.tsx (5 tests | 5 failed) 8ms
+   × painuo renderer Status under node SSR (HUI-2622 R-face) > R4: SSR renders the provider scope and the status badge 3ms
+     → React is not defined
+   × painuo renderer Status under node SSR (HUI-2622 R-face) > R4: state outside the closed enum degrades to neutral unknown without throwing 0ms
+     → React is not defined
+   × painuo renderer Status under node SSR (HUI-2622 R-face) > R4: Status without a provider throws 'renderer provider required' 3ms
+     → expected [Function] to throw error matching /renderer provider required/ but got 'React is not defined'
+   × painuo renderer Status under node SSR (HUI-2622 R-face) > R5: leads-web with an illegal surface/theme combo throws 'renderer scope invalid' 1ms
+     → expected [Function] to throw error matching /renderer scope invalid/ but got 'React is not defined'
+   × painuo renderer Status under node SSR (HUI-2622 R-face) > R5: leads-web work.light/dark is registered but this slice keeps light; dark still renders legally 0ms
+     → React is not defined
+
+ Test Files  1 failed (1)
+      Tests  5 failed (5)
+   Start at  20:32:03
+   Duration  1.39s (transform 231ms, setup 0ms, collect 941ms, tests 8ms, environment 0ms, prepare 97ms)
+

@@ -1,3 +1,4 @@
+import React from "react"; // classic JSX runtime（vitest esbuild + tsconfig jsx:preserve）所需的基建 import；GREEN 阶段修正，断言与 RED(fef9f01) 逐字一致
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RendererProvider, Status, type StatusState } from "@/vendor/painuo/react/v1/src/index";
