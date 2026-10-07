@@ -1,0 +1,10 @@
+{
+  "base": "b58ea1732f4a51d7bb061a3d71611f00174c1ec9",
+  "baselineHash": "88f610887dc3711d44194245ec14ac57c0c7de74f12987877cb0edee6e9c7554",
+  "findings": [],
+  "head": "368eaa060bd090eb8dc00e927ace5d6423c16fbd",
+  "policyHash": "5beff127aed2341dbdccd2adcd2da529b3952dcb2de9b40c00e347a270fd3ad3",
+  "profile": "leads-web",
+  "repo": "github.com/bianjiefilm/leads-engine",
+  "verdict": "pass"
+}

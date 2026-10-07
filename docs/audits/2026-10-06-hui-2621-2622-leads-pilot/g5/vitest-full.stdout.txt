@@ -1,0 +1,41 @@
+
+> leads-engine-web@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.8 /Volumes/MobileHD/Work/派诺生态/_worktrees/codex-20261004/leads-engine/HUI-2621-2622/web
+
+ ✓ tests/reception.test.ts (10 tests) 9ms
+ ✓ tests/scopePick.test.ts (11 tests) 11ms
+ ✓ tests/pageMap.test.ts (10 tests) 22ms
+ ✓ tests/bff.test.ts (25 tests) 29ms
+ ✓ tests/workbench.test.ts (14 tests) 19ms
+ ✓ tests/pageRepresentatives.test.ts (2 tests) 25ms
+ ✓ tests/pageCensus.test.ts (5 tests) 116ms
+ ✓ tests/eco-nav/eco-nav.test.ts (9 tests) 49ms
+ ✓ tests/shell.test.tsx (9 tests) 292ms
+ ✓ tests/opportunity.test.ts (12 tests) 8ms
+ ✓ tests/serviceDraft.test.ts (12 tests) 7ms
+ ✓ tests/intentGrade.test.ts (4 tests) 9ms
+ ✓ tests/contact.test.ts (10 tests) 9ms
+ ✓ tests/roi.test.ts (4 tests) 5ms
+ ✓ tests/publicForm.test.ts (9 tests) 5ms
+ ✓ tests/painuoTokens.lock.test.ts (5 tests) 79ms
+ ✓ tests/painuoRenderer.identity.test.ts (5 tests) 236ms
+ ✓ tests/crmIsolation.test.ts (3 tests) 11ms
+ ✓ tests/sopReach.test.ts (3 tests) 4ms
+ ✓ tests/campaignMotion.test.ts (2 tests) 3ms
+ ✓ tests/painuoTokens.importer.test.ts (3 tests) 77ms
+ ✓ tests/channelInteraction.test.ts (2 tests) 8ms
+ ✓ tests/eco-nav/boundaries.test.ts (3 tests) 5ms
+ ✓ tests/subscription.test.ts (2 tests) 4ms
+ ✓ tests/outboundCall.test.ts (2 tests) 5ms
+ ✓ tests/lightCopy.test.ts (2 tests) 3ms
+ ✓ tests/painuoStatus.test.ts (4 tests) 2ms
+ ✓ tests/painuoRenderer.status.test.tsx (5 tests) 11ms
+
+ Test Files  28 passed (28)
+      Tests  187 passed (187)
+   Start at  20:31:34
+   Duration  3.97s (transform 1.85s, setup 0ms, collect 5.16s, tests 1.06s, environment 5ms, prepare 5.56s)
+

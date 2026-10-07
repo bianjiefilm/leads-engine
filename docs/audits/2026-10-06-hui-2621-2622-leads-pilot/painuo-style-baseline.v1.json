@@ -1,0 +1,1255 @@
+{
+  "expectedRepo": "github.com/bianjiefilm/leads-engine",
+  "files": {
+    "web/next-env.d.ts": {
+      "blobOID": "830fb594ca2970a827555c28a253b097367e08d8",
+      "fileHash": "85ae5aee75f011967cf2d25cbc342f62d69314e9d925f7f4aa3456fc2cffcca6",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/app/(shell)/attribution/page.tsx": {
+      "blobOID": "fd113e8fc3a1b55a09b8031032e49364ec0bbecd",
+      "fileHash": "c1ea9c8aa43308eba1cbc464c64481bce05b8f38834d2c54560fa520bcefbf69",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/channel-interactions/page.tsx": {
+      "blobOID": "9e44b55435701e500071e89ffedbb8247f2670d5",
+      "fileHash": "3497997a0a7a5a3596fc469e5f79396e215ceb93ab925bcca21162050cc97968",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/contacts/[id]/page.tsx": {
+      "blobOID": "a5c426cf03c9fe37c1902ec1b2914d0a39ef6b26",
+      "fileHash": "354cf3a7387688fb131859b9f58f32f0d76cc15cdff24f2847c82bc6fd7f820f",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/contacts/page.tsx": {
+      "blobOID": "561bbd3f4537c770c03f794f4c4c328da50d5a3f",
+      "fileHash": "29782b4a541746d50559436658c54eb64ac39f8e0ba1361a66d070a29a3e0e20",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/enterprises/page.tsx": {
+      "blobOID": "22c9ecd8668fa840e05c32a7e1a5dd53b6a3a38e",
+      "fileHash": "c532dd609957b7d84ea585fbc5a07895f9d22d78baca61923c7ce33565db31dc",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/intent/page.tsx": {
+      "blobOID": "2dc5e3f0fc956e72004b8b0dedfbfdee69b1dd0d",
+      "fileHash": "c600f7b5df0545b1e1bbf4208b74b8d01c37d7394477c9e212f52263d722eb2c",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/isolation/page.tsx": {
+      "blobOID": "27c7d03f8d437be8de9d3f80dfca3363860c0447",
+      "fileHash": "2489b7459969f789ca1a6491cb0cca55b711186f8f8f93bf2b377dc6e5343477",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/layout.tsx": {
+      "blobOID": "7710d837e87fdb466897c9796ae6bdf7cdcb5066",
+      "fileHash": "fd411f350fa701ca3dad60b4e26e153e55b5382f880450d277a558c6451d8404",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/leads/[id]/page.tsx": {
+      "blobOID": "4b73c0ba80d2654340162e5b56e4e2fc80427cc7",
+      "fileHash": "7cfeb51ea842bd6eb79ffb1bd5ba44eadb209ae37a0ac423a3c93771d4bc2585",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/leads/page.tsx": {
+      "blobOID": "7c27929c28d55f2691ebc96a0607686ba9d8a010",
+      "fileHash": "a9e0e0d70fe9a9975a8b1685ef7251d92e2c039904ee8c788d10dcf855035705",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/opportunities/[id]/page.tsx": {
+      "blobOID": "c27fe80bc2e8322237aedb158463161d54e3a42a",
+      "fileHash": "8f401bfea55073cd943034a6eeb38bc622d7d42a1a7069f077fce79fe3041157",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/opportunities/page.tsx": {
+      "blobOID": "75f6764443ecaa3aa20654b1547e4b28ff3f11d2",
+      "fileHash": "98e5939ef6737e22be8b822f9bb17b4d97326e5dca1684a0e4b42b18b38ac4cc",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/outbound/page.tsx": {
+      "blobOID": "59ca3d6848264d140daedc6a6ec0dc10b0580914",
+      "fileHash": "777dcab4d1fc07e413d97f84be0093864cfa17839f9085a44ccb3a429bf4085c",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/page.tsx": {
+      "blobOID": "4e3307147449c062daae010532e9c32bcbee0340",
+      "fileHash": "811bee8d660bbb8e2bbbb261dd3af1b1034ddb74a21210c195fcc332160ad214",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/sop/page.tsx": {
+      "blobOID": "8e1d43aa7a511d2799ac8d1195a830fdf9746807",
+      "fileHash": "2044f2e7af4a1a0de781b9fc83003bac5deeb961c083199062f2b081646e9da7",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/(shell)/subscription/page.tsx": {
+      "blobOID": "ec004af9b3fb0ae68b4a13cd49dd5741e8d5eeb6",
+      "fileHash": "04f818f9210715dcd316ff8091c8701116fd7a71121c05da4842ba58d1c0e06e",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/api/[...path]/route.ts": {
+      "blobOID": "f5d22923483b655f3d86f2039afc32f89854c4c8",
+      "fileHash": "e6897948aeba94a5b653c66e5ab9d165dba147c346292ca2a4288a469c44f5a6",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/app/f/[id]/page.tsx": {
+      "blobOID": "b1204dd2228a0644c714372d83a172525bc7fa69",
+      "fileHash": "c93a5da6f140c52c75f7506d0abe4c765ac570d7fbc23502e29e2f0828e9874a",
+      "language": "tsx",
+      "records": [
+        {
+          "byteSpan": [
+            6428,
+            6441
+          ],
+          "declaration": "color : \"#b00\"",
+          "declarationHash": "7c6f44e77d56e541d4befa80c81f712e9bc1dee2224feea6c6f6c69e43b02999",
+          "kind": "literal",
+          "property": "color",
+          "reason": null,
+          "references": [],
+          "scope": "markup:p:style"
+        },
+        {
+          "byteSpan": [
+            6573,
+            6586
+          ],
+          "declaration": "color : \"#b00\"",
+          "declarationHash": "7c6f44e77d56e541d4befa80c81f712e9bc1dee2224feea6c6f6c69e43b02999",
+          "kind": "literal",
+          "property": "color",
+          "reason": null,
+          "references": [],
+          "scope": "markup:p:style"
+        }
+      ]
+    },
+    "web/src/app/globals.css": {
+      "blobOID": "b61a1a1e35f9c02798b7d39857607ba3fee5598f",
+      "fileHash": "8fa1f6223cb5c49dfc2ecd8909c6550d6cc5a8673de6205b5272183777aa9133",
+      "language": "css",
+      "records": [
+        {
+          "byteSpan": [
+            10,
+            23
+          ],
+          "declaration": "--bg : #f7f8fa",
+          "declarationHash": "b2e8e1c1a55aaf515c6f179bbce98e06aae79d2f942a315c5565c014e7f257df",
+          "kind": "literal",
+          "property": "--bg",
+          "reason": null,
+          "references": [],
+          "scope": "/:root"
+        },
+        {
+          "byteSpan": [
+            27,
+            40
+          ],
+          "declaration": "--fg : #1c2430",
+          "declarationHash": "77d1c94a5c39f5cb1cc806d9b5cae9d7b8e5d7dddae34866de3b2bb213dcbdfc",
+          "kind": "literal",
+          "property": "--fg",
+          "reason": null,
+          "references": [],
+          "scope": "/:root"
+        },
+        {
+          "byteSpan": [
+            44,
+            60
+          ],
+          "declaration": "--muted : #667085",
+          "declarationHash": "a1eee8bfea072da0a697703540f500679851daff3247fe1be0798878c3b52151",
+          "kind": "literal",
+          "property": "--muted",
+          "reason": null,
+          "references": [],
+          "scope": "/:root"
+        },
+        {
+          "byteSpan": [
+            64,
+            81
+          ],
+          "declaration": "--accent : #2563eb",
+          "declarationHash": "45a3aacf22b63d829a889f2f854770699d1c27f1e585a8d97c2e6b20c83d316b",
+          "kind": "literal",
+          "property": "--accent",
+          "reason": null,
+          "references": [],
+          "scope": "/:root"
+        },
+        {
+          "byteSpan": [
+            85,
+            100
+          ],
+          "declaration": "--line : #e4e7ec",
+          "declarationHash": "828dfe6adb389f9b08c7ea52b09c6a0151937741c1de766a9caaf72afb3ba577",
+          "kind": "literal",
+          "property": "--line",
+          "reason": null,
+          "references": [],
+          "scope": "/:root"
+        },
+        {
+          "byteSpan": [
+            263,
+            284
+          ],
+          "declaration": "background : var ( --bg )",
+          "declarationHash": "16535e37a06eb7db46081cec6210b46e90810477fc84ab3c3560e0469363f908",
+          "kind": "token",
+          "property": "background",
+          "reason": null,
+          "references": [
+            {
+              "name": "--bg",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/body"
+        },
+        {
+          "byteSpan": [
+            288,
+            304
+          ],
+          "declaration": "color : var ( --fg )",
+          "declarationHash": "4c4a11837ee43b05e6aaa4f3047f03fcbbde586ddad51bce3e0bc1f65bf4f499",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--fg",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/body"
+        },
+        {
+          "byteSpan": [
+            392,
+            408
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "11a758ee7c3f3f671b3ac068721b18439b96c8d267fc1c9563b36d9faa9f05ec",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.card"
+        },
+        {
+          "byteSpan": [
+            412,
+            441
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "eb0274fcda1cc3332e7c105d42e4e083012ef4ba3661371bfd8ad44a6be80cf9",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.card"
+        },
+        {
+          "byteSpan": [
+            523,
+            542
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "8cb195dbcb9259713f59ea78133ff767b0b1c5b4a15897d199628d26ab399dd7",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.muted"
+        },
+        {
+          "byteSpan": [
+            577,
+            596
+          ],
+          "declaration": "background : #eef2f7",
+          "declarationHash": "4866ac75e4ee4f6a6f3ba74be99cc30ba6244f54221f74b401ac504a5337d94e",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/code"
+        },
+        {
+          "byteSpan": [
+            795,
+            824
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "7a380cd92201c61893062983ecb79e1a0d0763e76fd5c1f149d4131cde0f832b",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.tab"
+        },
+        {
+          "byteSpan": [
+            828,
+            844
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "09504e9aaf6d7d0c2f4911797dfb375fa5f5b533f18a0bc45acd81cb3a191308",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.tab"
+        },
+        {
+          "byteSpan": [
+            932,
+            959
+          ],
+          "declaration": "border-color : var ( --accent )",
+          "declarationHash": "a5bfb7e06f8b8c709d1f3e6a86407c0ad24091808114ff0515f9ff3a66b8aa2f",
+          "kind": "token",
+          "property": "border-color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.tab.active"
+        },
+        {
+          "byteSpan": [
+            963,
+            983
+          ],
+          "declaration": "color : var ( --accent )",
+          "declarationHash": "7388c9d76b530de7cf05315fc6a3f32c4f62212e32e97c20b1af2bd15e69ad4d",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.tab.active"
+        },
+        {
+          "byteSpan": [
+            1033,
+            1058
+          ],
+          "declaration": "border-collapse : collapse",
+          "declarationHash": "860fcf71a1dd5a81868910583f4b3ef56b8e5df9659ec5145cb4e66678bcf36d",
+          "kind": "dynamic",
+          "property": "border-collapse",
+          "reason": "unrecognized_color_value",
+          "references": [],
+          "scope": "/table"
+        },
+        {
+          "byteSpan": [
+            1094,
+            1130
+          ],
+          "declaration": "border-bottom : 1px solid var ( --line )",
+          "declarationHash": "3968925fdaca7ea40062c1a3dc54bb8f3ed3c283d4d4c836b881355cb0af0a0a",
+          "kind": "token",
+          "property": "border-bottom",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/th, td"
+        },
+        {
+          "byteSpan": [
+            1295,
+            1314
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "b867e610491cbed8ad2310b8877515865f2b30a70236a789b5ff0c163ac7bd1f",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.funnel"
+        },
+        {
+          "byteSpan": [
+            1487,
+            1516
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "06caa8c5187ae2ab3fafaea0cbb4b87a980950dc80261601e40e8ca4236564d9",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.badge"
+        },
+        {
+          "byteSpan": [
+            1520,
+            1536
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "a6370d02ad4ca3b7575f0317ad52a2f1a565def4de513e58e72acaa74583c9a5",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.badge"
+        },
+        {
+          "byteSpan": [
+            1630,
+            1651
+          ],
+          "declaration": "border-color : #f5c16c",
+          "declarationHash": "a694f17f97f051726d5e08e7a3d4adf2b073c5933de9464fa0000a0cb8be4ef5",
+          "kind": "literal",
+          "property": "border-color",
+          "reason": null,
+          "references": [],
+          "scope": "/.badge.warn"
+        },
+        {
+          "byteSpan": [
+            1655,
+            1674
+          ],
+          "declaration": "background : #fff8eb",
+          "declarationHash": "efffd8569d2bde1b74ac8449f3052ac9b5db58e40937b8c6c5864a753af4b09f",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.badge.warn"
+        },
+        {
+          "byteSpan": [
+            1693,
+            1709
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "e4afafd79b94d9c13a0f0da5ebe99d6d5f19f6cec1f5afc6d63fdeff005119f8",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.chat-log"
+        },
+        {
+          "byteSpan": [
+            1713,
+            1742
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "27528b56248f177503631f73ba4a778591584ddc6371e16494e03321a369dc8e",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.chat-log"
+        },
+        {
+          "byteSpan": [
+            2038,
+            2063
+          ],
+          "declaration": "background : var ( --accent )",
+          "declarationHash": "494abdab4a61a54b7dcf67f8e742d3e78be3e2b57682268c2697964666ebc47c",
+          "kind": "token",
+          "property": "background",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.bubble.visitor"
+        },
+        {
+          "byteSpan": [
+            2067,
+            2078
+          ],
+          "declaration": "color : #ffffff",
+          "declarationHash": "144f56e19d1c74a9983b268f992262a4d2fd3bef20d3785a78f68b439815523a",
+          "kind": "literal",
+          "property": "color",
+          "reason": null,
+          "references": [],
+          "scope": "/.bubble.visitor"
+        },
+        {
+          "byteSpan": [
+            2100,
+            2119
+          ],
+          "declaration": "background : #f4f7fb",
+          "declarationHash": "619a232a8a7b45958f8109f24bd4993b8fbfa6faaece039ea79ad18887f57d88",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.bubble.shop"
+        },
+        {
+          "byteSpan": [
+            2123,
+            2152
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "ee3d8fd11dcdf1bb49a77b23c1cb3e216bd34d3c7819a7d9317e3dc4de57249c",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.bubble.shop"
+        },
+        {
+          "byteSpan": [
+            2201,
+            2220
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "f0205507d54c9c2fd1f5b5435e62eb801ba071e4c9e07c084adf9af3164d4abe",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.fine"
+        },
+        {
+          "byteSpan": [
+            2351,
+            2380
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "cf77b02fa9aaf26783d1efc5183c0a4b2b76c7253b94fd9747fc365b69b5c513",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.composer input"
+        },
+        {
+          "byteSpan": [
+            2471,
+            2496
+          ],
+          "declaration": "background : var ( --accent )",
+          "declarationHash": "80ae835ec149407629b4b2162f3913cedc27827094a12cbbb70e8cd89b621c81",
+          "kind": "token",
+          "property": "background",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/button.primary"
+        },
+        {
+          "byteSpan": [
+            2500,
+            2511
+          ],
+          "declaration": "color : #ffffff",
+          "declarationHash": "b82aa1a4a3ddfb182e370f1da137b45a0afeb684f18cc420a549b5950f8d738f",
+          "kind": "literal",
+          "property": "color",
+          "reason": null,
+          "references": [],
+          "scope": "/button.primary"
+        },
+        {
+          "byteSpan": [
+            2670,
+            2684
+          ],
+          "declaration": "color : #b42318",
+          "declarationHash": "561e46e3029afa3f38348e617f0e660e269d3d19b9142af59774d5b19c3d17c6",
+          "kind": "literal",
+          "property": "color",
+          "reason": null,
+          "references": [],
+          "scope": "/.error"
+        },
+        {
+          "byteSpan": [
+            2829,
+            2862
+          ],
+          "declaration": "border-top : 1px solid var ( --line )",
+          "declarationHash": "ecc4e372556de524af156ea19cc00d01b18b783247806a68916ec40bb08bda5e",
+          "kind": "token",
+          "property": "border-top",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.desk-list li"
+        },
+        {
+          "byteSpan": [
+            3341,
+            3370
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "98e0ad816e465d9636b8fd109cb9f28a79d678d99509bbfa00130ef7e1d01de7",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.stack-form textarea, .stack-form input, .stack-form select"
+        },
+        {
+          "byteSpan": [
+            3424,
+            3440
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "cb88f8005ebeb1c9db69a95ef7f55a26ab1847dad1099ac9f2d68a71c90906e6",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.stack-form textarea, .stack-form input, .stack-form select"
+        }
+      ]
+    },
+    "web/src/app/layout.tsx": {
+      "blobOID": "db44ba13485e82c82621b77c5f83df0500a51374",
+      "fileHash": "d82af30e19e48e35bead1d4529d080e369a6cb59cb45f0d65032440a604397ce",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/r/[id]/page.tsx": {
+      "blobOID": "80e0ed4f50d2108340b1c9e066ce0c869ed22532",
+      "fileHash": "40c366afe97552680cd1858e19f1dec44fb572b4e48a96f177b2cb7c2a24a681",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/reception/page.tsx": {
+      "blobOID": "cd61565cde218a37ea406e59ad855a7345313861",
+      "fileHash": "31773e25666f9534d42c7ad4a94e7af6c798910279aaf4af59b5782db0d33f9f",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/app/reception/session-panel.tsx": {
+      "blobOID": "3560a37497224570b47eaa3557e2e585dc49f036",
+      "fileHash": "7614681ce93dfc4a2682e07a35d3e8e50e298219db98449371de8753db3c196b",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/components/IntentOnOpportunity.tsx": {
+      "blobOID": "95008c5dc176ce23a22cf5dcdc51c18f40acf66f",
+      "fileHash": "25195e81135bc6367df51cb674a879152aace6f7b3f37c729ac98ee0c3acaccf",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/components/LightCopyPanel.tsx": {
+      "blobOID": "7487e14891ba53e903ce04a8cabf8df56e662fa6",
+      "fileHash": "5146f9cda18eb10448a1e458b3011ab17755d9473b2943f730e2acd26bd147e8",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/components/eco-nav/CrmShell.tsx": {
+      "blobOID": "e326a19f17a79f7a310d8cc44e4e9d2d93e14b57",
+      "fileHash": "1d61cb10daa44b1c156423db0232c205458e90c718ca03adbca843bf7abc033b",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/components/eco-nav/EcoTopNav.tsx": {
+      "blobOID": "d888175ed9492e6d4f4600e3db9617e3a2f215e0",
+      "fileHash": "e67feead889be3a0e0b572031a59cb478a928f2407c0556e28e68ec0b1f3022c",
+      "language": "tsx",
+      "records": []
+    },
+    "web/src/components/eco-nav/eco-top-nav.module.css": {
+      "blobOID": "3e709650c506bff330ba85fb9eceefaa8979b2ca",
+      "fileHash": "760182628a33b5efe5b85a8344eaf918760d48bb314c180382cedaea907a4439",
+      "language": "css",
+      "records": [
+        {
+          "byteSpan": [
+            142,
+            158
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "bb421f044dfe2b17b7fb9e0ab98d69ecadbef4ff8070b5c24e89fdc1851f312a",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.bar"
+        },
+        {
+          "byteSpan": [
+            162,
+            198
+          ],
+          "declaration": "border-bottom : 1px solid var ( --line )",
+          "declarationHash": "67ffaad179a88c6a34d3a29521e1bef963cf9379943a2a70db394f011d981ec7",
+          "kind": "token",
+          "property": "border-bottom",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.bar"
+        },
+        {
+          "byteSpan": [
+            202,
+            218
+          ],
+          "declaration": "color : var ( --fg )",
+          "declarationHash": "239802add71dd1d3fd382e3d2a72604b15014475d50e6c376f2accf9ddd82572",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--fg",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.bar"
+        },
+        {
+          "byteSpan": [
+            473,
+            492
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "154856d45d5446ac63abfc394abd6c6c20b2862cdde39dec47de56ce35998d5f",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.brandName"
+        },
+        {
+          "byteSpan": [
+            553,
+            593
+          ],
+          "declaration": "box-shadow : inset 0 -2px 0 var ( --accent )",
+          "declarationHash": "861e5c24b79c30e013e90e8ce2eda0cce420a7201d784ccdb0d0a8ee0ffb0532",
+          "kind": "token",
+          "property": "box-shadow",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.currentApp"
+        },
+        {
+          "byteSpan": [
+            747,
+            766
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "b9f83fb3154c4a98c034b1cadcc38d9121c268a0712fbf0e884dbd94fb62d9a3",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.link, .button, .quiet"
+        },
+        {
+          "byteSpan": [
+            797,
+            826
+          ],
+          "declaration": "border : 1px solid transparent",
+          "declarationHash": "d9b9c706fa7fdea966254beb4b625876a00b317270834df4b83e6d5791defbb4",
+          "kind": "dynamic",
+          "property": "border",
+          "reason": "unrecognized_color_value",
+          "references": [],
+          "scope": "/.link, .button, .quiet"
+        },
+        {
+          "byteSpan": [
+            962,
+            987
+          ],
+          "declaration": "border-color : var ( --line )",
+          "declarationHash": "83c51e152bed752aac14e8f3adbe8781be7d2502787c70639f7d6c79d5ef6020",
+          "kind": "token",
+          "property": "border-color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.button"
+        },
+        {
+          "byteSpan": [
+            991,
+            1007
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "1bc40d7bd2de797d37f3e2773294cda324459c7fdf4dd2cb9461647373320f76",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.button"
+        },
+        {
+          "byteSpan": [
+            1025,
+            1041
+          ],
+          "declaration": "color : var ( --fg )",
+          "declarationHash": "2e3b2763dba946f2affcd434d948515b55f209cc51bc57ef24376700ad8656fc",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--fg",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.pressed"
+        },
+        {
+          "byteSpan": [
+            1045,
+            1072
+          ],
+          "declaration": "border-color : var ( --accent )",
+          "declarationHash": "744e406d9a4a8e8640fa78bc50ab258ce518cea603fc17117fba8796d5d19d21",
+          "kind": "token",
+          "property": "border-color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--accent",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.pressed"
+        },
+        {
+          "byteSpan": [
+            1123,
+            1142
+          ],
+          "declaration": "color : var ( --muted )",
+          "declarationHash": "0331acc81876d420be7c015c6e1a449f0750062eda65519f7b0b40e1f5459eed",
+          "kind": "token",
+          "property": "color",
+          "reason": null,
+          "references": [
+            {
+              "name": "--muted",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.badge, .roleLine"
+        },
+        {
+          "byteSpan": [
+            1262,
+            1278
+          ],
+          "declaration": "background : #ffffff",
+          "declarationHash": "130d2fa0269634796fe5bec60f87026b91e2f9c061a3ff2f85822615306b17b9",
+          "kind": "literal",
+          "property": "background",
+          "reason": null,
+          "references": [],
+          "scope": "/.menu"
+        },
+        {
+          "byteSpan": [
+            1282,
+            1311
+          ],
+          "declaration": "border : 1px solid var ( --line )",
+          "declarationHash": "be9162c80336decc673e18784c619d582bd49b28a882fc061958c49fe85f0feb",
+          "kind": "token",
+          "property": "border",
+          "reason": null,
+          "references": [
+            {
+              "name": "--line",
+              "syntax": "css"
+            }
+          ],
+          "scope": "/.menu"
+        }
+      ]
+    },
+    "web/src/lib/bff.ts": {
+      "blobOID": "aa60c15001ae104d54f4e78860d06ce4ec5945cf",
+      "fileHash": "d400633e8395731d8eb57e580f97465047efa6cb0a67e1cb3cc299ab8c7415d4",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/channelInteraction.ts": {
+      "blobOID": "977171a762ca83f51459c22dc4f09251a4e2f55e",
+      "fileHash": "4fb5a42cd304e220c8632837241f1377f7fa360f31950af0c0d96b8faddf0c8a",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/contact.ts": {
+      "blobOID": "c8eff3fe0a7eb1dde7857852f52ccc2f39c90a4f",
+      "fileHash": "6458216267ca9b3cadab752c507cdc6c4426358f6de3db5849b5048e5fc762b7",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/crmIsolation.ts": {
+      "blobOID": "0ea0d552e0768d15ac3beda52536c2ff7e720005",
+      "fileHash": "17b14ae51870f2171b8aaa2d1bc182aeda22817e4d9dd632894f8ec917510b12",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/affordances.ts": {
+      "blobOID": "ddb0ff43b501ac6e737d2894a746a579f483262f",
+      "fileHash": "af835b06e92c54e5f29c0441c836d4d91a53e5a7d24c42dd02bd6ba87245ac2d",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/crm-scope.ts": {
+      "blobOID": "ef2bf97e15d6daba96e72e7f5868ccc18499c135",
+      "fileHash": "6c717e66a8e8346d1cc572dee7a49158736bcd7eac838daf56355579f7cfed39",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/eco-nav.v1.ts": {
+      "blobOID": "75357b4ac5e589f9c71d66ae2a5fd98ca6ebf1ed",
+      "fileHash": "63ca714380dfb0a75ed0d8f5772193a6805ef738c1eafdb5bf27e5667e7fd601",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/fixture.ts": {
+      "blobOID": "e849aea9d52fa1107ff36a8436dfb7751b4fa5c1",
+      "fileHash": "8d98605c0997af39576560459f6ad5d829a5cfcbc1b79e6b3530b708a4d17919",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/load.ts": {
+      "blobOID": "da05bc37ecd322639adba5176cb0ae4529e0c53d",
+      "fileHash": "e8fe6c265868b23a4f68c95323c9de81a6227ebc9262a4b6707be29aa45978e3",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/manual-switch.ts": {
+      "blobOID": "a04fa84629b60937fff69b9c245ed9c3e035bc34",
+      "fileHash": "84d2bd06a6cf818276ec3c505a6687736928f3f85873c38cec0e5f13ea03616c",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/model.ts": {
+      "blobOID": "bec0fe54021ca5e3c50cab35709c0b4010a426c1",
+      "fileHash": "27aa7ae16beba2aef51fa2bea70077fc527b42979b04c66b30c398af09c0d3a4",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/mount.ts": {
+      "blobOID": "c5e9e34a8bd6831d12392aca426a6eb42693dbe0",
+      "fileHash": "f644f61f76fa171de169882c904194449a15ff61d006a47d8959c37494eab423",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/eco-nav/use-crm-scope.ts": {
+      "blobOID": "f559d86efc3c1db1c36e331b51303168a7ef5915",
+      "fileHash": "8baae9c3f4bf8b76463aa24da89aedc24e63d08d32b9c3fb0d750d68e5d335e6",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/intentGrade.ts": {
+      "blobOID": "3995de5eecbcc8e0fedf2500f556fb7bba442c24",
+      "fileHash": "f6b800ce468e5f7a84b8e672f676a3adb31b8ae612b3ae1038d4a687cfc3cc98",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/lightCopy.ts": {
+      "blobOID": "3280996a581289a1c91f54c8d3d1ba7b86b367f0",
+      "fileHash": "276c691a8a7aea998638e93d4cd74c0798ef0ad1b653fcea5f93dc6eb9b37f4a",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/opportunity.ts": {
+      "blobOID": "1db41a5aa5f4cf5cd0ee8bd084040b939fabcf07",
+      "fileHash": "37106a762f15f2daf8c12f0623698fa56ad53480b2b48ee6c8b9a64a88e16ed5",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/outboundCall.ts": {
+      "blobOID": "52d2580eeacb7bcf84524777b33d7f6037be5ee9",
+      "fileHash": "df6fda57ae5ab6c709a66c773aa3ef82ee63fc09db71ce23137a372db603f2e0",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/publicForm.ts": {
+      "blobOID": "4d293ff4b1562a3d8050b85f4118d828e3382171",
+      "fileHash": "8f038d0333fe64c2e973a38bdd0cffdc1f763e0857cd58e999b75ef0abaccf8f",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/reception.ts": {
+      "blobOID": "762b80fdbee876e43cd13c1aac738052227e4878",
+      "fileHash": "4f79b91935e3937f177fe2713e2d6dd18335024d250c112161bb7387edc84c04",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/roi.ts": {
+      "blobOID": "5d482d2609be142d82d1dd60fbe21a8f4f8e2557",
+      "fileHash": "05c9e3652e62a9e6a088a9aadc02447970a331838ce5076b987fc489f141f898",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/serviceDraft.ts": {
+      "blobOID": "7082734fe1e391b2f61989f7f6add9b2534af2e7",
+      "fileHash": "2786fcfeecb866b788d7912baac453c003ace3667d2d77698d76ed7d710e9f56",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/sopReach.ts": {
+      "blobOID": "015984e42a3e62e0010105389010b5c1f0c766eb",
+      "fileHash": "959e29a7a3d91bfd274b2b3c0dcdfaa67d6d8dd2d81f22a91cc0b8e817949a71",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/subscription.ts": {
+      "blobOID": "2f0ca2f9df0c3eabd2cc482cd12c72de4aae9174",
+      "fileHash": "374425c3f80a9a55fa038d5996c9008036487a1a5ccf4290f3827517500ce1ca",
+      "language": "ts",
+      "records": []
+    },
+    "web/src/lib/workbench.ts": {
+      "blobOID": "37aa2c2d48f4dce5f87bb0763e2524970a7bbc5a",
+      "fileHash": "49c341aa1f7757fbc95d6fb72a0aa72b2aee633c885ddbd2e8ae2406bc8b077d",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/bff.test.ts": {
+      "blobOID": "dc0ec90a449f26ccf1b04214a32110424c8eb5d1",
+      "fileHash": "fa8ad101d1b67d7ded8b87e56f0c3f3e998dd44c8b0d1f64edc60ad4a3d4bff9",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/channelInteraction.test.ts": {
+      "blobOID": "2e9884cf7437aa7a779b8ae4b4f690410b69c149",
+      "fileHash": "c40cfc4d25156a6f26892081bf9a9c0112ae4b30386b2e809ca9cfbb4d5cd569",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/contact.test.ts": {
+      "blobOID": "168d9400a2b18c8bf12e50224c0ac7dff3887de8",
+      "fileHash": "4e653d57cd5872a5687ac92e768cedd39ae3f6abc3d0eca576f00b52046d9969",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/crmIsolation.test.ts": {
+      "blobOID": "3521afa95298eb80ef4d070ff067718d565131f4",
+      "fileHash": "e5acec2868fb49d04805b9194a4edf09c5f960825e29459e6aea3a84c46a47c4",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/eco-nav/boundaries.test.ts": {
+      "blobOID": "45ceacfdac872e9496380504b75dc73a4209c871",
+      "fileHash": "c68ea38d03c023692b17b7a34da148618e12a5d37a3c88bd4a7180aaf7173ae4",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/eco-nav/eco-nav.test.ts": {
+      "blobOID": "7c505611ac69e391cb3b44d7abba68e16baaeb66",
+      "fileHash": "ab286d0fd1ad4bb547f0159e35d32a00ddfd0a75df8f13cd39bc57643eea638b",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/intentGrade.test.ts": {
+      "blobOID": "6a5985583c84a426d35fdfcec5ec3548c42efa35",
+      "fileHash": "2dc7cc2a65497b055a879a777a0a80457e833ce729ae40cca7a341f9c5e032bd",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/lightCopy.test.ts": {
+      "blobOID": "47a7fc92ad2aaed8264408a1049dfee6d6703c07",
+      "fileHash": "02daad039b9b3792c058eba63a60000057fb6d073a4fc9b6438461a2e18b63ce",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/opportunity.test.ts": {
+      "blobOID": "7768eaa3abf3604ee2b79061fbcd4a038ea99ad1",
+      "fileHash": "320461643cc4498f56fc2384ac8f46b86e254cf1dbed87145328fd2ec7b05fb9",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/outboundCall.test.ts": {
+      "blobOID": "aa0f913f66b7a80a23256139bfb74228c7406a86",
+      "fileHash": "5795421d4017074d15997fe2e0aff3afd666ecd5772a7404e35119d6b0029382",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/publicForm.test.ts": {
+      "blobOID": "1224e3413e7b30855d07de0d2ecf2def865141d0",
+      "fileHash": "144583e988cf35ab99edd66b10270b279afca951021e55760653abc5e049e9fd",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/reception.test.ts": {
+      "blobOID": "05e1cd055f6221f4b98fcc84c9fdf489ae2fa37f",
+      "fileHash": "26159d527bd6d3d45c8d1b458a4a197ba74936cfa7f7a1964a641a5e41400342",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/roi.test.ts": {
+      "blobOID": "0d5809cc749fe8b316dd6f29fb1f8d5997a7bf58",
+      "fileHash": "89a4795254a9f78002ef3fafc0cd1797a8fdf512004bda14f1f2407c249a9226",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/serviceDraft.test.ts": {
+      "blobOID": "ab0a48c46ef20b658d05a3f518cfdb502a1fb454",
+      "fileHash": "4933d6376d38d2022ae3db86726412e4f131160c940cbecd10b94df2c33fb6dd",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/sopReach.test.ts": {
+      "blobOID": "ca0607f1570daa6d344920b4dda5febb18c7bfdf",
+      "fileHash": "225d2a62b53c9fa9451e06c4d375ec41003fece7e85406d91fde6be9ee46907b",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/subscription.test.ts": {
+      "blobOID": "4a7d1f12cc29f7fd1248d2ab82520bda7c7e5e36",
+      "fileHash": "f83603721d7e5a2a6666df04ecdfeb284d348f68aeecd0fe3623577d3f8d6984",
+      "language": "ts",
+      "records": []
+    },
+    "web/tests/workbench.test.ts": {
+      "blobOID": "b5efba9109c898896a291b8c2a03404c6df6d6c0",
+      "fileHash": "109e8fff28db638ae62c30a67d0a38a28eb2c57cd613423f91b8aa31bfac45bc",
+      "language": "ts",
+      "records": []
+    },
+    "web/vitest.config.ts": {
+      "blobOID": "931c1d844028f61a99b4aa5120d2078b72f302cd",
+      "fileHash": "ca728247144a46647d3c7b9e8a51881d7619d514272a486107c7071099659d1f",
+      "language": "ts",
+      "records": []
+    }
+  },
+  "profile": "leads-web",
+  "scannerPolicyVersion": "1",
+  "schemaVersion": "painuo-style-baseline/v1",
+  "sourceCanonicalSha256": "4e6dec90bd5f5822ae092dc2b06c90f8c18368518984f262c3144dedc5979a40",
+  "sourceSHA": "b58ea1732f4a51d7bb061a3d71611f00174c1ec9"
+}

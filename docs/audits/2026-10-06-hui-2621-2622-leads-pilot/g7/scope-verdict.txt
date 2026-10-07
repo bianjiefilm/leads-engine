@@ -1,0 +1,3 @@
+changed paths total: 100
+outside §9 owned set: 0
+VERDICT: PASS — every changed path is §9 owned

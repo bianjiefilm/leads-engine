@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0-draft",
+  "primitiveExports": [
+    "Button",
+    "IconButton",
+    "Input",
+    "Textarea",
+    "Select",
+    "Checkbox",
+    "Radio",
+    "Switch",
+    "Tabs",
+    "SegmentedControl",
+    "Card",
+    "Badge",
+    "Status",
+    "Tooltip",
+    "Popover",
+    "Dropdown",
+    "Dialog",
+    "ConfirmDialog",
+    "Drawer",
+    "Toast",
+    "EmptyState",
+    "Skeleton",
+    "InlineError",
+    "RecoveryPanel",
+    "PageHeader",
+    "SectionHeader"
+  ],
+  "supportingExports": [
+    "RendererProvider",
+    "useRendererScope"
+  ],
+  "implementedExports": [
+    "Button",
+    "IconButton",
+    "Input",
+    "Textarea",
+    "Select",
+    "Checkbox",
+    "Radio",
+    "Switch",
+    "Tabs",
+    "SegmentedControl",
+    "Tooltip",
+    "Popover",
+    "Dropdown",
+    "Dialog",
+    "ConfirmDialog",
+    "Drawer",
+    "Toast",
+    "Card",
+    "Badge",
+    "Status",
+    "EmptyState",
+    "Skeleton",
+    "InlineError",
+    "RecoveryPanel",
+    "PageHeader",
+    "SectionHeader"
+  ],
+  "released": false,
+  "defaults": {
+    "Button": {
+      "type": "button",
+      "variant": "primary",
+      "size": "md"
+    },
+    "Dialog": {
+      "dismissOnOutsidePress": false,
+      "size": "md"
+    },
+    "RendererProvider": {
+      "density": "default",
+      "externalModalActive": false
+    },
+    "Tooltip": {
+      "delay": 600
+    },
+    "Popover": {
+      "side": "bottom",
+      "alignment": "center",
+      "modal": false
+    },
+    "Dropdown": {
+      "side": "bottom",
+      "alignment": "start",
+      "maxDepth": 8,
+      "maxCount": 200
+    },
+    "Drawer": {
+      "busy": false,
+      "side": "right",
+      "dismissOnOutsidePress": false,
+      "modal": true
+    }
+  },
+  "behaviorIds": {
+    "Button": [
+      "disabled-or",
+      "synchronous-action-gate",
+      "safe-rejection"
+    ],
+    "IconButton": [
+      "required-label",
+      "decorative-icon"
+    ],
+    "Dialog": [
+      "controlled",
+      "scoped-portal",
+      "library-focus",
+      "busy-dismiss-block"
+    ],
+    "ConfirmDialog": [
+      "controlled",
+      "exact-phrase",
+      "synchronous-action-gate",
+      "safe-rejection",
+      "caller-closes"
+    ],
+    "Input": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Textarea": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Select": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Checkbox": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Radio": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Switch": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Tabs": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "SegmentedControl": [
+      "controlled-native",
+      "visible-label",
+      "native-ref",
+      "closed-props"
+    ],
+    "Tooltip": [
+      "controlled",
+      "native-ref",
+      "inert-text512",
+      "finite-delay",
+      "owned-description",
+      "scoped-portal",
+      "closed-props"
+    ],
+    "Popover": [
+      "controlled",
+      "native-ref",
+      "visible-title",
+      "fixed-nonmodal",
+      "bounded-focus-ref",
+      "scoped-portal",
+      "closed-props"
+    ],
+    "Dropdown": [
+      "controlled",
+      "native-ref",
+      "closed-tree",
+      "depth8-count200",
+      "unique-ids",
+      "acyclic",
+      "actual-submenus",
+      "disabled-inheritance",
+      "explicit-actions",
+      "scoped-portal"
+    ],
+    "Drawer": [
+      "controlled",
+      "popup-ref",
+      "visible-title",
+      "fixed-modal",
+      "native-close",
+      "busy-cancel-all",
+      "bounded-focus-ref",
+      "scoped-portal",
+      "closed-props"
+    ]
+  }
+}

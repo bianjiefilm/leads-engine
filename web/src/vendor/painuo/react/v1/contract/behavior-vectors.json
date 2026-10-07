@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "requiredContexts": [
+    "react19-next15-ssr",
+    "react19-next15-browser",
+    "react18-vite-dom",
+    "react18-electron"
+  ],
+  "vectors": [
+    {
+      "id": "Button.v1",
+      "export": "Button",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "IconButton.v1",
+      "export": "IconButton",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Input.v1",
+      "export": "Input",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Textarea.v1",
+      "export": "Textarea",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Select.v1",
+      "export": "Select",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Checkbox.v1",
+      "export": "Checkbox",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Radio.v1",
+      "export": "Radio",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Switch.v1",
+      "export": "Switch",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Tabs.v1",
+      "export": "Tabs",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "SegmentedControl.v1",
+      "export": "SegmentedControl",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Card.v1",
+      "export": "Card",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Badge.v1",
+      "export": "Badge",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Status.v1",
+      "export": "Status",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Tooltip.v1",
+      "export": "Tooltip",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Popover.v1",
+      "export": "Popover",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Dropdown.v1",
+      "export": "Dropdown",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Dialog.v1",
+      "export": "Dialog",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "ConfirmDialog.v1",
+      "export": "ConfirmDialog",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Drawer.v1",
+      "export": "Drawer",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Toast.v1",
+      "export": "Toast",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "EmptyState.v1",
+      "export": "EmptyState",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "Skeleton.v1",
+      "export": "Skeleton",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "InlineError.v1",
+      "export": "InlineError",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "RecoveryPanel.v1",
+      "export": "RecoveryPanel",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "PageHeader.v1",
+      "export": "PageHeader",
+      "status": "implementedNeedsRuntimeReview"
+    },
+    {
+      "id": "SectionHeader.v1",
+      "export": "SectionHeader",
+      "status": "implementedNeedsRuntimeReview"
+    }
+  ]
+}
