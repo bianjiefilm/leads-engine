@@ -54,7 +54,7 @@ describe("tenant scope", () => {
     for (let i = 0; i < 20; i++) {
       const next = i % 2 === 0 ? "tnt_B" : "tnt_A";
       cache = switchCrmTenant(cache, next);
-      expect(cache.tenantId).toBe(next);
+      expect(cache.tenant).toBe(next);
       expect(cache.contacts).toBeNull();
       expect(cache.opportunities).toBeNull();
       expect(cache.leads).toBeNull();

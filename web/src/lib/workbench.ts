@@ -103,13 +103,13 @@ export function emptyBuckets(): Record<BucketKey, DeskItem[]> {
 // acceptDesk keeps only the current tenant. A missing tenant, or a row from
 // another tenant, never stays on screen.
 export function acceptDesk(
-  tenantId: string | null,
+  tenant: string | null,
   buckets: Partial<Record<BucketKey, DeskItem[]>> | null,
 ): Record<BucketKey, DeskItem[]> {
   const out = emptyBuckets();
-  if (!tenantId || !buckets) return out;
+  if (!tenant || !buckets) return out;
   for (const key of BUCKETS) {
-    out[key] = (buckets[key] ?? []).filter((item) => item.tenant_id === tenantId);
+    out[key] = (buckets[key] ?? []).filter((item) => item.tenant_id === tenant);
   }
   return out;
 }
@@ -330,13 +330,13 @@ export function emptyToday(): Record<TodayGroup, DeskItem[]> {
 
 // acceptToday keeps only the current tenant. Switching A/B drops the other queue.
 export function acceptToday(
-  tenantId: string | null,
+  tenant: string | null,
   groups: Partial<Record<TodayGroup, DeskItem[]>> | null,
 ): Record<TodayGroup, DeskItem[]> {
   const out = emptyToday();
-  if (!tenantId || !groups) return out;
+  if (!tenant || !groups) return out;
   for (const key of TODAY_GROUPS) {
-    out[key] = (groups[key] ?? []).filter((item) => item.tenant_id === tenantId);
+    out[key] = (groups[key] ?? []).filter((item) => item.tenant_id === tenant);
   }
   return out;
 }
@@ -361,31 +361,48 @@ export function followNote(note: string): string {
 }
 
 export interface TodayMemory {
-  [tenantId: string]: { focusId: string; drafts: Record<string, TodayDraft> };
+  [tenant: string]: { focusId: string; drafts: Record<string, TodayDraft> };
 }
 
 export function rememberToday(
   memory: TodayMemory,
-  tenantId: string,
+  tenant: string,
   focusId: string,
   drafts: Record<string, TodayDraft>,
 ): TodayMemory {
-  if (!tenantId) return memory;
-  return { ...memory, [tenantId]: { focusId, drafts } };
+  if (!tenant) return memory;
+  return { ...memory, [tenant]: { focusId, drafts } };
 }
 
 export function recallToday(
   memory: TodayMemory | null,
-  tenantId: string | null,
+  tenant: string | null,
 ): { focusId: string; drafts: Record<string, TodayDraft> } {
-  if (!memory || !tenantId || !memory[tenantId]) return { focusId: "", drafts: {} };
-  return memory[tenantId];
+  if (!memory || !tenant || !memory[tenant]) return { focusId: "", drafts: {} };
+  return memory[tenant];
+}
+
+// HUI-2626 fix2（gate-r2 #2）：本地记忆的序列化收敛在 lib，页面不出现 JSON 序列化。
+const TODAY_MEMORY_KEY = "leads_today_memory";
+
+export function readTodayMemory(): TodayMemory {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(TODAY_MEMORY_KEY);
+    return raw ? (JSON.parse(raw) as TodayMemory) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function persistTodayMemory(memory: TodayMemory): void {
+  window.localStorage.setItem(TODAY_MEMORY_KEY, JSON.stringify(memory));
 }
 
 // todaySaveReady is false on the render that still holds the previous tenant's drafts.
 // appliedTenant stays null until that restore has been applied, so the other tenant is not overwritten.
-export function todaySaveReady(appliedTenant: string | null, tenantId: string | null): boolean {
-  return Boolean(tenantId) && appliedTenant === tenantId;
+export function todaySaveReady(appliedTenant: string | null, tenant: string | null): boolean {
+  return Boolean(tenant) && appliedTenant === tenant;
 }
 
 // questionsFor shows gaps, or only the changed confirmed facts. It never repeats the whole profile.

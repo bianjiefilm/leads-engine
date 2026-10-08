@@ -1,0 +1,397 @@
+{
+ "schema": "hui2626-fix2-overflow-ledger/v1",
+ "viewport_columns": [
+  1920,
+  1440,
+  1024,
+  430,
+  390
+ ],
+ "rows": [
+  {
+   "page": "today",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "leads",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "contacts",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "opportunities",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "reception",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "sop",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "outbound",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "attribution",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "subscription",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "lead-detail",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "opportunity-result",
+   "vp": "1920",
+   "horizontal_overflow": false,
+   "sw": 1920,
+   "cw": 1920
+  },
+  {
+   "page": "today",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "leads",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "contacts",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "opportunities",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "reception",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "sop",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "outbound",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "attribution",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "subscription",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "lead-detail",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "opportunity-result",
+   "vp": "1440",
+   "horizontal_overflow": false,
+   "sw": 1440,
+   "cw": 1440
+  },
+  {
+   "page": "today",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "leads",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "contacts",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "opportunities",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "reception",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "sop",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "outbound",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "attribution",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "subscription",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "lead-detail",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "opportunity-result",
+   "vp": "1024",
+   "horizontal_overflow": false,
+   "sw": 1024,
+   "cw": 1024
+  },
+  {
+   "page": "today",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "leads",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "contacts",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "opportunities",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "reception",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "sop",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "outbound",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "attribution",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "subscription",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "lead-detail",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "opportunity-result",
+   "vp": "430",
+   "horizontal_overflow": false,
+   "sw": 430,
+   "cw": 430
+  },
+  {
+   "page": "today",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "leads",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "contacts",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "opportunities",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "reception",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "sop",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "outbound",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "attribution",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "subscription",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "lead-detail",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  },
+  {
+   "page": "opportunity-result",
+   "vp": "390",
+   "horizontal_overflow": false,
+   "sw": 390,
+   "cw": 390
+  }
+ ]
+}

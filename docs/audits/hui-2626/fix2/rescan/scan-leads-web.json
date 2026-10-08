@@ -1,0 +1,76 @@
+{
+  "schema": "uifinish-route-scan/v1",
+  "generated_at": "2026-10-08T12:57:56Z",
+  "tool": "cmd/uifinish-scan",
+  "routes": [
+    {
+      "profile": "leads-web",
+      "role": "Entry",
+      "route": "/",
+      "source_path": "web/src/app/(shell)/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    },
+    {
+      "profile": "leads-web",
+      "role": "Home",
+      "route": "/",
+      "source_path": "web/src/app/(shell)/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    },
+    {
+      "profile": "leads-web",
+      "role": "List",
+      "route": "/leads",
+      "source_path": "web/src/app/(shell)/leads/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    },
+    {
+      "profile": "leads-web",
+      "role": "Detail",
+      "route": "/leads/[id]",
+      "source_path": "web/src/app/(shell)/leads/[id]/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    },
+    {
+      "profile": "leads-web",
+      "role": "Main Action",
+      "route": "/reception",
+      "source_path": "web/src/app/reception/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    },
+    {
+      "profile": "leads-web",
+      "role": "Result",
+      "route": "/opportunities/[id]",
+      "source_path": "web/src/app/(shell)/opportunities/[id]/page.tsx",
+      "census_pin": "687f9d0f38c63a41d9aacab676c438ea0f09f279",
+      "scanned_sha": "09121b51fc05b5ddd452e146cc4b6096c4eafa86",
+      "verdict": "pass",
+      "findings": null
+    }
+  ],
+  "products": {
+    "leads-web": {
+      "passed": true,
+      "routes_total": 6,
+      "routes_pass": 6,
+      "routes_fail": 0,
+      "routes_error": 0
+    }
+  }
+}

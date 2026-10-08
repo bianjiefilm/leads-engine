@@ -3,6 +3,7 @@
 import React, { useEffect, useState, type ReactNode } from "react";
 import { EcoTopNav } from "@/components/eco-nav/EcoTopNav";
 import { ShellWidthProvider, SurfaceState, WorkbenchChrome, useShellWidth } from "@/components/workbench/chrome";
+import { OfflineReady } from "@/components/workbench/offlineReady";
 import { CRM_TENANT_STORAGE_KEY } from "@/lib/eco-nav/crm-scope";
 import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { shouldMountEcoTopNav } from "@/lib/eco-nav/mount";
@@ -33,9 +34,9 @@ function DeskFrame({
       <WorkbenchChrome
         width={width}
         scopes={scopes}
-        activeId={scope.tenantId}
-        onSwitch={(tenantId) => {
-          const chosen = guardTenantCommit(scopes, tenantId);
+        activeId={scope.tenant}
+        onSwitch={(tenant) => {
+          const chosen = guardTenantCommit(scopes, tenant);
           if (chosen) commitCrmTenant(chosen);
         }}
       >
@@ -82,13 +83,15 @@ export function CrmShell({ model, children }: { model: EcoNavModel; children: Re
   const navModel: EcoNavModel = { ...model, scopes: model.scopes.filter((item) => allowed.has(item.tenant_id)) };
   return (
     <ShellWidthProvider>
+      {/* HUI-2626 fix2（gate-r2 #8）：断网导航兜底为应用内离线页。 */}
+      <OfflineReady />
       <div className="desk-app" data-shell="sales">
         {show ? (
           <EcoTopNav
             model={navModel}
             nickname={nickname}
-            onTenantSwitch={(tenantId) => {
-              const chosen = guardTenantCommit(switcher, tenantId);
+            onTenantSwitch={(tenant) => {
+              const chosen = guardTenantCommit(switcher, tenant);
               if (chosen) commitCrmTenant(chosen);
             }}
           />

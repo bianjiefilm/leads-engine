@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import { presentSOP, recordLabel, type SOPCapability } from "@/lib/sopReach";
 import {
   consentChoices,
@@ -35,7 +35,7 @@ function consentLabel(item: ScopeConsent): string {
 
 export default function SOPPage() {
   const scope = useCrmScope();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [items, setItems] = useState<SOPAction[] | null>(null);
   const [error, setError] = useState("");
@@ -51,24 +51,24 @@ export default function SOPPage() {
   const [busy, setBusy] = useState(false);
   const loadSeq = useRef(0);
   const consentSeq = useRef(0);
-  const tenantRef = useRef(tenantId);
-  tenantRef.current = tenantId;
+  const tenantRef = useRef(tenant);
+  tenantRef.current = tenant;
 
   const headers = useCallback(
-    () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
-    [tenantId],
+    () => ({ "content-type": "application/json", ...listTenantHeader(tenant) }),
+    [tenant],
   );
 
-  const load = useCallback(async (tenantID: string, seq: number) => {
+  const load = useCallback(async (tenant: string, seq: number) => {
     setError("");
     setItems(null);
     setView(EMPTY_VIEW);
-    if (!tenantID.trim()) {
+    if (!tenant.trim()) {
       setItems([]);
       setContacts([]);
       return;
     }
-    const h = { "x-tenant-id": tenantID.trim() };
+    const h = listTenantHeader(tenant.trim()) ?? {};
     try {
       const [capRes, listRes, contactRes] = await Promise.all([
         fetch("/api/sop/capability", { headers: h }),
@@ -109,20 +109,20 @@ export default function SOPPage() {
     setContacts(null);
     setDraftId("");
     setBusy(false);
-    void load(scope.tenantId ?? "", seq);
-  }, [scope.epoch, scope.tenantId, load]);
+    void load(scope.tenant ?? "", seq);
+  }, [scope.epoch, scope.tenant, load]);
 
-  async function loadConsents(tenantID: string, id: string) {
+  async function loadConsents(tenant: string, id: string) {
     const seq = ++consentSeq.current;
     setConsentId("");
     setConsents(null);
-    if (!tenantID.trim() || !id) {
+    if (!tenant.trim() || !id) {
       setPurpose("follow_up");
       return;
     }
     try {
       const res = await fetch(`/api/contacts/${encodeURIComponent(id)}/consents`, {
-        headers: { "x-tenant-id": tenantID.trim() },
+        headers: listTenantHeader(tenant.trim()) ?? {},
       });
       const body = await res.json().catch(() => null);
       if (consentSeq.current !== seq) return;
@@ -137,7 +137,7 @@ export default function SOPPage() {
   }
 
   async function post(path: string, payload: object) {
-    const tenantAtSubmit = tenantId;
+    const tenantAtSubmit = tenant;
     const seqAtSubmit = loadSeq.current;
     setBusy(true);
     setError("");
@@ -178,7 +178,7 @@ export default function SOPPage() {
         <h1>下一次跟进</h1>
         <Link className="btn" href="/">我的工作</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p data-tone="automation">{view.note}</p>
         <p className="muted">
@@ -196,7 +196,7 @@ export default function SOPPage() {
               onChange={(e) => {
                 const id = e.target.value;
                 setContactId(id);
-                void loadConsents(tenantId, id);
+                void loadConsents(tenant, id);
               }}
             >
               <option value="">选择客户</option>
@@ -206,7 +206,7 @@ export default function SOPPage() {
             </select>
           </label>
         </p>
-        {tenantId && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
+        {tenant && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
         <p>
           <label>
             授权{" "}
@@ -254,43 +254,51 @@ export default function SOPPage() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
           </label>
         </p>
-        <Button
-          variant="primary" size="sm"
-          type="button"
-          data-page-primary="true"
-          disabled={busy || !tenantId || !payload}
-          onClick={() => {
-            if (!payload) return;
-            void post("/api/sop/reminders", payload);
-          }}
-        >
-          {pagePrimary("sop")}
-        </Button>{" "}
-        <Button
-          variant="secondary" size="sm"
-          type="button"
-          disabled={busy || !tenantId || !payload}
-          onClick={() => {
-            if (!payload) return;
-            void post("/api/sop/drafts", payload);
-          }}
-        >
-          保存回复草稿
-        </Button>
+        {/* HUI-2626 fix2（gate-r2 #6 主行动收敛）：主行动只在可执行时出现；
+            不可执行时给下一步指引，不再渲染一排等权灰按钮。次级动作保持 secondary。 */}
+        {payload ? (
+          <>
+            <Button
+              variant="primary" size="sm"
+              type="button"
+              data-page-primary="true"
+              disabled={busy}
+              onClick={() => {
+                void post("/api/sop/reminders", payload);
+              }}
+            >
+              {pagePrimary("sop")}
+            </Button>{" "}
+            <Button
+              variant="secondary" size="sm"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void post("/api/sop/drafts", payload);
+              }}
+            >
+              保存回复草稿
+            </Button>
+          </>
+        ) : (
+          <p className="muted">选择客户并填写内容后，这里可以记下内部提醒。</p>
+        )}
         {error ? <SurfaceState kind="error" title="跟进没有记下" detail={error} /> : null}
       </div>
       <div className="card">
         <h2>人工确认</h2>
         <p className="muted">确认后停在待发送或未送达。没有渠道回执时不会写成已送达。</p>
         <p className="muted">{draftId ? "已选用一条草稿，可以人工确认。" : "先保存草稿，或在下面的记录里选用。"}</p>
-        <Button
-          variant="secondary" size="sm"
-          type="button"
-          disabled={busy || !draftId.trim()}
-          onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
-        >
-          人工确认
-        </Button>
+        {draftId ? (
+          <Button
+            variant="secondary" size="sm"
+            type="button"
+            disabled={busy}
+            onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
+          >
+            人工确认
+          </Button>
+        ) : null}
       </div>
       <div className="card">
         <h2>记录</h2>

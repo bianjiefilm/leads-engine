@@ -55,17 +55,17 @@ export default function OpportunitiesPage() {
   const [drawerBody, setDrawerBody] = useState<OpportunityRow | null>(null);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerErr, setDrawerErr] = useState("");
-  const drawerGen = useRef({ seq: 0, tenantId: "" });
+  const drawerGen = useRef({ seq: 0, tenant: "" });
 
   // 列表票号：hydrate 前的空头请求、切范围后的迟到响应，一律不允许覆盖新状态。
-  const gen = useRef({ seq: 0, tenantId: "" });
+  const gen = useRef({ seq: 0, tenant: "" });
 
   const load = useCallback(async (cat: BusinessCategory) => {
-    const tenantID = scope.tenantId ?? "";
-    const ticket = { seq: gen.current.seq + 1, tenantId: tenantID };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: gen.current.seq + 1, tenant: tenant };
     gen.current = ticket;
     setError("");
-    if (!tenantID) {
+    if (!tenant) {
       setItems([]);
       setStats(null);
       return;
@@ -74,11 +74,11 @@ export default function OpportunitiesPage() {
     setStats(null);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/opportunities?category=${cat}`, scopeInit(tenantID)),
-        fetch(`/api/opportunities/stats?category=${cat}`, scopeInit(tenantID)),
+        fetch(`/api/opportunities?category=${cat}`, scopeInit(tenant)),
+        fetch(`/api/opportunities/stats?category=${cat}`, scopeInit(tenant)),
       ]);
       const listBody = await listRes.json();
-      if (gen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (gen.current !== ticket || scope.tenant !== ticket.tenant) return;
       if (!listRes.ok) {
         setError(failureText(listBody, listRes.status));
         return;
@@ -86,22 +86,22 @@ export default function OpportunitiesPage() {
       setItems(listBody.items ?? []);
       if (statsRes.ok) setStats(await statsRes.json());
     } catch (e) {
-      if (gen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (gen.current !== ticket || scope.tenant !== ticket.tenant) return;
       setError(productError((e as Error).message));
     }
-  }, [scope.tenantId]);
+  }, [scope.tenant]);
 
   useEffect(() => {
     setItems(null);
     setStats(null);
     setDrawerId(null);
-    drawerGen.current = { seq: drawerGen.current.seq + 1, tenantId: scope.tenantId ?? "" };
+    drawerGen.current = { seq: drawerGen.current.seq + 1, tenant: scope.tenant ?? "" };
     load(category);
   }, [category, load, scope.epoch]);
 
   const openDrawer = (id: string) => {
-    const tenantId = scope.tenantId ?? "";
-    const ticket = { seq: drawerGen.current.seq + 1, tenantId };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: drawerGen.current.seq + 1, tenant };
     drawerGen.current = ticket;
     setDrawerId(id);
     setDrawerBody(null);
@@ -109,9 +109,9 @@ export default function OpportunitiesPage() {
     setDrawerBusy(true);
     void (async () => {
       try {
-        const res = await fetch(`/api/opportunities/${id}`, scopeInit(scope.tenantId));
+        const res = await fetch(`/api/opportunities/${id}`, scopeInit(scope.tenant));
         const body = await res.json();
-        if (drawerGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+        if (drawerGen.current !== ticket || scope.tenant !== ticket.tenant) return;
         if (!res.ok) {
           setDrawerErr(failureText(body, res.status));
           return;
@@ -126,7 +126,7 @@ export default function OpportunitiesPage() {
   };
 
   const closeDrawer = () => {
-    drawerGen.current = { seq: drawerGen.current.seq + 1, tenantId: scope.tenantId ?? "" };
+    drawerGen.current = { seq: drawerGen.current.seq + 1, tenant: scope.tenant ?? "" };
     setDrawerId(null);
     setDrawerBody(null);
     setDrawerErr("");
@@ -150,7 +150,7 @@ export default function OpportunitiesPage() {
           {pagePrimary("opportunities")}
         </Link>
       </header>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <p className="muted">
         商家经营销售与创意服务分域管理:成交额、漏斗与后续动作按类别隔离,不做跨类别合计。
         「人工标记成交」仅为销售判断,并非收款事实;金额缺失时显示「未知」。

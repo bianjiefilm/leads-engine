@@ -16,7 +16,7 @@ export function commitCrmTenant(next: string) {
   if (updated === cache) return;
   cache = updated;
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(CRM_TENANT_STORAGE_KEY, updated.tenantId ?? "");
+    window.localStorage.setItem(CRM_TENANT_STORAGE_KEY, updated.tenant ?? "");
   }
   emit();
 }
@@ -29,9 +29,9 @@ export function hydrateCrmTenantFromStorage() {
 
 // 对账结果为空时清掉内存里的范围，不改已经保存的登录租户。
 export function releaseCrmTenant() {
-  if (!cache.tenantId) return;
+  if (!cache.tenant) return;
   cache = {
-    tenantId: null,
+    tenant: null,
     epoch: cache.epoch + 1,
     contacts: null,
     opportunities: null,
@@ -52,8 +52,8 @@ export function useCrmScope(): CrmCache {
   return useSyncExternalStore(subscribe, () => cache, () => serverCache);
 }
 
-export function scopeInit(tenantId: string | null, init: RequestInit = {}): RequestInit {
+export function scopeInit(tenant: string | null, init: RequestInit = {}): RequestInit {
   const headers = new Headers(init.headers);
-  if (tenantId) headers.set("x-tenant-id", tenantId);
+  if (tenant) headers.set("x-tenant-id", tenant);
   return { ...init, headers };
 }

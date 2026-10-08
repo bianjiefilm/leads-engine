@@ -46,3 +46,22 @@ export function receiptLabel(kind: string, status: string): string {
   if (status === "blocked") return "已拦截";
   return "未证实";
 }
+
+export interface OutboundTaskShape {
+  simulation?: boolean;
+  dial_succeeded?: boolean;
+  real_connected?: boolean;
+  cost?: string;
+}
+
+// HUI-2626 fix2（gate-r2 #7 partial 场景）：部分成功/部分失败是独立于成功/失败的
+// 一态——拨打成功但未接通、或有任一回执未证实即「部分完成」，如实说，不写成已送达。
+export function outboundResultLine(task: OutboundTaskShape | null): string {
+  if (!task) return "还没有任务。";
+  const dial = task.dial_succeeded === true ? "拨打成功：是" : task.dial_succeeded === false ? "拨打成功：否" : "没有拨打回执";
+  const connected = task.real_connected === true ? "真实接通：是" : task.real_connected === false ? "真实接通：否" : "没有接通回执";
+  const cost = task.cost === "unknown" || !task.cost ? "未知" : task.cost;
+  const partial = task.dial_succeeded !== task.real_connected;
+  const head = partial ? "部分完成：" : task.real_connected === true ? "已完成：" : "未完成：";
+  return `${head}模拟：${task.simulation ? "是" : "否"}。${dial}。${connected}。费用：${cost}。`;
+}

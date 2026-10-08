@@ -40,7 +40,7 @@ export function EcoTopNav({
 }: {
   model: EcoNavModel;
   nickname: string;
-  onTenantSwitch: (tenantId: string) => void;
+  onTenantSwitch: (tenant: string) => void;
 }) {
   const [nav, setNav] = useState(() => pinLeadsApp(model));
   const [menuOpen, setMenuOpen] = useState(false);

@@ -243,9 +243,9 @@ describe("sales workbench shell", () => {
 
   it("drops a late lead list after the tenant switches or clears", async () => {
     const pending = new Map<string, (rows: { id: string }[]) => void>();
-    const fetchRows = (tenantId: string) =>
+    const fetchRows = (tenant: string) =>
       new Promise<{ id: string }[]>((resolve) => {
-        pending.set(tenantId, resolve);
+        pending.set(tenant, resolve);
       });
     let active = nextLeadTicket(0, "tenant-a");
     const ticketA = active;
@@ -266,9 +266,9 @@ describe("sales workbench shell", () => {
   });
 
   it("drops a late reception desk response and the previous session frame", () => {
-    let active = { seq: 1, tenantId: "tenant-a" };
+    let active = { seq: 1, tenant: "tenant-a" };
     const late = acceptDeskPayload(active, 1, "tenant-a", [{ session_id: "from-a" }]);
-    active = { seq: 2, tenantId: "tenant-b" };
+    active = { seq: 2, tenant: "tenant-b" };
     expect(acceptDeskPayload(active, 1, "tenant-a", [{ session_id: "from-a" }])).toBeNull();
     expect(acceptDeskPayload(active, 2, "tenant-b", [{ session_id: "from-b" }])).toEqual([{ session_id: "from-b" }]);
     expect(late).toEqual([{ session_id: "from-a" }]);
@@ -277,7 +277,7 @@ describe("sales workbench shell", () => {
     const page = readFileSync("src/app/reception/page.tsx", "utf8");
     expect(page).toContain("acceptDeskPayload");
     expect(page).toContain("receptionSessionFrame");
-    expect(page).not.toContain("tenant={scope.tenantId} sessionId={selected}");
+    expect(page).not.toContain("tenant={scope.tenant} sessionId={selected}");
   });
 
   it("keeps formal pages free of a tenant id field and raw failure copy", () => {

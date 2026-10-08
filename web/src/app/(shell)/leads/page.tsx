@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { DetailDrawer } from "@/components/workbench/detailDrawer";
-import { SegmentedControl } from "@/vendor/painuo/react/v1/src/index";
+import { Button, SegmentedControl } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { leadRowFacts } from "@/lib/finish";
 import { deskState, sourceText, type StatusFacts } from "@/lib/workbench";
@@ -72,7 +72,8 @@ export default function LeadsPage() {
   const [rows, setRows] = useState<Array<LeadRow & { name: string; source: string }> | null>(null);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const gen = useRef({ seq: 0, tenantId: "" });
+  const [reload, setReload] = useState(0);
+  const gen = useRef({ seq: 0, tenant: "" });
 
   // 详情抽屉（真实 timeline + 票号：切范围/迟到响应一律丢弃）。
   const [drawerId, setDrawerId] = useState<string | null>(null);
@@ -80,23 +81,23 @@ export default function LeadsPage() {
   const [drawerBody, setDrawerBody] = useState<DrawerTimeline | null>(null);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerErr, setDrawerErr] = useState("");
-  const drawerGen = useRef({ seq: 0, tenantId: "" });
+  const drawerGen = useRef({ seq: 0, tenant: "" });
 
   useEffect(() => {
-    const tenantID = scope.tenantId ?? "";
-    const ticket = { seq: gen.current.seq + 1, tenantId: tenantID };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: gen.current.seq + 1, tenant: tenant };
     gen.current = ticket;
     setError("");
     setStatusFilter("all");
     setDrawerId(null);
-    if (!tenantID) {
+    if (!tenant) {
       setRows([]);
       return;
     }
     setRows(null);
     let cancelled = false;
     void (async () => {
-      const headers = listTenantHeader(tenantID);
+      const headers = listTenantHeader(tenant);
       if (!headers) {
         if (!cancelled && acceptLeadRows(gen.current, ticket, []) !== null) setRows([]);
         return;
@@ -138,11 +139,11 @@ export default function LeadsPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenantId]);
+  }, [scope.epoch, scope.tenant, reload]);
 
   const openDrawer = (id: string) => {
-    const tenantId = scope.tenantId ?? "";
-    const ticket = { seq: drawerGen.current.seq + 1, tenantId };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: drawerGen.current.seq + 1, tenant };
     drawerGen.current = ticket;
     setDrawerId(id);
     setDrawerTitle(rows?.find((r) => r.id === id)?.name || "线索详情");
@@ -151,9 +152,9 @@ export default function LeadsPage() {
     setDrawerBusy(true);
     void (async () => {
       try {
-        const res = await fetch(`/api/leads/${id}/timeline`, { headers: { "x-tenant-id": tenantId } });
+        const res = await fetch(`/api/leads/${id}/timeline`, { headers: listTenantHeader(tenant) ?? {} });
         const body = (await res.json()) as DrawerTimeline;
-        if (drawerGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+        if (drawerGen.current !== ticket || scope.tenant !== ticket.tenant) return;
         if (!res.ok) {
           setDrawerErr(failureText(body, res.status));
           return;
@@ -168,7 +169,7 @@ export default function LeadsPage() {
   };
 
   const closeDrawer = () => {
-    drawerGen.current = { seq: drawerGen.current.seq + 1, tenantId: scope.tenantId ?? "" };
+    drawerGen.current = { seq: drawerGen.current.seq + 1, tenant: scope.tenant ?? "" };
     setDrawerId(null);
     setDrawerBody(null);
     setDrawerErr("");
@@ -186,11 +187,30 @@ export default function LeadsPage() {
         </Link>
       </header>
       <p className="muted">来源、负责人和待分配原因以记录为准。这里不创建线索，也不发起触达。</p>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
-      {error ? <SurfaceState kind="error" title="线索没有载入" detail={error} /> : null}
-      {rows === null && !error ? <SurfaceState kind="loading" title="正在读取线索" detail="姓名、来源和负责人马上就位。" /> : null}
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {error ? (
+        <div data-state="error">
+          <SurfaceState
+            kind="error"
+            title="线索没有载入"
+            detail={error}
+            action={
+              <Button variant="secondary" type="button" size="sm" onClick={() => setReload((n) => n + 1)}>
+                重试
+              </Button>
+            }
+          />
+        </div>
+      ) : null}
+      {rows === null && !error ? (
+        <div data-state="loading">
+          <SurfaceState kind="loading" title="正在读取线索" detail="姓名、来源和负责人马上就位。" />
+        </div>
+      ) : null}
       {rows !== null && rows.length === 0 && !error ? (
-        <SurfaceState kind="empty" title="还没有线索" detail="这个工作范围里还没有可跟进的线索。" />
+        <div data-state="empty">
+          <SurfaceState kind="empty" title="还没有线索" detail="这个工作范围里还没有可跟进的线索。" />
+        </div>
       ) : null}
       {rows !== null && rows.length > 0 ? (
         <>
@@ -206,7 +226,9 @@ export default function LeadsPage() {
             </p>
           </div>
           {visibleRows.length === 0 ? (
-            <SurfaceState kind="empty" title="这个状态没有线索" detail="换一个状态筛选再看。" />
+            <div data-state="empty">
+              <SurfaceState kind="empty" title="这个状态没有线索" detail="换一个状态筛选再看。" />
+            </div>
           ) : (
             <RecordList
               width={width}
@@ -254,7 +276,7 @@ export default function LeadsPage() {
                 <strong>{drawerBody.next?.label || "还没有安排"}</strong>
               </li>
             </ul>
-            <h3>最近动态</h3>
+            <h2>最近动态</h2>
             {(drawerBody.events ?? []).length === 0 ? (
               <p className="muted">还没有记录。跟进步骤在完整线索页进行。</p>
             ) : (

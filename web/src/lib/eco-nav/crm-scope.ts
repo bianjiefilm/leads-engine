@@ -9,7 +9,7 @@ export interface ScopedRow {
 }
 
 export interface CrmCache {
-  tenantId: string | null;
+  tenant: string | null;
   epoch: number;
   contacts: ScopedRow[] | null;
   opportunities: ScopedRow[] | null;
@@ -21,7 +21,7 @@ export interface CrmCache {
 
 export function emptyCrmCache(): CrmCache {
   return {
-    tenantId: null,
+    tenant: null,
     epoch: 0,
     contacts: null,
     opportunities: null,
@@ -34,9 +34,9 @@ export function emptyCrmCache(): CrmCache {
 
 export function switchCrmTenant(cache: CrmCache, nextTenantId: string): CrmCache {
   const id = nextTenantId.trim();
-  if (!id || id === cache.tenantId) return cache;
+  if (!id || id === cache.tenant) return cache;
   return {
-    tenantId: id,
+    tenant: id,
     epoch: cache.epoch + 1,
     contacts: null,
     opportunities: null,
@@ -48,13 +48,13 @@ export function switchCrmTenant(cache: CrmCache, nextTenantId: string): CrmCache
 }
 
 export function rememberRows(cache: CrmCache, kind: "contacts" | "opportunities" | "leads" | "workbench", rows: ScopedRow[]): CrmCache {
-  if (!cache.tenantId) return cache;
-  const scoped = rows.filter((row) => row.tenant_id === cache.tenantId);
+  if (!cache.tenant) return cache;
+  const scoped = rows.filter((row) => row.tenant_id === cache.tenant);
   return { ...cache, [kind]: scoped };
 }
 
 export function visibleRows(cache: CrmCache, kind: "contacts" | "opportunities" | "leads" | "workbench"): ScopedRow[] {
   const rows = cache[kind];
-  if (!cache.tenantId || rows === null) return [];
-  return rows.filter((row) => row.tenant_id === cache.tenantId);
+  if (!cache.tenant || rows === null) return [];
+  return rows.filter((row) => row.tenant_id === cache.tenant);
 }

@@ -13,7 +13,7 @@ import {
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, productError } from "@/lib/productShell";
 
 // 授权评论/私信（HUI-1681）。只打本站 BFF。
 // 没有真实渠道凭证时保持未验证，不把发布授权当成私信权限，也不因分数自动触达。
@@ -55,7 +55,7 @@ const PURPOSE_TEXT: Record<string, string> = {
 
 export default function ChannelInteractionsPage() {
   const scope = useCrmScope();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const width = useShellWidth();
   const [view, setView] = useState<CapabilityView>(presentCapability(null));
   const [items, setItems] = useState<InteractionItem[] | null>(null);
@@ -76,17 +76,17 @@ export default function ChannelInteractionsPage() {
   const [intent, setIntent] = useState(false);
   const [purpose, setPurpose] = useState("general_qa");
 
-  const headers = useCallback(() => ({ "content-type": "application/json", "x-tenant-id": tenantId }), [tenantId]);
+  const headers = useCallback(() => ({ "content-type": "application/json", ...listTenantHeader(tenant) }), [tenant]);
 
-  const load = useCallback(async (tenantID: string) => {
+  const load = useCallback(async (tenant: string) => {
     setError("");
     setItems(null);
     setView(presentCapability(null));
-    if (!tenantID.trim()) {
+    if (!tenant.trim()) {
       setItems([]);
       return;
     }
-    const h = { "x-tenant-id": tenantID.trim() };
+    const h = listTenantHeader(tenant.trim()) ?? {};
     try {
       const [capRes, listRes] = await Promise.all([
         fetch("/api/channel-interactions/capability", { headers: h }),
@@ -108,9 +108,9 @@ export default function ChannelInteractionsPage() {
   }, []);
 
   useEffect(() => {
-    if (scope.tenantId) void load(scope.tenantId);
+    if (scope.tenant) void load(scope.tenant);
     else setItems([]);
-  }, [scope.epoch, scope.tenantId, load]);
+  }, [scope.epoch, scope.tenant, load]);
 
   const capabilities = [
     commentRead ? "comment.read" : "",
@@ -139,7 +139,7 @@ export default function ChannelInteractionsPage() {
       setError(failureText(body, res.status));
       return;
     }
-    await load(tenantId);
+    await load(tenant);
   };
 
   const saveEvent = async () => {
@@ -148,7 +148,7 @@ export default function ChannelInteractionsPage() {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({
-        target_tenant_id: tenantId,
+        target_tenant_id: tenant,
         provider,
         account_id: accountId,
         app_id: appId,
@@ -170,7 +170,7 @@ export default function ChannelInteractionsPage() {
       return;
     }
     setText("");
-    await load(tenantId);
+    await load(tenant);
   };
 
   const confirm = async (candidateId: string) => {
@@ -185,7 +185,7 @@ export default function ChannelInteractionsPage() {
       return;
     }
     setLeadId(typeof body.lead_id === "string" ? body.lead_id : "");
-    await load(tenantId);
+    await load(tenant);
   };
 
   return (
@@ -194,7 +194,7 @@ export default function ChannelInteractionsPage() {
         <h1>授权互动</h1>
         <Link className="btn" href="/">返回工作台</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p>
           <strong>{view.label}</strong>。{view.note}

@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, productError } from "@/lib/productShell";
 import { modelStatusText, originLabel, outreachControls, presentAssessment, type GradeInput, type GradeView } from "@/lib/intentGrade";
 
 // HUI-1684 意向分级页。只打本站 BFF。规则版本由服务端返回。
@@ -119,7 +119,7 @@ function asInput(snap: SnapshotBody): GradeInput {
 export default function IntentGradePage() {
   const scope = useCrmScope();
   const width = useShellWidth();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const [subjectKind, setSubjectKind] = useState("lead");
   const [subjectId, setSubjectId] = useState("");
   const [text, setText] = useState("");
@@ -133,16 +133,16 @@ export default function IntentGradePage() {
   const [report, setReport] = useState<ReportOutcome[] | null>(null);
   const [reportNote, setReportNote] = useState("");
 
-  const headers = useCallback((): HeadersInit => ({ "content-type": "application/json", "x-tenant-id": tenantId }), [tenantId]);
+  const headers = useCallback((): HeadersInit => ({ "content-type": "application/json", ...listTenantHeader(tenant) }), [tenant]);
 
   const loadReport = useCallback(async () => {
     setReportNote("");
-    if (!tenantId) {
+    if (!tenant) {
       setReport(null);
       setReportNote("先在顶部选择工作范围，再看标注样本。这些样本不是真人成交记录。");
       return;
     }
-    const res = await fetch("/api/intent-grades/sample-report", { headers: { "x-tenant-id": tenantId } });
+    const res = await fetch("/api/intent-grades/sample-report", { headers: listTenantHeader(tenant) ?? {} });
     const body = await res.json();
     if (!res.ok) {
       setReport(null);
@@ -151,13 +151,13 @@ export default function IntentGradePage() {
     }
     setReport((body.outcomes ?? []) as ReportOutcome[]);
     setReportNote(typeof body.disclaimer === "string" ? body.disclaimer : "");
-  }, [tenantId]);
+  }, [tenant]);
 
   const score = async () => {
     setError("");
     setView(null);
-    if (!tenantId || !subjectId.trim()) {
-      setError(tenantId ? "先填写线索或会话编号" : MISSING_SCOPE);
+    if (!tenant || !subjectId.trim()) {
+      setError(tenant ? "先填写线索或会话编号" : MISSING_SCOPE);
       return;
     }
     const res = await fetch("/api/intent-grades", {
@@ -166,7 +166,7 @@ export default function IntentGradePage() {
       body: JSON.stringify({
         subject_kind: subjectKind,
         subject_id: subjectId.trim(),
-        evidence: text.trim() ? [{ id: "ev-page", tenant_id: tenantId, text: text.trim() }] : [],
+        evidence: text.trim() ? [{ id: "ev-page", tenant_id: tenant, text: text.trim() }] : [],
       }),
     });
     const body = (await res.json()) as ScoreResponse;
@@ -215,7 +215,7 @@ export default function IntentGradePage() {
         <h1>意向分级</h1>
         <Link className="btn" href="/">返回工作台</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p data-tone="ai">规则评分，不是真人成交预测，也不是校准后的成交概率。下一步只给建议，不自动外呼、短信、拉群或创建订单。</p>
         <p data-tone="ai">{modelStatusText()}</p>

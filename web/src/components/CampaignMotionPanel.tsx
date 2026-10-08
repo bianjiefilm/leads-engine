@@ -56,8 +56,8 @@ export function CampaignMotionPanel({ campaignId }: { campaignId: string }) {
   }, []);
 
   const load = useCallback(async () => {
-    if (!campaignId || !scope.tenantId) return;
-    const init = scopeInit(scope.tenantId);
+    if (!campaignId || !scope.tenant) return;
+    const init = scopeInit(scope.tenant);
     const capRes = await fetch("/api/campaign-motion/capability", init);
     if (!capRes.ok) {
       setHidden(true);
@@ -76,7 +76,7 @@ export function CampaignMotionPanel({ campaignId }: { campaignId: string }) {
     }
     const body = (await res.json()) as MotionResponse;
     applyExport(body.export);
-  }, [applyExport, campaignId, scope.tenantId]);
+  }, [applyExport, campaignId, scope.tenant]);
 
   useEffect(() => {
     void load();
@@ -85,7 +85,7 @@ export function CampaignMotionPanel({ campaignId }: { campaignId: string }) {
   if (hidden) return null;
 
   async function save() {
-    if (!scope.tenantId) return;
+    if (!scope.tenant) return;
     setBusy(true);
     setMessage("");
     const names = channels.split(/[\s,，、]+/).map((item) => item.trim()).filter(Boolean);
@@ -104,7 +104,7 @@ export function CampaignMotionPanel({ campaignId }: { campaignId: string }) {
     };
     if (fact.trim()) payload.approved_facts = [{ key: "fact", value: fact.trim(), confirmed: true }];
     if (assetID.trim()) payload.assets = [{ id: assetID.trim(), authorized: true }];
-    const headers = new Headers(scopeInit(scope.tenantId).headers);
+    const headers = new Headers(scopeInit(scope.tenant).headers);
     headers.set("content-type", "application/json");
     const res = await fetch(`/api/campaigns/${campaignId}/motion-handoff`, {
       method: "POST",

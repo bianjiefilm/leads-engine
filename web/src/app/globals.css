@@ -383,6 +383,9 @@ button.primary,
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.9rem 1rem;
+  /* HUI-2626 fix2（gate-r2 #5 溢出）：卡内 id/编号是不带空格的长 token，
+     窄屏(390)下把卡片撑到 406px 造成横向滚动；允许在任意字符处折行。 */
+  overflow-wrap: anywhere;
 }
 
 .record-head {
@@ -393,7 +396,7 @@ button.primary,
   margin-bottom: 0.75rem;
 }
 
-.record-head h3 {
+.record-head h2 {
   margin: 0;
   flex: 1;
   font-size: 1rem;
@@ -570,6 +573,58 @@ button.primary,
   --surface: var(--pn-bg-surface);
   --danger: var(--pn-status-danger-fg);
   --warn: var(--pn-status-warning-fg);
+}
+
+/* HUI-2626 fix2（gate-r2 #3 axe color-contrast serious ×6）：work.light 的
+   --accent 映射到 --pn-brand-accent（浅青），作文字色/白字底色不过对比度线。
+   文字与描边一律用深青 --pn-brand-text；实心底色上的文字用 --pn-brand-ink
+   （与 vendored .pn-r-primary 同一配方）。只消费 token，不新增裸 hex。
+   :root 回退（公开表单）的 --accent 是深蓝，白字过线，不需要这条覆盖。 */
+[data-pn-surface="work.light"] [data-tone="ai"] {
+  border-color: var(--pn-brand-text);
+  color: var(--pn-brand-text);
+}
+
+[data-pn-surface="work.light"] button.primary,
+[data-pn-surface="work.light"] .btn.primary {
+  color: var(--pn-brand-ink);
+}
+
+[data-pn-surface="work.light"] .tab.active {
+  color: var(--pn-brand-text);
+}
+
+[data-pn-surface="work.light"] .bubble.visitor {
+  color: var(--pn-brand-ink);
+}
+
+/* HUI-2626 fix2（gate-r2 #3 占位/辅助文案）：占位色显式给语义 token，避免 UA 默认灰不过线。 */
+[data-pn-surface="work.light"] ::placeholder {
+  color: var(--pn-text-muted);
+  opacity: 1;
+}
+
+/* HUI-2626 fix2（gate-r2 #9 标准件）：DateTimeField 与 .stack-form 控件同族。 */
+.dt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.dt-input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+}
+
+/* HUI-2626 fix2（gate-r2 #5 溢出）：带 cols 的 textarea（≈60ch≈502px）在 430/390
+   视口超出容器宽度；钳到容器内，桌面端不受影响。 */
+textarea {
+  max-width: 100%;
 }
 
 /* HUI-2626：触控密度——390/430 窄屏下可点目标不小于 44px（token: control-height-touch）。 */
