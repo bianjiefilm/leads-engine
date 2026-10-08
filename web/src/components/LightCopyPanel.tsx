@@ -60,8 +60,8 @@ export function LightCopyPanel({
   }, []);
 
   const load = useCallback(async () => {
-    if (!subjectId || !scope.tenantId) return;
-    const init = scopeInit(scope.tenantId);
+    if (!subjectId || !scope.tenant) return;
+    const init = scopeInit(scope.tenant);
     const capRes = await fetch("/api/light-copy/capability", init);
     if (capRes.status === 404) {
       setHidden(true);
@@ -84,7 +84,7 @@ export function LightCopyPanel({
     const items = (list.items ?? []) as DraftRow[];
     setDrafts(items);
     applyDraft(items.find((item) => item.kind === kind));
-  }, [applyDraft, base, kind, scope.tenantId, subjectId, subjectKind]);
+  }, [applyDraft, base, kind, scope.tenant, subjectId, subjectKind]);
 
   useEffect(() => {
     void load();
@@ -98,7 +98,7 @@ export function LightCopyPanel({
     setBusy(true);
     setMessage("");
     try {
-      const res = await fetch(path, scopeInit(scope.tenantId, {
+      const res = await fetch(path, scopeInit(scope.tenant, {
         method,
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),

@@ -762,9 +762,9 @@ export function pinLeadsApp(model: EcoNavModel): EcoNavModel {
   };
 }
 
-export function selectTenant(model: EcoNavModel, tenantId: string): EcoNavModel {
+export function selectTenant(model: EcoNavModel, tenant: string): EcoNavModel {
   if (!model.renderable || !model.capabilities.can_switch_tenant) return model;
-  const next = model.scopes.find((scope) => scope.tenant_id === tenantId);
+  const next = model.scopes.find((scope) => scope.tenant_id === tenant);
   if (!next || next.tenant_id === model.active_tenant_id) return model;
   const back = next.tenant_id === model.source_tenant_id;
   return {

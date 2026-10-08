@@ -90,7 +90,7 @@ export default function OpportunityDetailPage() {
 
   const loadDraft = useCallback(async () => {
     try {
-      const res = await fetch(`/api/opportunities/${id}/service-draft`, scopeInit(scope.tenantId));
+      const res = await fetch(`/api/opportunities/${id}/service-draft`, scopeInit(scope.tenant));
       if (res.ok) {
         const body = await res.json();
         setDraft(body.handoff ?? null);
@@ -100,14 +100,14 @@ export default function OpportunityDetailPage() {
     } catch {
       setDraft(null);
     }
-  }, [id, scope.tenantId]);
+  }, [id, scope.tenant]);
 
   const load = useCallback(async () => {
     try {
       const [whoRes, oppRes, histRes] = await Promise.all([
-        fetch("/api/whoami", scopeInit(scope.tenantId)),
-        fetch(`/api/opportunities/${id}`, scopeInit(scope.tenantId)),
-        fetch(`/api/opportunities/${id}/stage-history`, scopeInit(scope.tenantId)),
+        fetch("/api/whoami", scopeInit(scope.tenant)),
+        fetch(`/api/opportunities/${id}`, scopeInit(scope.tenant)),
+        fetch(`/api/opportunities/${id}/stage-history`, scopeInit(scope.tenant)),
       ]);
       if (whoRes.ok) setMe(await whoRes.json());
       const oppBody = await oppRes.json();
@@ -125,7 +125,7 @@ export default function OpportunityDetailPage() {
     } catch (e) {
       setMsg((e as Error).message);
     }
-  }, [id, scope.tenantId]);
+  }, [id, scope.tenant]);
 
   useEffect(() => {
     setOpp(null);
@@ -143,7 +143,7 @@ export default function OpportunityDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/stage`, scopeInit(scope.tenantId, {
+      const res = await fetch(`/api/opportunities/${id}/stage`, scopeInit(scope.tenant, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ to_stage: to }),
@@ -189,7 +189,7 @@ export default function OpportunityDetailPage() {
     setBusy(true);
     setDraftMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/service-draft${path}`, scopeInit(scope.tenantId, {
+      const res = await fetch(`/api/opportunities/${id}/service-draft${path}`, scopeInit(scope.tenant, {
         method: init.method,
         headers: { "content-type": "application/json" },
         body: init.body,
@@ -232,7 +232,7 @@ export default function OpportunityDetailPage() {
     }
   };
 
-  if (!scope.tenantId) {
+  if (!scope.tenant) {
     return (
       <main data-page="opportunity-detail">
         <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} />
@@ -293,7 +293,7 @@ export default function OpportunityDetailPage() {
         <p className="muted">无阶段操作权限(仅记录负责人或租户 owner 可转换阶段)。</p>
       )}
 
-      {id ? <IntentOnOpportunity contactId={opp.contact_id} tenantId={scope.tenantId} /> : null}
+      {id ? <IntentOnOpportunity contactId={opp.contact_id} tenant={scope.tenant} /> : null}
 
       {draftAllowed ? (
         <div>

@@ -6,7 +6,7 @@ import { RendererProvider, Status } from "@/vendor/painuo/react/v1/src/index";
 import { SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError, rendererDensity } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError, rendererDensity } from "@/lib/productShell";
 import { roiStatusToState } from "@/lib/painuoStatus";
 import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi";
 
@@ -15,14 +15,14 @@ import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi"
 export default function AttributionPage() {
   const scope = useCrmScope();
   const width = useShellWidth();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const [raw, setRaw] = useState("");
   const [report, setReport] = useState<RoiReport | null>(null);
   const [err, setErr] = useState("");
   const view = presentRoi(report);
 
   async function recalculate() {
-    if (!tenantId) {
+    if (!tenant) {
       setErr(MISSING_SCOPE);
       setReport(null);
       return;
@@ -38,7 +38,7 @@ export default function AttributionPage() {
     setErr("");
     const res = await fetch("/api/roi/recalculate", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-tenant-id": tenantId },
+      headers: { "content-type": "application/json", ...listTenantHeader(tenant) },
       body: JSON.stringify(body),
     });
     const data = (await res.json().catch(() => ({}))) as RoiReport & { message?: string; error?: string };
@@ -59,7 +59,7 @@ export default function AttributionPage() {
         <h1>来源与费用复算</h1>
         <Link className="btn" href="/">返回工作台</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p>{view.disclaimer}</p>
         <p className="muted">{view.funnelReuse}</p>
@@ -84,7 +84,7 @@ export default function AttributionPage() {
             />
           </label>
         </p>
-        <Button variant="primary" size="sm" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" disabled={!tenant} onClick={() => void recalculate()}>
           {pagePrimary("attribution")}
         </Button>
         {err ? <SurfaceState kind="error" title="没有复算出来" detail={productError(err)} /> : null}

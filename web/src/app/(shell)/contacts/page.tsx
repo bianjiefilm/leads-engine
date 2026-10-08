@@ -87,24 +87,24 @@ export default function ContactsPage() {
   const [drawerFollowups, setDrawerFollowups] = useState<DrawerFollowup[]>([]);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerErr, setDrawerErr] = useState("");
-  const drawerGen = useRef({ seq: 0, tenantId: "" });
+  const drawerGen = useRef({ seq: 0, tenant: "" });
   // 列表票号：hydrate 前的空头请求、切范围后的迟到响应，一律不允许覆盖新状态。
-  const listGen = useRef({ seq: 0, tenantId: "" });
+  const listGen = useRef({ seq: 0, tenant: "" });
 
   const load = useCallback(async (q: string) => {
-    const tenantID = scope.tenantId ?? "";
-    const ticket = { seq: listGen.current.seq + 1, tenantId: tenantID };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: listGen.current.seq + 1, tenant: tenant };
     listGen.current = ticket;
     setError("");
-    if (!tenantID) {
+    if (!tenant) {
       setItems([]);
       return;
     }
     setItems(null);
     try {
-      const res = await fetch(`/api/contacts${q}`, scopeInit(tenantID));
+      const res = await fetch(`/api/contacts${q}`, scopeInit(tenant));
       const body = await res.json();
-      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (listGen.current !== ticket || scope.tenant !== ticket.tenant) return;
       if (!res.ok) {
         setError(failureText(body, res.status));
         setItems([]);
@@ -112,23 +112,23 @@ export default function ContactsPage() {
       }
       setItems(body.items ?? []);
     } catch (e) {
-      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (listGen.current !== ticket || scope.tenant !== ticket.tenant) return;
       setError(productError((e as Error).message));
       setItems([]);
     }
-  }, [scope.tenantId]);
+  }, [scope.tenant]);
 
   useEffect(() => {
     setName("");
     setTag("");
     setItems(null);
     setDrawerId(null);
-    drawerGen.current = { seq: drawerGen.current.seq + 1, tenantId: scope.tenantId ?? "" };
+    drawerGen.current = { seq: drawerGen.current.seq + 1, tenant: scope.tenant ?? "" };
     load("");
-    fetch("/api/whoami", scopeInit(scope.tenantId))
+    fetch("/api/whoami", scopeInit(scope.tenant))
       .then(async (res) => (res.ok ? setMe(await res.json()) : setMe({})))
       .catch(() => setMe({}));
-  }, [load, scope.epoch, scope.tenantId]);
+  }, [load, scope.epoch, scope.tenant]);
 
   const search = () => {
     const guard = searchGuard(name, tag);
@@ -144,18 +144,18 @@ export default function ContactsPage() {
   };
 
   const create = async () => {
-    const tenantID = scope.tenantId ?? "";
+    const tenant = scope.tenant ?? "";
     const ticket = listGen.current;
     setCreating(true);
     setError("");
     try {
-      const res = await fetch("/api/contacts", scopeInit(tenantID, {
+      const res = await fetch("/api/contacts", scopeInit(tenant, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
       }));
       const body = await res.json();
-      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (listGen.current !== ticket || scope.tenant !== ticket.tenant) return;
       if (!res.ok) {
         setError(failureText(body, res.status));
         return;
@@ -163,7 +163,7 @@ export default function ContactsPage() {
       setForm({ ...EMPTY_FORM });
       await load("");
     } catch (e) {
-      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+      if (listGen.current !== ticket || scope.tenant !== ticket.tenant) return;
       setError(productError((e as Error).message));
     } finally {
       setCreating(false);
@@ -176,8 +176,8 @@ export default function ContactsPage() {
   };
 
   const openDrawer = (id: string) => {
-    const tenantId = scope.tenantId ?? "";
-    const ticket = { seq: drawerGen.current.seq + 1, tenantId };
+    const tenant = scope.tenant ?? "";
+    const ticket = { seq: drawerGen.current.seq + 1, tenant };
     drawerGen.current = ticket;
     setDrawerId(id);
     setDrawerContact(null);
@@ -187,11 +187,11 @@ export default function ContactsPage() {
     void (async () => {
       try {
         const [cRes, fuRes] = await Promise.all([
-          fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId)),
-          fetch(`/api/contacts/${id}/followups`, scopeInit(scope.tenantId)),
+          fetch(`/api/contacts/${id}`, scopeInit(scope.tenant)),
+          fetch(`/api/contacts/${id}/followups`, scopeInit(scope.tenant)),
         ]);
         const cBody = await cRes.json();
-        if (drawerGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
+        if (drawerGen.current !== ticket || scope.tenant !== ticket.tenant) return;
         if (!cRes.ok) {
           setDrawerErr(failureText(cBody, cRes.status));
           return;
@@ -211,7 +211,7 @@ export default function ContactsPage() {
   };
 
   const closeDrawer = () => {
-    drawerGen.current = { seq: drawerGen.current.seq + 1, tenantId: scope.tenantId ?? "" };
+    drawerGen.current = { seq: drawerGen.current.seq + 1, tenant: scope.tenant ?? "" };
     setDrawerId(null);
     setDrawerContact(null);
     setDrawerErr("");
@@ -226,7 +226,7 @@ export default function ContactsPage() {
       <header className="page-head">
         <h1>客户档案</h1>
       </header>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <p className="muted">
         档案、联系方式、来源、标签和授权都留在当前商家。联系人手机号不会自动注册平台账号。搜索只按姓名或标签，不按手机号。
       </p>

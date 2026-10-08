@@ -22,8 +22,8 @@ function launchable(appId: string, displayName: string, targetId: string) {
   };
 }
 
-function scope(tenantId: string, displayName: string) {
-  return { tenant_id: tenantId, display_name: displayName, source: "membership" as const };
+function scope(tenant: string, displayName: string) {
+  return { tenant_id: tenant, display_name: displayName, source: "membership" as const };
 }
 
 export const PROVISIONAL_DOCUMENT = {

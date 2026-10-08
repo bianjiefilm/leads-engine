@@ -73,10 +73,10 @@ export default function ContactDetailPage() {
   const load = useCallback(async () => {
     try {
       const [whoRes, cRes, consRes, fuRes] = await Promise.all([
-        fetch("/api/whoami", scopeInit(scope.tenantId)),
-        fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId)),
-        fetch(`/api/contacts/${id}/consents`, scopeInit(scope.tenantId)),
-        fetch(`/api/contacts/${id}/followups`, scopeInit(scope.tenantId)),
+        fetch("/api/whoami", scopeInit(scope.tenant)),
+        fetch(`/api/contacts/${id}`, scopeInit(scope.tenant)),
+        fetch(`/api/contacts/${id}/consents`, scopeInit(scope.tenant)),
+        fetch(`/api/contacts/${id}/followups`, scopeInit(scope.tenant)),
       ]);
       if (whoRes.ok) setMe(await whoRes.json());
       const cBody = await cRes.json();
@@ -100,7 +100,7 @@ export default function ContactDetailPage() {
     } catch (e) {
       setMsg((e as Error).message);
     }
-  }, [id, scope.tenantId]);
+  }, [id, scope.tenant]);
 
   useEffect(() => {
     setContact(null);
@@ -114,7 +114,7 @@ export default function ContactDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/contacts/${id}${path}`, scopeInit(scope.tenantId, {
+      const res = await fetch(`/api/contacts/${id}${path}`, scopeInit(scope.tenant, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -136,7 +136,7 @@ export default function ContactDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId, {
+      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenant, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(edit),
@@ -159,7 +159,7 @@ export default function ContactDetailPage() {
     if (!window.confirm("确认删除该客户档案?删除后所有角色不可再访问,授权与跟进记录将依法保留最小审计。")) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenantId, { method: "DELETE" }));
+      const res = await fetch(`/api/contacts/${id}`, scopeInit(scope.tenant, { method: "DELETE" }));
       const b = await res.json();
       if (!res.ok) {
         setMsg(failureText(b, res.status));
@@ -174,7 +174,7 @@ export default function ContactDetailPage() {
     }
   };
 
-  if (!scope.tenantId) {
+  if (!scope.tenant) {
     return (
       <main data-page="contact-detail">
         <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} />

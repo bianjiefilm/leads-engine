@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { failureText, productError } from "@/lib/productShell";
+import { failureText, listTenantHeader, productError } from "@/lib/productShell";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
 import {
   MODE_TEXT,
@@ -89,7 +89,7 @@ export default function SessionPanel({
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/reception/sessions/${sessionId}`, {
-      headers: { "x-tenant-id": tenant },
+      headers: listTenantHeader(tenant) ?? {},
     });
     const body = await res.json();
     if (!res.ok) {
@@ -122,7 +122,7 @@ export default function SessionPanel({
     try {
       const res = await fetch(call.path, {
         method: call.method,
-        headers: { "content-type": "application/json", "x-tenant-id": tenant },
+        headers: { "content-type": "application/json", ...listTenantHeader(tenant) },
         body: JSON.stringify(call.body),
       });
       const body = await res.json().catch(() => ({}));
@@ -152,7 +152,7 @@ export default function SessionPanel({
     try {
       const res = await fetch(created.path, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-tenant-id": tenant },
+        headers: { "content-type": "application/json", ...listTenantHeader(tenant) },
         body: JSON.stringify(created.body),
       });
       const body = await res.json();
@@ -168,7 +168,7 @@ export default function SessionPanel({
       const send = sendCall(session.id, replyId, newStaffToken("rcpt-"));
       const sent = await fetch(send!.path, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-tenant-id": tenant },
+        headers: { "content-type": "application/json", ...listTenantHeader(tenant) },
         body: JSON.stringify(send!.body),
       });
       const sentBody = await sent.json();

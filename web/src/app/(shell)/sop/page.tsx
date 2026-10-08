@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import { presentSOP, recordLabel, type SOPCapability } from "@/lib/sopReach";
 import {
   consentChoices,
@@ -35,7 +35,7 @@ function consentLabel(item: ScopeConsent): string {
 
 export default function SOPPage() {
   const scope = useCrmScope();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const [view, setView] = useState(EMPTY_VIEW);
   const [items, setItems] = useState<SOPAction[] | null>(null);
   const [error, setError] = useState("");
@@ -51,24 +51,24 @@ export default function SOPPage() {
   const [busy, setBusy] = useState(false);
   const loadSeq = useRef(0);
   const consentSeq = useRef(0);
-  const tenantRef = useRef(tenantId);
-  tenantRef.current = tenantId;
+  const tenantRef = useRef(tenant);
+  tenantRef.current = tenant;
 
   const headers = useCallback(
-    () => ({ "content-type": "application/json", "x-tenant-id": tenantId }),
-    [tenantId],
+    () => ({ "content-type": "application/json", ...listTenantHeader(tenant) }),
+    [tenant],
   );
 
-  const load = useCallback(async (tenantID: string, seq: number) => {
+  const load = useCallback(async (tenant: string, seq: number) => {
     setError("");
     setItems(null);
     setView(EMPTY_VIEW);
-    if (!tenantID.trim()) {
+    if (!tenant.trim()) {
       setItems([]);
       setContacts([]);
       return;
     }
-    const h = { "x-tenant-id": tenantID.trim() };
+    const h = listTenantHeader(tenant.trim()) ?? {};
     try {
       const [capRes, listRes, contactRes] = await Promise.all([
         fetch("/api/sop/capability", { headers: h }),
@@ -109,20 +109,20 @@ export default function SOPPage() {
     setContacts(null);
     setDraftId("");
     setBusy(false);
-    void load(scope.tenantId ?? "", seq);
-  }, [scope.epoch, scope.tenantId, load]);
+    void load(scope.tenant ?? "", seq);
+  }, [scope.epoch, scope.tenant, load]);
 
-  async function loadConsents(tenantID: string, id: string) {
+  async function loadConsents(tenant: string, id: string) {
     const seq = ++consentSeq.current;
     setConsentId("");
     setConsents(null);
-    if (!tenantID.trim() || !id) {
+    if (!tenant.trim() || !id) {
       setPurpose("follow_up");
       return;
     }
     try {
       const res = await fetch(`/api/contacts/${encodeURIComponent(id)}/consents`, {
-        headers: { "x-tenant-id": tenantID.trim() },
+        headers: listTenantHeader(tenant.trim()) ?? {},
       });
       const body = await res.json().catch(() => null);
       if (consentSeq.current !== seq) return;
@@ -137,7 +137,7 @@ export default function SOPPage() {
   }
 
   async function post(path: string, payload: object) {
-    const tenantAtSubmit = tenantId;
+    const tenantAtSubmit = tenant;
     const seqAtSubmit = loadSeq.current;
     setBusy(true);
     setError("");
@@ -178,7 +178,7 @@ export default function SOPPage() {
         <h1>下一次跟进</h1>
         <Link className="btn" href="/">我的工作</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card">
         <p data-tone="automation">{view.note}</p>
         <p className="muted">
@@ -196,7 +196,7 @@ export default function SOPPage() {
               onChange={(e) => {
                 const id = e.target.value;
                 setContactId(id);
-                void loadConsents(tenantId, id);
+                void loadConsents(tenant, id);
               }}
             >
               <option value="">选择客户</option>
@@ -206,7 +206,7 @@ export default function SOPPage() {
             </select>
           </label>
         </p>
-        {tenantId && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
+        {tenant && contacts && contacts.length === 0 ? <p className="muted">还没有可选的客户</p> : null}
         <p>
           <label>
             授权{" "}
@@ -258,7 +258,7 @@ export default function SOPPage() {
           variant="primary" size="sm"
           type="button"
           data-page-primary="true"
-          disabled={busy || !tenantId || !payload}
+          disabled={busy || !tenant || !payload}
           onClick={() => {
             if (!payload) return;
             void post("/api/sop/reminders", payload);
@@ -269,7 +269,7 @@ export default function SOPPage() {
         <Button
           variant="secondary" size="sm"
           type="button"
-          disabled={busy || !tenantId || !payload}
+          disabled={busy || !tenant || !payload}
           onClick={() => {
             if (!payload) return;
             void post("/api/sop/drafts", payload);

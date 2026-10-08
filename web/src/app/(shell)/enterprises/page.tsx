@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, productError } from "@/lib/productShell";
 
 // HUI-1678 企业资料筛选。只打本站 BFF。
 // 没有官方公开库。导入的是客户声明有权再利用的资料。
@@ -67,7 +67,7 @@ async function readJSON(res: Response): Promise<Record<string, unknown>> {
 export default function EnterprisesPage() {
   const scope = useCrmScope();
   const width = useShellWidth();
-  const tenantId = scope.tenantId ?? "";
+  const tenant = scope.tenant ?? "";
   const [capability, setCapability] = useState<Capability | null>(null);
   const [rows, setRows] = useState<EnterpriseRow[] | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -90,17 +90,17 @@ export default function EnterprisesPage() {
   const [filterRegion, setFilterRegion] = useState("");
   const [filterScale, setFilterScale] = useState("");
 
-  const headers = useCallback((): HeadersInit => ({ "x-tenant-id": tenantId, "content-type": "application/json" }), [tenantId]);
+  const headers = useCallback((): HeadersInit => ({ "content-type": "application/json", ...listTenantHeader(tenant) }), [tenant]);
 
-  const load = useCallback(async (tenantID: string, filter?: { industry: string; region: string; scale: string }) => {
+  const load = useCallback(async (tenant: string, filter?: { industry: string; region: string; scale: string }) => {
     setError("");
     setConfirmText("");
-    if (!tenantID.trim()) {
+    if (!tenant.trim()) {
       setCapability(null);
       setRows([]);
       return;
     }
-    const h = { "x-tenant-id": tenantID.trim() };
+    const h = listTenantHeader(tenant.trim()) ?? {};
     const capRes = await fetch("/api/enterprise-directory/capability", { headers: h });
     const cap = (await readJSON(capRes)) as Capability;
     if (!capRes.ok) {
@@ -134,12 +134,12 @@ export default function EnterprisesPage() {
     setPreview(null);
     setConfirmText("");
     setRows(null);
-    if (scope.tenantId) {
-      void load(scope.tenantId, { industry: "", region: "", scale: "" });
+    if (scope.tenant) {
+      void load(scope.tenant, { industry: "", region: "", scale: "" });
     } else {
       setRows([]);
     }
-  }, [scope.epoch, scope.tenantId, load]);
+  }, [scope.epoch, scope.tenant, load]);
 
   const importBatch = async () => {
     setError("");
@@ -173,13 +173,13 @@ export default function EnterprisesPage() {
       setError(failureText(body, res.status));
       return;
     }
-    await load(tenantId);
+    await load(tenant);
   };
 
   const openPreview = async (id: string) => {
     setError("");
     setConfirmText("");
-    const res = await fetch(`/api/enterprise-directory/records/${id}/preview`, { headers: { "x-tenant-id": tenantId } });
+    const res = await fetch(`/api/enterprise-directory/records/${id}/preview`, { headers: listTenantHeader(tenant) ?? {} }) ?? {};
     const body = (await readJSON(res)) as Preview;
     if (!res.ok) {
       setPreview(null);
@@ -207,7 +207,7 @@ export default function EnterprisesPage() {
           ? "已拒绝。同一来源再次导入这家企业不能恢复营销。"
           : "已删除。同一来源再次导入这家企业不能恢复营销。";
     setPreview(null);
-    await load(tenantId);
+    await load(tenant);
     setConfirmText(done);
   };
 
@@ -217,7 +217,7 @@ export default function EnterprisesPage() {
         <h1>企业资料筛选</h1>
         <Link className="btn" href="/">返回工作台</Link>
       </header>
-      {!tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <div className="card" id="capability">
         <h2>数据源</h2>
         {capability ? (
@@ -276,7 +276,7 @@ export default function EnterprisesPage() {
         <Input id="filter-industry" label="行业" value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)} />{" "}
         <Input id="filter-region" label="地区" value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} />{" "}
         <Input id="filter-scale" label="规模" value={filterScale} onChange={(e) => setFilterScale(e.target.value)} />{" "}
-        <Button id="filter-submit" variant="secondary" type="button" size="sm" onClick={() => void load(tenantId)}>
+        <Button id="filter-submit" variant="secondary" type="button" size="sm" onClick={() => void load(tenant)}>
           筛选
         </Button>
         {error ? <p className="muted">{error}</p> : null}

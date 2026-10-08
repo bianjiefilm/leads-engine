@@ -98,33 +98,33 @@ export default function Home() {
   const appliedTenant = useRef<string | null>(null);
 
   useEffect(() => {
-    const restored = recallToday(readMemory(), scope.tenantId);
+    const restored = recallToday(readMemory(), scope.tenant);
     setDrafts(restored.drafts);
     setFocusId(restored.focusId);
     appliedTenant.current = null;
-  }, [scope.tenantId]);
+  }, [scope.tenant]);
 
   useEffect(() => {
-    if (!todaySaveReady(appliedTenant.current, scope.tenantId)) {
-      appliedTenant.current = scope.tenantId ?? null;
+    if (!todaySaveReady(appliedTenant.current, scope.tenant)) {
+      appliedTenant.current = scope.tenant ?? null;
       return;
     }
-    writeMemory(rememberToday(readMemory(), scope.tenantId ?? "", focusId, drafts));
-  }, [scope.tenantId, focusId, drafts]);
+    writeMemory(rememberToday(readMemory(), scope.tenant ?? "", focusId, drafts));
+  }, [scope.tenant, focusId, drafts]);
 
   useEffect(() => {
     setLoadedFor(null);
     setGroups(null);
     setMoney(EMPTY_MONEY);
     setJointChain(null);
-    const headers = listTenantHeader(scope.tenantId);
+    const headers = listTenantHeader(scope.tenant);
     if (!headers) {
       setErr("");
       setGroups(acceptToday(null, null));
       setLoadedFor("");
       return;
     }
-    const tenantId = headers["x-tenant-id"];
+    const tenant = scope.tenant ?? "";
     let cancelled = false;
     fetch("/api/workbench", { headers })
       .then(async (res) => {
@@ -132,17 +132,17 @@ export default function Home() {
         if (cancelled) return;
         if (!res.ok) {
           setErr(failureText(body, res.status));
-          setGroups(acceptToday(tenantId, null));
+          setGroups(acceptToday(tenant, null));
           setJointChain(body.joint_chain ?? null);
-          setLoadedFor(tenantId);
+          setLoadedFor(tenant);
           return;
         }
         setErr("");
         setScopeLabel(scopeCaption(body.scope));
-        setGroups(acceptToday(tenantId, body.today ?? null));
+        setGroups(acceptToday(tenant, body.today ?? null));
         setMoney(body.money ?? EMPTY_MONEY);
         setJointChain(body.joint_chain ?? null);
-        setLoadedFor(tenantId);
+        setLoadedFor(tenant);
       })
       .catch((e: Error) => {
         if (!cancelled) setErr(productError(e.message));
@@ -150,9 +150,9 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenantId, reload]);
+  }, [scope.epoch, scope.tenant, reload]);
 
-  const visible = loadedFor === (scope.tenantId ?? "") ? groups : null;
+  const visible = loadedFor === (scope.tenant ?? "") ? groups : null;
   const lines = moneyView(visible ? money : EMPTY_MONEY);
   const primaryId = focusId || (visible ? TODAY_GROUPS.flatMap((key) => visible[key]).find((item) => item.lead_id)?.id ?? "" : "");
 
@@ -171,7 +171,7 @@ export default function Home() {
   }
 
   async function submitFollow(item: DeskItem, mode: "note" | "schedule") {
-    const headers = listTenantHeader(scope.tenantId);
+    const headers = listTenantHeader(scope.tenant);
     if (!headers || !item.lead_id) return;
     const draft = draftFor(item.id);
     const note = followNote(draft.note);
@@ -207,7 +207,7 @@ export default function Home() {
   }
 
   async function reviseDraft(item: DeskItem) {
-    const headers = listTenantHeader(scope.tenantId);
+    const headers = listTenantHeader(scope.tenant);
     if (!headers) return;
     const body = reviseBody(draftFor(item.id).draftBody, item.draft_body).trim();
     if (!body) return;
@@ -226,7 +226,7 @@ export default function Home() {
   }
 
   async function ignoreDraft(item: DeskItem) {
-    const headers = listTenantHeader(scope.tenantId);
+    const headers = listTenantHeader(scope.tenant);
     if (!headers) return;
     const res = await fetch(`/api/workbench/drafts/${item.id}/ignore`, {
       method: "POST",
@@ -271,10 +271,10 @@ export default function Home() {
           ))}
         </ul>
       </div>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
-      {scope.tenantId && err ? <SurfaceState kind="error" title="今天的工作没有载入" detail={err} /> : null}
-      {scope.tenantId && !err && visible === null ? <SurfaceState kind="loading" title="正在整理今天的工作" detail="分组和金额马上就位。" /> : null}
-      {scope.tenantId && !err && visible
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {scope.tenant && err ? <SurfaceState kind="error" title="今天的工作没有载入" detail={err} /> : null}
+      {scope.tenant && !err && visible === null ? <SurfaceState kind="loading" title="正在整理今天的工作" detail="分组和金额马上就位。" /> : null}
+      {scope.tenant && !err && visible
         ? TODAY_GROUPS.map((key) => (
           <section className="card" key={key}>
             <h2>

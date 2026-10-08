@@ -33,9 +33,9 @@ function DeskFrame({
       <WorkbenchChrome
         width={width}
         scopes={scopes}
-        activeId={scope.tenantId}
-        onSwitch={(tenantId) => {
-          const chosen = guardTenantCommit(scopes, tenantId);
+        activeId={scope.tenant}
+        onSwitch={(tenant) => {
+          const chosen = guardTenantCommit(scopes, tenant);
           if (chosen) commitCrmTenant(chosen);
         }}
       >
@@ -87,8 +87,8 @@ export function CrmShell({ model, children }: { model: EcoNavModel; children: Re
           <EcoTopNav
             model={navModel}
             nickname={nickname}
-            onTenantSwitch={(tenantId) => {
-              const chosen = guardTenantCommit(switcher, tenantId);
+            onTenantSwitch={(tenant) => {
+              const chosen = guardTenantCommit(switcher, tenant);
               if (chosen) commitCrmTenant(chosen);
             }}
           />

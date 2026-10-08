@@ -67,8 +67,8 @@ export function withSessionScope(scopes: WorkScope[], sessionTenantId: string | 
   return [...scopes, { tenant_id: id, display_name: "当前登录范围" }];
 }
 
-export function chooseScope(scopes: WorkScope[], tenantId: string): WorkScope | null {
-  const id = tenantId.trim();
+export function chooseScope(scopes: WorkScope[], tenant: string): WorkScope | null {
+  const id = tenant.trim();
   if (!id) return null;
   return scopes.find((scope) => scope.tenant_id === id) ?? null;
 }
@@ -82,7 +82,7 @@ export function reconcileTenant(scopes: WorkScope[], storedId: string | null, se
 }
 
 export interface WorkTenantSettlement {
-  tenantId: string | null;
+  tenant: string | null;
   persist: boolean;
 }
 
@@ -93,11 +93,11 @@ export function settleWorkTenant(input: {
   sessionTenant: string | null;
   storedId: string | null;
 }): WorkTenantSettlement {
-  if (!input.whoamiOk) return { tenantId: null, persist: false };
+  if (!input.whoamiOk) return { tenant: null, persist: false };
   const allowed = withSessionScope(input.membershipScopes, input.sessionTenant);
-  const tenantId = reconcileTenant(allowed, input.storedId, input.sessionTenant);
+  const tenant = reconcileTenant(allowed, input.storedId, input.sessionTenant);
   const stored = (input.storedId ?? "").trim();
-  return { tenantId, persist: Boolean(tenantId) && tenantId !== stored };
+  return { tenant, persist: Boolean(tenant) && tenant !== stored };
 }
 
 export function applyWorkTenant(
@@ -105,13 +105,13 @@ export function applyWorkTenant(
   storedId: string | null,
   settlement: WorkTenantSettlement,
 ): { memoryTenantId: string | null; storage: string | null } {
-  if (!settlement.tenantId) return { memoryTenantId: null, storage: storedId };
-  if (!settlement.persist) return { memoryTenantId: settlement.tenantId || memoryTenantId, storage: storedId };
-  return { memoryTenantId: settlement.tenantId, storage: settlement.tenantId };
+  if (!settlement.tenant) return { memoryTenantId: null, storage: storedId };
+  if (!settlement.persist) return { memoryTenantId: settlement.tenant || memoryTenantId, storage: storedId };
+  return { memoryTenantId: settlement.tenant, storage: settlement.tenant };
 }
 
-export function listTenantHeader(tenantId: string | null): { "x-tenant-id": string } | null {
-  const id = (tenantId ?? "").trim();
+export function listTenantHeader(tenant: string | null): { "x-tenant-id": string } | null {
+  const id = (tenant ?? "").trim();
   if (!id) return null;
   return { "x-tenant-id": id };
 }
@@ -181,45 +181,45 @@ export async function runShellWhoami(input: {
   };
 }
 
-export function guardTenantCommit(switcher: WorkScope[], tenantId: string): string | null {
-  return chooseScope(switcher, tenantId)?.tenant_id ?? null;
+export function guardTenantCommit(switcher: WorkScope[], tenant: string): string | null {
+  return chooseScope(switcher, tenant)?.tenant_id ?? null;
 }
 
-export function nextLeadTicket(previousSeq: number, tenantId: string): { seq: number; tenantId: string } {
-  return { seq: previousSeq + 1, tenantId };
+export function nextLeadTicket(previousSeq: number, tenant: string): { seq: number; tenant: string } {
+  return { seq: previousSeq + 1, tenant };
 }
 
 export function acceptLeadRows<T>(
-  active: { seq: number; tenantId: string },
-  ticket: { seq: number; tenantId: string },
+  active: { seq: number; tenant: string },
+  ticket: { seq: number; tenant: string },
   rows: T,
 ): T | null {
-  if (active.seq !== ticket.seq || active.tenantId !== ticket.tenantId) return null;
+  if (active.seq !== ticket.seq || active.tenant !== ticket.tenant) return null;
   return rows;
 }
 
 export function acceptDeskPayload<T>(
-  active: { seq: number; tenantId: string },
+  active: { seq: number; tenant: string },
   arrivedSeq: number,
   arrivedTenant: string,
   payload: T,
 ): T | null {
-  if (active.seq !== arrivedSeq || active.tenantId !== arrivedTenant) return null;
+  if (active.seq !== arrivedSeq || active.tenant !== arrivedTenant) return null;
   return payload;
 }
 
 export function receptionSessionFrame(
   selectedId: string,
   selectedTenant: string | null,
-  tenantId: string | null,
+  tenant: string | null,
 ): { tenant: string; sessionId: string } | null {
-  if (!selectedId || !tenantId || selectedTenant !== tenantId) return null;
-  return { tenant: tenantId, sessionId: selectedId };
+  if (!selectedId || !tenant || selectedTenant !== tenant) return null;
+  return { tenant: tenant, sessionId: selectedId };
 }
 
-export function droppedTenantRows<T extends { tenant_id?: string }>(tenantId: string | null, rows: T[]): T[] {
-  if (!tenantId) return [];
-  return rows.filter((row) => row.tenant_id === tenantId);
+export function droppedTenantRows<T extends { tenant_id?: string }>(tenant: string | null, rows: T[]): T[] {
+  if (!tenant) return [];
+  return rows.filter((row) => row.tenant_id === tenant);
 }
 
 export function shellStructure(width: number): ShellStructure {

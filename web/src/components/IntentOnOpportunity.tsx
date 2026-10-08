@@ -56,10 +56,10 @@ function asInput(snap: GradeSnapshot): GradeInput {
 
 export function IntentOnOpportunity({
   contactId,
-  tenantId,
+  tenant,
 }: {
   contactId?: string;
-  tenantId?: string | null;
+  tenant?: string | null;
 }) {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [note, setNote] = useState("");
@@ -75,12 +75,12 @@ export function IntentOnOpportunity({
       setLeads([]);
       return;
     }
-    if (!tenantId) {
+    if (!tenant) {
       setNote("先选择租户，再查看同一联系人的线索。");
       setLeads([]);
       return;
     }
-    const res = await fetch("/api/leads", scopeInit(tenantId));
+    const res = await fetch("/api/leads", scopeInit(tenant));
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       setNote(body.message ?? "线索列表没有读到");
@@ -99,31 +99,31 @@ export function IntentOnOpportunity({
     for (const lead of matched) {
       const current = await fetch(
         `/api/intent-grades/current?subject_kind=lead&subject_id=${encodeURIComponent(lead.id)}`,
-        scopeInit(tenantId),
+        scopeInit(tenant),
       );
       next[lead.id] = current.ok ? ((await current.json()) as GradeSnapshot) : null;
     }
     setRows(next);
-  }, [contactId, tenantId]);
+  }, [contactId, tenant]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const score = async (leadId: string) => {
-    if (!tenantId) return;
+    if (!tenant) return;
     setBusy(true);
     try {
       const evidenceText = (text[leadId] ?? "").trim();
       const res = await fetch(
         "/api/intent-grades",
-        scopeInit(tenantId, {
+        scopeInit(tenant, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             subject_kind: "lead",
             subject_id: leadId,
-            evidence: evidenceText ? [{ id: "ev-opportunity", tenant_id: tenantId, text: evidenceText }] : [],
+            evidence: evidenceText ? [{ id: "ev-opportunity", tenant_id: tenant, text: evidenceText }] : [],
           }),
         }),
       );
@@ -140,7 +140,7 @@ export function IntentOnOpportunity({
   };
 
   const correct = async (leadId: string, disposition: "adopted" | "rejected") => {
-    if (!tenantId) return;
+    if (!tenant) return;
     const snap = rows[leadId];
     if (!snap?.id || !reason.trim()) {
       setNote("修正要写下原因");
@@ -150,7 +150,7 @@ export function IntentOnOpportunity({
     try {
       const res = await fetch(
         `/api/intent-grades/${snap.id}/corrections`,
-        scopeInit(tenantId, {
+        scopeInit(tenant, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({

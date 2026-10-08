@@ -21,11 +21,11 @@ export default function IsolationPage() {
 
   const createJob = async () => {
     setMessage("");
-    if (!scope.tenantId) {
+    if (!scope.tenant) {
       setMessage(MISSING_SCOPE);
       return;
     }
-    const res = await fetch("/api/crm/exports", scopeInit(scope.tenantId, {
+    const res = await fetch("/api/crm/exports", scopeInit(scope.tenant, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ purpose: "offboarding", brand_id: brand.trim() }),
@@ -41,8 +41,8 @@ export default function IsolationPage() {
   };
 
   const download = async () => {
-    if (!jobId || !scope.tenantId) return;
-    const res = await fetch(`/api/crm/exports/${jobId}/download`, scopeInit(scope.tenantId, {
+    if (!jobId || !scope.tenant) return;
+    const res = await fetch(`/api/crm/exports/${jobId}/download`, scopeInit(scope.tenant, {
       headers: exportConfirmHeader(),
     }));
     if (!res.ok) {
@@ -65,8 +65,8 @@ export default function IsolationPage() {
       <p className="muted">
         联系人、线索、商机和跟进的读写都落在当前租户。同一手机号出现在别的租户或品牌时，不跨租户合并，也不绑定平台账号。
       </p>
-      <p data-testid="tenant-scope">当前工作范围：{scope.tenantId ? "已选择" : "未选择"}</p>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      <p data-testid="tenant-scope">当前工作范围：{scope.tenant ? "已选择" : "未选择"}</p>
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <section className="card">
         <h2>品牌来源</h2>
         <Input label="品牌显示名" value={brand} onChange={(e) => setBrand(e.target.value)} />

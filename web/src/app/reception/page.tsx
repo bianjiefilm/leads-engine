@@ -37,11 +37,11 @@ export default function ReceptionDeskPage() {
   const [selected, setSelected] = useState("");
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [seenTenant, setSeenTenant] = useState(scope.tenantId);
-  const gen = useRef({ seq: 0, tenantId: "" });
+  const [seenTenant, setSeenTenant] = useState(scope.tenant);
+  const gen = useRef({ seq: 0, tenant: "" });
 
-  if (seenTenant !== scope.tenantId) {
-    setSeenTenant(scope.tenantId);
+  if (seenTenant !== scope.tenant) {
+    setSeenTenant(scope.tenant);
     setSelected("");
     setSelectedTenant(null);
     setItems(null);
@@ -50,16 +50,16 @@ export default function ReceptionDeskPage() {
   }
 
   useEffect(() => {
-    const tenantID = scope.tenantId ?? "";
+    const tenant = scope.tenant ?? "";
     const seq = gen.current.seq + 1;
-    gen.current = { seq, tenantId: tenantID };
-    if (!tenantID) {
+    gen.current = { seq, tenant: tenant };
+    if (!tenant) {
       setItems([]);
       return;
     }
     let cancelled = false;
     void (async () => {
-      const headers = listTenantHeader(tenantID);
+      const headers = listTenantHeader(tenant);
       if (!headers) {
         if (!cancelled) setItems([]);
         return;
@@ -71,20 +71,20 @@ export default function ReceptionDeskPage() {
         const body = await res.json();
         const roleText = who.ok && typeof whoBody.role === "string" ? whoBody.role : "";
         if (!res.ok) {
-          const accepted = acceptDeskPayload(gen.current, seq, tenantID, [] as DeskItem[]);
+          const accepted = acceptDeskPayload(gen.current, seq, tenant, [] as DeskItem[]);
           if (cancelled || accepted === null) return;
           setRole(roleText);
           setError(failureText(body, res.status));
           setItems([]);
           return;
         }
-        const accepted = acceptDeskPayload(gen.current, seq, tenantID, (body.items ?? []) as DeskItem[]);
+        const accepted = acceptDeskPayload(gen.current, seq, tenant, (body.items ?? []) as DeskItem[]);
         if (cancelled || accepted === null) return;
         setRole(roleText);
         setError("");
         setItems(accepted);
       } catch (e) {
-        const accepted = acceptDeskPayload(gen.current, seq, tenantID, [] as DeskItem[]);
+        const accepted = acceptDeskPayload(gen.current, seq, tenant, [] as DeskItem[]);
         if (cancelled || accepted === null) return;
         setError(productError((e as Error).message));
         setItems([]);
@@ -93,9 +93,9 @@ export default function ReceptionDeskPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenantId, reload]);
+  }, [scope.epoch, scope.tenant, reload]);
 
-  const panel = receptionSessionFrame(selected, selectedTenant, scope.tenantId);
+  const panel = receptionSessionFrame(selected, selectedTenant, scope.tenant);
 
   return (
     <main data-page="reception">
@@ -107,15 +107,15 @@ export default function ReceptionDeskPage() {
         <span data-tone="human">人工事实</span> 当前身份：{ROLE_TEXT[role] ?? "未确认"}。当前负责人、待处理原因和人工待办。
       </p>
       <p data-tone="ai">模型不可用时，人工仍可在会话里继续回复。这里不会自动外呼。</p>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       {error ? <SurfaceState kind="error" title="接待没有载入" detail={error} /> : null}
-      {scope.tenantId && items === null && !error ? <SurfaceState kind="loading" title="正在读取接待" detail="进行中的会话马上就位。" /> : null}
+      {scope.tenant && items === null && !error ? <SurfaceState kind="loading" title="正在读取接待" detail="进行中的会话马上就位。" /> : null}
       {items && items.length === 0 && !error ? <SurfaceState kind="empty" title="没有进行中的接待" detail="新的咨询进来后会出现在这里。" /> : null}
       <div className="record-list">
         {(items ?? []).map((item, index) => {
           const open = () => {
             setSelected(item.session_id);
-            setSelectedTenant(scope.tenantId);
+            setSelectedTenant(scope.tenant);
           };
           const primary = index === 0;
           return (

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import {
   NARROW_ACTIONS,
   allowedContactText,
@@ -70,24 +70,24 @@ export default function LeadDeskPage() {
     setBody(null);
     setLoadedFor("");
     setErr("");
-    if (!scope.tenantId || !id) {
+    if (!scope.tenant || !id) {
       setErr("");
       return;
     }
-    const tenantId = scope.tenantId;
+    const tenant = scope.tenant;
     let cancelled = false;
-    fetch(`/api/leads/${id}/timeline`, { headers: { "x-tenant-id": tenantId } })
+    fetch(`/api/leads/${id}/timeline`, { headers: listTenantHeader(tenant) ?? {} })
       .then(async (res) => {
         const payload = (await res.json()) as TimelineResponse;
         if (cancelled) return;
         if (!res.ok) {
           setErr(failureText(payload, res.status));
           setBody(null);
-          setLoadedFor(tenantId);
+          setLoadedFor(tenant);
           return;
         }
         setBody(payload);
-        setLoadedFor(tenantId);
+        setLoadedFor(tenant);
       })
       .catch((e: Error) => {
         if (!cancelled) setErr(productError(e.message));
@@ -95,14 +95,14 @@ export default function LeadDeskPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenantId, id]);
+  }, [scope.epoch, scope.tenant, id]);
 
   const width = useShellWidth();
-  const visible = loadedFor === scope.tenantId ? body : null;
+  const visible = loadedFor === scope.tenant ? body : null;
   const channel = visible?.next?.kind === "channel_follow_up";
 
   async function submit(channelMode: boolean) {
-    if (!scope.tenantId) return;
+    if (!scope.tenant) return;
     setBusy(true);
     setMsg("");
     const when = nextAt ? new Date(nextAt).toISOString().replace(/\.\d{3}Z$/, "Z") : "";
@@ -112,7 +112,7 @@ export default function LeadDeskPage() {
     try {
       const res = await fetch(`/api/leads/${id}/follow-through`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-tenant-id": scope.tenantId },
+        headers: { "content-type": "application/json", ...listTenantHeader(scope.tenant) },
         body: JSON.stringify(payload),
       });
       const out = await res.json();
@@ -124,10 +124,10 @@ export default function LeadDeskPage() {
       setNextAt("");
       setMsg(out.next?.label ?? "已记下");
       setLoadedFor("");
-      const again = await fetch(`/api/leads/${id}/timeline`, { headers: { "x-tenant-id": scope.tenantId } });
+      const again = await fetch(`/api/leads/${id}/timeline`, { headers: listTenantHeader(scope.tenant) ?? {} });
       const nextBody = await again.json();
       if (again.ok) setBody(nextBody);
-      setLoadedFor(scope.tenantId);
+      setLoadedFor(scope.tenant);
     } catch (e) {
       setMsg(productError((e as Error).message));
     } finally {
@@ -141,9 +141,9 @@ export default function LeadDeskPage() {
         <h1>线索</h1>
         <Link className="btn" href="/">返回工作台</Link>
       </header>
-      {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
+      {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       {err ? <SurfaceState kind="error" title="这条线索没有打开" detail={err} /> : null}
-      {scope.tenantId && visible === null && !err ? <SurfaceState kind="loading" title="正在打开线索" detail="来源、负责人和下一步马上就位。" /> : null}
+      {scope.tenant && visible === null && !err ? <SurfaceState kind="loading" title="正在打开线索" detail="来源、负责人和下一步马上就位。" /> : null}
       {visible ? (
         <>
           <RecordFrame

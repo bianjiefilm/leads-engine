@@ -190,7 +190,7 @@ export function WorkbenchChrome({
   width: number;
   scopes: WorkScope[];
   activeId: string | null;
-  onSwitch: (tenantId: string) => void;
+  onSwitch: (tenant: string) => void;
   children: ReactNode;
 }) {
   const structure = shellStructure(width);
