@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { failureText, productError } from "@/lib/productShell";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import {
   MODE_TEXT,
   REPLY_STATUS_TEXT,
@@ -219,10 +220,10 @@ export default function SessionPanel({
               {stale ? <span> · 旧轮次，文本和音频都不能再发送</span> : null}
               <div className="queue-actions">
                 {replyApprovable(session.mode, reply.epoch, session.epoch, reply.status) ? (
-                  <button type="button" disabled={busy} onClick={() => void run(approveCall(session.id, reply.id), "不能批准")}>批准</button>
+                  <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void run(approveCall(session.id, reply.id), "不能批准")}>批准</Button>
                 ) : null}
                 {replySendable(reply.epoch, session.epoch, reply.status) ? (
-                  <button type="button" disabled={busy} onClick={() => void run(sendCall(session.id, reply.id, newStaffToken("rcpt-")), "不能发送")}>发送</button>
+                  <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void run(sendCall(session.id, reply.id, newStaffToken("rcpt-")), "不能发送")}>发送</Button>
                 ) : null}
               </div>
             </li>
@@ -236,15 +237,15 @@ export default function SessionPanel({
       </p>
       <div className="queue-actions">
         {open && session.mode === "ai" ? (
-          <button type="button" disabled={busy} onClick={() => void run(assistCall(session.id, session.epoch), "还没有服务端轮次")}>改为协助</button>
+          <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void run(assistCall(session.id, session.epoch), "还没有服务端轮次")}>改为协助</Button>
         ) : null}
         {open && session.mode !== "human" ? (
-          <button className="primary" type="button" disabled={busy} onClick={() => void run(takeoverCall(session.id, session.epoch), "还没有服务端轮次")}>接管</button>
+          <Button variant="primary" size="sm" type="button" disabled={busy} onClick={() => void run(takeoverCall(session.id, session.epoch), "还没有服务端轮次")}>接管</Button>
         ) : null}
         {open && session.mode === "human" ? (
-          <button type="button" disabled={busy} onClick={() => void run(releaseCall(session.id, session.epoch), "还没有服务端轮次")}>交回 AI</button>
+          <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void run(releaseCall(session.id, session.epoch), "还没有服务端轮次")}>交回 AI</Button>
         ) : null}
-        {open ? <button type="button" disabled={busy} onClick={() => void run(closeCall(session.id), "不能结案")}>结案</button> : null}
+        {open ? <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void run(closeCall(session.id), "不能结案")}>结案</Button> : null}
       </div>
       {open && session.mode === "human" ? (
         <form className="stack-form" onSubmit={(event) => { event.preventDefault(); void sendHuman(); }}>
@@ -252,7 +253,7 @@ export default function SessionPanel({
             人工回复
             <textarea aria-label="人工回复" value={humanText} onChange={(event) => setHumanText(event.target.value)} maxLength={2000} />
           </label>
-          <button className="primary" type="submit" disabled={busy || humanText.trim() === ""}>发送人工回复</button>
+          <Button variant="primary" size="sm" type="submit" disabled={busy || humanText.trim() === ""}>发送人工回复</Button>
         </form>
       ) : null}
       {open && !session.lead_id ? (
@@ -291,7 +292,7 @@ export default function SessionPanel({
             告知版本
             <input aria-label="告知版本" value={lead.noticeVersion} onChange={(event) => setLead({ ...lead, noticeVersion: event.target.value })} placeholder="例如 reception-notice-v1" />
           </label>
-          <button className="primary" type="submit" disabled={busy || !leadSubmitAllowed(lead)}>建立受权线索</button>
+          <Button variant="primary" size="sm" type="submit" disabled={busy || !leadSubmitAllowed(lead)}>建立受权线索</Button>
         </form>
       ) : null}
       {session.lead_id ? (
@@ -313,7 +314,7 @@ export default function SessionPanel({
             下一次跟进
             <input aria-label="下一次跟进" type="datetime-local" value={nextAt} onChange={(event) => setNextAt(event.target.value)} />
           </label>
-          <button className="primary" type="submit" disabled={busy || !followUpSubmitAllowed(session.lead_id, note)}>记录跟进</button>
+          <Button variant="primary" size="sm" type="submit" disabled={busy || !followUpSubmitAllowed(session.lead_id, note)}>记录跟进</Button>
         </form>
       ) : <p className="muted">跟进要先有受权线索。</p>}
     </section>

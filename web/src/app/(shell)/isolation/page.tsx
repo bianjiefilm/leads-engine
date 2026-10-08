@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { WHITE_LABEL_CHAIN_UNVERIFIED, brandIsDisplayOnly, exportConfirmHeader, sourceStaysOnTenant } from "@/lib/crmIsolation";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";

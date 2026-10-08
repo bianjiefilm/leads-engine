@@ -1,7 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { Select, type Choice } from "@/vendor/painuo/react/v1/src/index";
+import { Select } from "@/vendor/painuo/react/v1/src/index";
+
+// 与 vendored Select 的 Choice 结构同形（vendored index 未再导出该类型，结构化兼容）。
+export interface FinishChoice {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  group?: string;
+}
 
 // HUI-2626 finish-r1：renderer Select 的受控适配器。
 // vendored Select 要求 open/onOpenChange 受控；业务页只需要 value/onChange，
@@ -21,7 +30,7 @@ export function RendererSelect({
   label: string;
   value: string;
   onValueChange: (value: string) => void;
-  choices: readonly Choice[];
+  choices: readonly FinishChoice[];
   disabled?: boolean;
   disabledReason?: string;
   id?: string;

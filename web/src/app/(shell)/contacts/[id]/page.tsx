@@ -14,7 +14,6 @@ import {
   type FollowupRow,
 } from "@/lib/contact";
 import { SurfaceState } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";

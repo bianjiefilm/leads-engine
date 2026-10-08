@@ -11,7 +11,6 @@ import {
   type CapabilityView,
 } from "@/lib/channelInteraction";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";

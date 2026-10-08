@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";

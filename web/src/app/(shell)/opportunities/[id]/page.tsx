@@ -26,7 +26,6 @@ import {
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
 import { SurfaceState } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
