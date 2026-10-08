@@ -1,0 +1,22 @@
+name: evidence-gate
+
+on:
+  pull_request:
+    paths:
+      - 'docs/audits/**'
+      - 'tools/ci/**'
+      - '.github/workflows/evidence-gate.yml'
+  workflow_dispatch: {}
+
+jobs:
+  evidence-gate:
+    runs-on: ubuntu-latest  # org 无 org 级 self-hosted,leads/touch 未注册专机,先用 hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 证据引用完整性门（仅新增审计文档）
+        run: |
+          BASE=$(git merge-base "origin/${{ github.base_ref || 'main' }}" HEAD)
+          python3 tools/ci/evidence-integrity-check.py . HEAD --only-added "$BASE" \
+            --cross-names public-ai,leads-engine,touch-engine,product-image-engine,shuhai-guanlan,guanlan-order,aicut,GoBoost
