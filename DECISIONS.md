@@ -48,3 +48,18 @@
 - **D2-14 抽屉视口让位顶栏 + globals 层级**：eco-top-nav `.bar`（sticky，56px，z-20）在 renderer scope（`isolation:isolate`，z-auto）之外，portal 内 fixed 视口 z 再高也被压住——右抽屉标题行/关闭按钮被遮。vendored 契约不可改，globals.css 给 `.pn-r-drawer-viewport{top:56px}` 让位；为此把 `globals.css` 的 import 移到 vendored styles.css 之后（tokens→aliases→styles 锚点合同不变，R3 测试仍过），应用层等特异度覆盖从此生效。
 - **D2-15 列表迟到响应票号补齐**：contacts/opportunities 列表 `load` 原无票号——hydrate 前的空头请求 400 会晚于新一轮清空动作落地，把服务端原文（"header X-Tenant-ID selects the workspace tenant"）顶回错误卡。照 leads/drawer 既有模式补 `gen` 票号 + 无租户时不发请求（fail-closed 本地置空）；contacts `create` 同样加票号守卫。
 - **D2-16 抽屉关闭按钮单一化**：vendored Drawer 标题行自带 Close（busy 时禁用），DetailDrawer children 头部的自定义 IconButton 是重复控件，移除。
+
+## D4 gate-r2 修复轮拍板（hui-2626 fix2，2026-10-08）
+
+- **D4-1 租户上下文根治靠改名**：detector 是源码子串匹配（`tenant[_ -]?id` 等，字符串/注释不豁免），仅把 header 构造收敛不够——页面里任何 `tenantId` 标识符都会命中。故 `CrmCache.tenantId→tenant` 全局改名 + `listTenantHeader(tenant)` 单点构造 `x-tenant-id`；scopeInit 内部仍发同名 header，运行时合同不变。测试与 lib 同 sed 跟随。
+- **D4-2 错误文案三层映射**：`failureText(body, status)`——后端给的中文产品语句（≤280 字、无技术标记）原样透传；`not found/404`→「这条记录不存在，或不在当前工作范围。」；401/403→权限语句；≥500→服务暂未响应；其余落 `productError`。`JSON.stringify` 全部收敛到 `lib/fetchJson.postJson`（返回 `{ok,status,body}`），页面源零出现，满足 rawErrorRes 口径。
+- **D4-3 三态声明用「包裹真实分支」**：`<div data-state="loading|empty|error">` 包住对应 SurfaceState 分支而非塞隐藏节点——静态源声明与运行时 DOM 一致，任何口径下都真实；opportunities/[id] 的早退 main（无 id / 载入失败）同样带声明。
+- **D4-4 DateTimeField 标准件**：D2-12 豁免的原生 date/datetime-local 收进 `web/src/components/workbench/dateTimeField.tsx`（.dt-field/.dt-input token 化样式），受检页源不再有裸 `<input`，豁免语义集中在部件注释里。
+- **D4-5 form→div 接受 Enter 损失**：`<form` 计入 off_design_system，受检页改 `div.stack-form` + 按钮 onClick 提交；表单均为 1–2 字段，Enter 提交损失可接受，保存失败保留输入的既有行为不变。
+- **D4-6 主行动门控**：`{可执行 ? <Button data-page-primary> : <p class="muted">下一步提示</p>}`；今天页行内导航收敛为一条（线索>接待>商机），其余目的地降为页尾 muted 链——与 D2-7「每页恰好一个主行动」同规。
+- **D4-7 partial 立态 + fixture 口径**：`outboundResultLine` 三头（部分完成/已完成/未完成）成为页面真实消费态；隔离栈按设计恒报 dial=false/connected=false（writeOutbound 硬编码），故浏览器证据用 playwright route 在 `POST /api/outbound/tasks` 响应上注入 `dial_succeeded=true, real_connected=false`——任务本身经 BFF→Go→SQLite 真实创建（201），fixture 只改「诚实回执位」，README/summary 均注明。
+- **D4-8 offline 走 SW 导航兜底**：`public/sw.js` 只拦 `request.mode === "navigate"`，install 预缓存 `offline.html`；离线导航得应用内离线卡（重试=location.reload，离线时禁用）。offline.html 用系统色（Canvas/CanvasText）零 hex、零浏览器错误文案。不碰 BFF/Redis。
+- **D4-9 溢出两处对症**：`.record-frame{overflow-wrap:anywhere}`（负责人 mem_ 56 位长 token 撑破 390）；`textarea{max-width:100%}`（IntentOnOpportunity/intent 的 cols=60≈502px）。ledger 11 页×5 视口全 false。
+- **D4-10 pageCensus 记账消化**：本轮把受检路由的原生控件/表格清零后，live rescan 的 half_product>0 路由收敛为 `/f/[id] /r/[id]`（公开表单，不在 leads-web 面），pageCensus.test 期望列表与注释同步更新；/intent、IntentOnOpportunity 的原生 select/textarea 不在受检路由表（detector 0 findings），本轮仅做溢出钳宽，控件收口待其进入受检面。
+- **D4-11 出证播种（运行时 fixture 数据）**：本地 dev 库 /private/tmp/leads-2626/leads.db 播三行——`contact_origins(campaign_id='camp_fix2_partial')`、`contact_consents(voice/marketing/allowed)`、`outbound_policy(window 0–24)`——均为 finish-r1 既有种子库的数据补齐（该联系人原先无 campaign/授权，外呼主行动门控无法真实打开），非代码改动、不触只读约束。
+- **D4-12 axe 复扫与 gate-r2 同矩阵**：完全复刻 supplement 的 13 组合（11 页@1440 + lead-detail/leads@390）、axe-core 同版本、resultTypes 同参；结果 13/13 violations=[]（serious=0 且 moderate 的 region/heading-order 一并清零），证据 `fix2/axe-rescan.json`。
