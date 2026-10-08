@@ -1,0 +1,72 @@
+{
+ "schema": "hui2626-fix2-axe-rescan/v1",
+ "matrix": "gate-r2 13 combos (11 pages @1440 + lead-detail/leads @390)",
+ "rows": [
+  {
+   "page": "today",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "leads",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "contacts",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "opportunities",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "reception",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "sop",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "outbound",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "attribution",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "subscription",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "lead-detail",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "opportunity-result",
+   "vp": 1440,
+   "violations": []
+  },
+  {
+   "page": "lead-detail",
+   "vp": 390,
+   "violations": []
+  },
+  {
+   "page": "leads",
+   "vp": 390,
+   "violations": []
+  }
+ ],
+ "serious_total": 0
+}

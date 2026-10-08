@@ -1,0 +1,29 @@
+{
+ "generated_at": "2026-10-08T12:43:01.571Z",
+ "base": "http://127.0.0.1:29330",
+ "stack": "leads fix2 real stack (web 29330 + Go 29300 + SQLite /private/tmp/leads-2626)",
+ "overflow_rows": 55,
+ "overflow_true": [],
+ "axe_serious_total": 0,
+ "error_state": {
+  "has_product_copy": true,
+  "has_raw_backend_text": false,
+  "has_retry": true,
+  "has_back": true
+ },
+ "partial_scenario": {
+  "rendered_line": "部分完成：模拟：是。拨打成功：是。真实接通：否。费用：0。",
+  "is_partial": true,
+  "refused_card_visible": false,
+  "submit_http_status": 201,
+  "fixture": "POST /api/outbound/tasks 响应注入 dial_succeeded=true, real_connected=false（隔离栈按设计恒为 false）；任务本身经 BFF→Go→SQLite 真实创建，授权与窗口为真实数据",
+  "submits": 1
+ },
+ "offline_scenario": {
+  "in_app_offline_ui": true,
+  "browser_error_page": false,
+  "has_retry": true,
+  "title": "数海获客 · 离线",
+  "retry_recovers_app": true
+ }
+}
