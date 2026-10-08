@@ -254,43 +254,51 @@ export default function SOPPage() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
           </label>
         </p>
-        <Button
-          variant="primary" size="sm"
-          type="button"
-          data-page-primary="true"
-          disabled={busy || !tenant || !payload}
-          onClick={() => {
-            if (!payload) return;
-            void post("/api/sop/reminders", payload);
-          }}
-        >
-          {pagePrimary("sop")}
-        </Button>{" "}
-        <Button
-          variant="secondary" size="sm"
-          type="button"
-          disabled={busy || !tenant || !payload}
-          onClick={() => {
-            if (!payload) return;
-            void post("/api/sop/drafts", payload);
-          }}
-        >
-          保存回复草稿
-        </Button>
+        {/* HUI-2626 fix2（gate-r2 #6 主行动收敛）：主行动只在可执行时出现；
+            不可执行时给下一步指引，不再渲染一排等权灰按钮。次级动作保持 secondary。 */}
+        {payload ? (
+          <>
+            <Button
+              variant="primary" size="sm"
+              type="button"
+              data-page-primary="true"
+              disabled={busy}
+              onClick={() => {
+                void post("/api/sop/reminders", payload);
+              }}
+            >
+              {pagePrimary("sop")}
+            </Button>{" "}
+            <Button
+              variant="secondary" size="sm"
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void post("/api/sop/drafts", payload);
+              }}
+            >
+              保存回复草稿
+            </Button>
+          </>
+        ) : (
+          <p className="muted">选择客户并填写内容后，这里可以记下内部提醒。</p>
+        )}
         {error ? <SurfaceState kind="error" title="跟进没有记下" detail={error} /> : null}
       </div>
       <div className="card">
         <h2>人工确认</h2>
         <p className="muted">确认后停在待发送或未送达。没有渠道回执时不会写成已送达。</p>
         <p className="muted">{draftId ? "已选用一条草稿，可以人工确认。" : "先保存草稿，或在下面的记录里选用。"}</p>
-        <Button
-          variant="secondary" size="sm"
-          type="button"
-          disabled={busy || !draftId.trim()}
-          onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
-        >
-          人工确认
-        </Button>
+        {draftId ? (
+          <Button
+            variant="secondary" size="sm"
+            type="button"
+            disabled={busy}
+            onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
+          >
+            人工确认
+          </Button>
+        ) : null}
       </div>
       <div className="card">
         <h2>记录</h2>
