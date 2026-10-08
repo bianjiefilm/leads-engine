@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { RendererProvider, Status } from "@/vendor/painuo/react/v1/src/index";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { roiStatusToState } from "@/lib/painuoStatus";
@@ -81,9 +82,9 @@ export default function AttributionPage() {
             />
           </label>
         </p>
-        <button className="primary" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
           {pagePrimary("attribution")}
-        </button>
+        </Button>
         {err ? <SurfaceState kind="error" title="没有复算出来" detail={productError(err)} /> : null}
       </div>
       <div className="card">

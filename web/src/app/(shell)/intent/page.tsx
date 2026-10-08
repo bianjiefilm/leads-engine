@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useState } from "react";
-import { SurfaceState } from "@/components/workbench/chrome";
+import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 import { modelStatusText, originLabel, outreachControls, presentAssessment, type GradeInput, type GradeView } from "@/lib/intentGrade";
@@ -117,6 +119,7 @@ function asInput(snap: SnapshotBody): GradeInput {
 
 export default function IntentGradePage() {
   const scope = useCrmScope();
+  const width = useShellWidth();
   const tenantId = scope.tenantId ?? "";
   const [subjectKind, setSubjectKind] = useState("lead");
   const [subjectId, setSubjectId] = useState("");
@@ -226,7 +229,7 @@ export default function IntentGradePage() {
             </select>
           </label>{" "}
           <label>
-            编号 <input value={subjectId} onChange={(e) => setSubjectId(e.target.value)} placeholder="线索或会话 id" />
+            <Input label="编号" value={subjectId} onChange={(e) => setSubjectId(e.target.value)} placeholder="线索或会话 id" />
           </label>
         </p>
         <p>
@@ -236,9 +239,9 @@ export default function IntentGradePage() {
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} cols={60} />
           </label>
         </p>
-        <button className="primary" type="button" data-page-primary="true" onClick={score}>
+        <Button variant="primary" type="button" size="sm" data-page-primary="true" onClick={score}>
           用规则重新评估
-        </button>
+        </Button>
         <p className="muted">重算沿用同一条用量记录，不重复扣费。人工确认过的事实不会被这次评估盖掉。</p>
       </div>
       <ExampleCard />
@@ -260,9 +263,15 @@ export default function IntentGradePage() {
           <p className="muted">{shown.disclaimer}</p>
           <p className="muted">成交概率：不提供</p>
           {shown.actions.map((action) => (
-            <button className="btn" key={action} type="button" onClick={() => document.getElementById("intent-correction")?.scrollIntoView()}>
+            <Button
+              variant="secondary"
+              key={action}
+              type="button"
+              size="sm"
+              onClick={() => document.getElementById("intent-correction")?.scrollIntoView()}
+            >
               {action}
-            </button>
+            </Button>
           ))}
           {outreach.length > 0 ? <p>触达：{outreach.join("、")}</p> : null}
           <form
@@ -289,9 +298,7 @@ export default function IntentGradePage() {
                 <option value="adopted">采纳</option>
               </select>
             </label>{" "}
-            <label>
-              <input type="checkbox" checked={misjudgment} onChange={(e) => setMisjudgment(e.target.checked)} /> 标记误判
-            </label>
+            <Checkbox label="标记误判" checked={misjudgment} onCheckedChange={(checked) => setMisjudgment(checked)} />
             <p>
               <label>
                 原因
@@ -299,43 +306,31 @@ export default function IntentGradePage() {
                 <textarea value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} rows={3} cols={60} />
               </label>
             </p>
-            <button className="btn" type="submit">保存修正</button>
+            <Button variant="secondary" type="submit" size="sm">保存修正</Button>
           </form>
         </div>
       ) : null}
       <div className="card">
         <h2>标注样本</h2>
-        <button className="btn" type="button" onClick={() => void loadReport()}>
+        <Button variant="secondary" type="button" size="sm" onClick={() => void loadReport()}>
           查看样本报告
-        </button>
+        </Button>
         {reportNote ? <p className="muted">{reportNote}</p> : null}
         {report ? (
-          <table>
-            <thead>
-              <tr>
-                <th>样本</th>
-                <th>标注</th>
-                <th>规则结果</th>
-                <th>理由</th>
-                <th>建议</th>
-                <th>来源</th>
-                <th>是否一致</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.map((row) => (
-                <tr key={row.id}>
-                  <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
-                  <td>{row.label}</td>
-                  <td>{row.predicted}</td>
-                  <td>{row.reason}</td>
-                  <td>{row.suggestion}</td>
-                  <td>{originLabel(row.origin || "fixture")}</td>
-                  <td>{row.match ? "一致" : "误判"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <RecordList
+            width={width}
+            rows={report.map((row) => ({
+              id: row.id,
+              title: `${KIND_LABEL[row.kind] ?? row.kind} · ${row.label}`,
+              facts: [
+                { label: "规则结果", value: row.predicted },
+                { label: "理由", value: row.reason },
+                { label: "建议", value: row.suggestion },
+                { label: "来源", value: originLabel(row.origin || "fixture") },
+                { label: "一致性", value: row.match ? "一致" : "误判" },
+              ],
+            }))}
+          />
         ) : null}
       </div>
     </main>

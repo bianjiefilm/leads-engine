@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, acceptDeskPayload, factTone, failureText, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
 import { MODE_TEXT, PENDING_TEXT } from "@/lib/reception";
@@ -132,14 +133,14 @@ export default function ReceptionDeskPage() {
                 { label: "下一次跟进", value: item.next_follow_up_at || "未安排" },
               ]}
               primary={primary ? (
-                <button className="primary" type="button" data-page-primary="true" onClick={open}>
+                <Button variant="primary" type="button" size="sm" data-page-primary="true" onClick={open}>
                   {pagePrimary("reception")}
-                </button>
+                </Button>
               ) : undefined}
               secondary={primary ? undefined : (
-                <button className="btn" type="button" onClick={open}>
+                <Button variant="secondary" type="button" size="sm" onClick={open}>
                   {selected === item.session_id ? "处理中" : "处理"}
-                </button>
+                </Button>
               )}
             />
           );

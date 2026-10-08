@@ -32,6 +32,7 @@
 - **D2-9 sales-crm 参考**：零源码复制（无 LICENSE）。只借鉴「列表+筛选+搜索+抽屉详情」交互组织，全部自有实现于现有 chrome/renderer 体系；实施说明逐项标「参考交互/自有实现」。
 - **D2-10 范围外不动**：reception 会话语义、HUI-2598 Today/Next 业务排序、公开表单 f/r 页、D2 系列/Motion Consumer 链、Redis 票、HUI-2622 vendored 产物，全部零改动。
 - **D2-11 2625 门**：未开。本票只产出自证证据包（docs/audits/hui-2626/finish-r1/），Linear 评论如实写「证据包已交，门未过，不标 Done」——由 root 回写。
+- **D2-12 原生 input 收口口径**：正式路由裸 button/table 全部清零；原生 `<input>/<textarea>/<select>` 除两类外全部换 vendored renderer Input/Textarea/Checkbox/Select 适配器：① date/datetime-local 字段（renderer Input type 枚举不含日期类型，原生日期控件是可访问标准件，保留并 token 化样式，共 3 处：/、/leads/[id]、/opportunities/[id]）；② /f/[id]、/r/[id] 公开消费表单（public 面，不在本票 9 代表页与 CRM 工作台范围，账目保留并已在 pageCensus.test 注记）。
 
 ## D3 真实数据纪律核对（B 组，现状已合规项）
 

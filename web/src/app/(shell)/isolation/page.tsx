@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { WHITE_LABEL_CHAIN_UNVERIFIED, brandIsDisplayOnly, exportConfirmHeader, sourceStaysOnTenant } from "@/lib/crmIsolation";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary } from "@/lib/productShell";
@@ -68,21 +70,9 @@ export default function IsolationPage() {
       {!scope.tenantId ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
       <section className="card">
         <h2>品牌来源</h2>
-        <input
-          aria-label="品牌显示名"
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-        />
-        <input
-          aria-label="来源标签"
-          value={sourceTag}
-          onChange={(e) => setSourceTag(e.target.value)}
-        />
-        <input
-          aria-label="活动"
-          value={campaignId}
-          onChange={(e) => setCampaignId(e.target.value)}
-        />
+        <Input label="品牌显示名" value={brand} onChange={(e) => setBrand(e.target.value)} />
+        <Input label="来源标签" value={sourceTag} onChange={(e) => setSourceTag(e.target.value)} />
+        <Input label="活动" value={campaignId} onChange={(e) => setCampaignId(e.target.value)} />
         <p data-testid="brand-role">{brandIsDisplayOnly(brand)}</p>
         <p data-testid="source-stays">{sourceStaysOnTenant(sourceTag, brand, campaignId)}</p>
         <p className="muted">改品牌名称不会改已有联系人的租户、同意来源和商机历史。</p>
@@ -90,8 +80,8 @@ export default function IsolationPage() {
       <section className="card">
         <h2>本租户导出</h2>
         <p className="muted">租户负责人可导出联系人、线索、商机、跟进、分配、来源、同意和撤回状态。</p>
-        <button className="primary" type="button" data-page-primary="true" onClick={createJob}>{pagePrimary("isolation")}</button>{" "}
-        <button className="btn" type="button" onClick={download} disabled={!jobId}>确认并下载</button>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" onClick={createJob}>{pagePrimary("isolation")}</Button>{" "}
+        <Button variant="secondary" size="sm" type="button" onClick={download} disabled={!jobId}>确认并下载</Button>
         {jobId ? <p data-testid="export-job">导出任务已建立</p> : null}
         {message ? <p data-testid="export-message">{message}</p> : null}
       </section>

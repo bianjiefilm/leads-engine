@@ -27,6 +27,7 @@ import {
 } from "@/lib/serviceDraft";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 import { IntentOnOpportunity } from "@/components/IntentOnOpportunity";
@@ -313,13 +314,13 @@ export default function OpportunityDetailPage() {
               <label>
                 服务类别(如 video-editing)
                 <br />
-                <input value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} size={40} />
+                <Input label="服务类别(如 video-editing)" value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} />
               </label>
             </p>
             <p>
               <label>
                 预算(元,可留空=缺失)
-                <input value={budgetYuan} onChange={(e) => setBudgetYuan(e.target.value)} size={12} />
+                <Input label="预算(元,可留空=缺失)" value={budgetYuan} onChange={(e) => setBudgetYuan(e.target.value)} />
               </label>
               {"  "}
               <label>
@@ -330,13 +331,13 @@ export default function OpportunityDetailPage() {
             <p className="muted">品牌/素材资产:每一项都必须填写完整引用(含 sha256),缺 hash 的引用一律拒绝,系统绝不代填。</p>
             {assets.map((a, i) => (
               <p key={i}>
-                <input placeholder="资产引用" value={a.asset_ref} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, asset_ref: e.target.value } : x)))} size={24} />
+                <Input label="资产引用" value={a.asset_ref} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, asset_ref: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="sha256(64 位十六进制)" value={a.sha256} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, sha256: e.target.value } : x)))} size={66} />
+                <Input label="sha256(64 位十六进制)" value={a.sha256} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, sha256: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="字节数" value={a.size_bytes} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, size_bytes: e.target.value } : x)))} size={10} />
+                <Input label="字节数" value={a.size_bytes} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, size_bytes: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="媒体类型" value={a.media_type} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, media_type: e.target.value } : x)))} size={14} />
+                <Input label="媒体类型" value={a.media_type} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, media_type: e.target.value } : x)))} />
                 {assets.length > 1 ? <Button variant="ghost" type="button" size="sm" loading={busy} onClick={() => setAssets(assets.filter((_, j) => j !== i))}>移除</Button> : null}
               </p>
             ))}

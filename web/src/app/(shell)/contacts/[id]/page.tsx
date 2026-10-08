@@ -15,6 +15,7 @@ import {
 } from "@/lib/contact";
 import { SurfaceState } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 
@@ -227,12 +228,12 @@ export default function ContactDetailPage() {
         <div className="card">
           <h2>编辑档案</h2>
           <div>
-            <input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="姓名" />
-            <input value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} placeholder="手机号" />
-            <input value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} placeholder="邮箱" />
+            <Input label="姓名" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
+            <Input label="手机号" type="tel" value={edit.phone} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} />
+            <Input label="邮箱" type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
           </div>
           <div>
-            <input value={edit.tags} onChange={(e) => setEdit({ ...edit, tags: e.target.value })} placeholder="标签(逗号分隔)" />
+            <Input label="标签(逗号分隔)" value={edit.tags} onChange={(e) => setEdit({ ...edit, tags: e.target.value })} />
           </div>
           <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="备注" />
           <div className="queue-actions">

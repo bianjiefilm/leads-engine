@@ -11,6 +11,8 @@ import {
   type CapabilityView,
 } from "@/lib/channelInteraction";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Checkbox, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 
@@ -210,33 +212,19 @@ export default function ChannelInteractionsPage() {
         <h2>连接器适配</h2>
         <p className="muted">这只是未验证的适配登记，不会连接真实平台。</p>
         <p>
-          <label>
-            渠道标识 <input value={provider} onChange={(e) => setProvider(e.target.value)} />
-          </label>{" "}
-          <label>
-            账号 <input value={accountId} onChange={(e) => setAccountId(e.target.value)} />
-          </label>{" "}
-          <label>
-            授权应用 <input value={appId} onChange={(e) => setAppId(e.target.value)} />
-          </label>
+          <Input label="渠道标识" value={provider} onChange={(e) => setProvider(e.target.value)} />
+          <Input label="账号" value={accountId} onChange={(e) => setAccountId(e.target.value)} />
+          <Input label="授权应用" value={appId} onChange={(e) => setAppId(e.target.value)} />
         </p>
         <p>
-          <label>
-            <input type="checkbox" checked={commentRead} onChange={(e) => setCommentRead(e.target.checked)} /> 评论读取
-          </label>{" "}
-          <label>
-            <input type="checkbox" checked={messageRead} onChange={(e) => setMessageRead(e.target.checked)} /> 私信读取
-          </label>{" "}
-          <label>
-            <input type="checkbox" checked={reply} onChange={(e) => setReply(e.target.checked)} /> 回复
-          </label>{" "}
-          <label>
-            <input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} /> 发布（不含私信）
-          </label>
+          <Checkbox label="评论读取" checked={commentRead} onCheckedChange={(checked) => setCommentRead(checked)} />
+          <Checkbox label="私信读取" checked={messageRead} onCheckedChange={(checked) => setMessageRead(checked)} />
+          <Checkbox label="回复" checked={reply} onCheckedChange={(checked) => setReply(checked)} />
+          <Checkbox label="发布（不含私信）" checked={publish} onCheckedChange={(checked) => setPublish(checked)} />
         </p>
-        <button className="btn" type="button" onClick={saveGrant}>
+        <Button variant="secondary" size="sm" type="button" onClick={saveGrant}>
           登记授权
-        </button>
+        </Button>
       </div>
       <div className="card">
         <h2>记录一条互动</h2>
@@ -249,15 +237,15 @@ export default function ChannelInteractionsPage() {
             </select>
           </label>{" "}
           <label>
-            事件 ID <input value={eventId} onChange={(e) => setEventId(e.target.value)} />
+            <Input label="事件 ID" value={eventId} onChange={(e) => setEventId(e.target.value)} />
           </label>{" "}
           <label>
-            对方 ID <input value={subjectId} onChange={(e) => setSubjectId(e.target.value)} />
+            <Input label="对方 ID" value={subjectId} onChange={(e) => setSubjectId(e.target.value)} />
           </label>
         </p>
         <p>
           <label>
-            昵称 <input value={nickname} onChange={(e) => setNickname(e.target.value)} />
+            <Input label="昵称" value={nickname} onChange={(e) => setNickname(e.target.value)} />
           </label>{" "}
           <label>
             用途{" "}
@@ -268,18 +256,16 @@ export default function ChannelInteractionsPage() {
               <option value="sales_inquiry">购买意向</option>
             </select>
           </label>{" "}
-          <label>
-            <input type="checkbox" checked={intent} onChange={(e) => setIntent(e.target.checked)} /> 明确意向
-          </label>
+          <Checkbox label="明确意向" checked={intent} onCheckedChange={(checked) => setIntent(checked)} />
         </p>
         <p>
           <label>
-            正文 <input value={text} onChange={(e) => setText(e.target.value)} />
+            <Input label="正文" value={text} onChange={(e) => setText(e.target.value)} />
           </label>
         </p>
-        <button className="primary" type="button" data-page-primary="true" onClick={saveEvent}>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" onClick={saveEvent}>
           接入
-        </button>
+        </Button>
       </div>
       <div className="card">
         {items === null ? (
@@ -307,9 +293,9 @@ export default function ChannelInteractionsPage() {
                     ...(marketing.length > 0 ? [{ label: "营销", value: marketing.join("、") }] : []),
                   ]}
                   secondary={actions.confirm && row.candidate_id ? (
-                    <button className="btn" type="button" onClick={() => confirm(row.candidate_id!)}>
+                    <Button variant="secondary" size="sm" type="button" onClick={() => confirm(row.candidate_id!)}>
                       确认线索
-                    </button>
+                    </Button>
                   ) : undefined}
                 >
                   {actions.reach.length === 0 ? null : <p data-tone="automation">触达未开放</p>}

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentSOP, recordLabel, type SOPCapability } from "@/lib/sopReach";
@@ -244,7 +246,7 @@ export default function SOPPage() {
         </p>
         <p>
           <label>
-            收件人 <input value={recipient} onChange={(e) => setRecipient(e.target.value)} />
+            <Input label="收件人" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
           </label>
         </p>
         <p>
@@ -253,8 +255,8 @@ export default function SOPPage() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
           </label>
         </p>
-        <button
-          className="primary"
+        <Button
+          variant="primary" size="sm"
           type="button"
           data-page-primary="true"
           disabled={busy || !tenantId || !payload}
@@ -264,9 +266,9 @@ export default function SOPPage() {
           }}
         >
           {pagePrimary("sop")}
-        </button>{" "}
-        <button
-          className="btn"
+        </Button>{" "}
+        <Button
+          variant="secondary" size="sm"
           type="button"
           disabled={busy || !tenantId || !payload}
           onClick={() => {
@@ -275,21 +277,21 @@ export default function SOPPage() {
           }}
         >
           保存回复草稿
-        </button>
+        </Button>
         {error ? <SurfaceState kind="error" title="跟进没有记下" detail={error} /> : null}
       </div>
       <div className="card">
         <h2>人工确认</h2>
         <p className="muted">确认后停在待发送或未送达。没有渠道回执时不会写成已送达。</p>
         <p className="muted">{draftId ? "已选用一条草稿，可以人工确认。" : "先保存草稿，或在下面的记录里选用。"}</p>
-        <button
-          className="btn"
+        <Button
+          variant="secondary" size="sm"
           type="button"
           disabled={busy || !draftId.trim()}
           onClick={() => void post(`/api/sop/drafts/${encodeURIComponent(draftId.trim())}/confirm`, {})}
         >
           人工确认
-        </button>
+        </Button>
       </div>
       <div className="card">
         <h2>记录</h2>
@@ -303,9 +305,9 @@ export default function SOPPage() {
               {item.kind === "pending_draft" ? (
                 <>
                   {" "}
-                  <button className="btn" type="button" disabled={busy} onClick={() => setDraftId(item.id)}>
+                  <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => setDraftId(item.id)}>
                     选用
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </li>

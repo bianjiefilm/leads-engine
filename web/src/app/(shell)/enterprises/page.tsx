@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { SurfaceState } from "@/components/workbench/chrome";
+import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 
@@ -65,6 +66,7 @@ async function readJSON(res: Response): Promise<Record<string, unknown>> {
 
 export default function EnterprisesPage() {
   const scope = useCrmScope();
+  const width = useShellWidth();
   const tenantId = scope.tenantId ?? "";
   const [capability, setCapability] = useState<Capability | null>(null);
   const [rows, setRows] = useState<EnterpriseRow[] | null>(null);
@@ -232,119 +234,68 @@ export default function EnterprisesPage() {
         <h2>导入客户有权再利用的企业资料</h2>
         <p className="muted">企业行业、地区、规模和自然人联系方式分开填写。电话不代表可以营销。</p>
         <p>
-          <label>
-            来源键 <input id="source-key" value={sourceKey} onChange={(e) => setSourceKey(e.target.value)} />
-          </label>
+          <Input id="source-key" label="来源键" value={sourceKey} onChange={(e) => setSourceKey(e.target.value)} />
         </p>
         <p>
-          <label>
-            来源名称 <input id="source-name" value={sourceName} onChange={(e) => setSourceName(e.target.value)} />
-          </label>
+          <Input id="source-name" label="来源名称" value={sourceName} onChange={(e) => setSourceName(e.target.value)} />
         </p>
         <p>
-          <label>
-            采集时间 <input id="collected-at" value={collectedAt} onChange={(e) => setCollectedAt(e.target.value)} placeholder="2026-09-01T00:00:00Z" />
-          </label>
+          <Input id="collected-at" label="采集时间" value={collectedAt} onChange={(e) => setCollectedAt(e.target.value)} placeholder="2026-09-01T00:00:00Z" />
         </p>
         <p>
-          <label>
-            更新周期（天） <input id="update-cycle" value={cycle} onChange={(e) => setCycle(e.target.value)} />
-          </label>
+          <Input id="update-cycle" label="更新周期（天）" value={cycle} onChange={(e) => setCycle(e.target.value)} />
         </p>
         <p>
-          <label>
-            再利用许可 <input id="license" value={license} onChange={(e) => setLicense(e.target.value)} />
-          </label>
+          <Input id="license" label="再利用许可" value={license} onChange={(e) => setLicense(e.target.value)} />
         </p>
         <p>
-          <label>
-            删除/更正 <input id="correction" value={correction} onChange={(e) => setCorrection(e.target.value)} />
-          </label>
+          <Input id="correction" label="删除/更正" value={correction} onChange={(e) => setCorrection(e.target.value)} />
         </p>
         <p>
-          <label>
-            企业标识 <input id="enterprise-id" value={enterpriseID} onChange={(e) => setEnterpriseID(e.target.value)} />
-          </label>
+          <Input id="enterprise-id" label="企业标识" value={enterpriseID} onChange={(e) => setEnterpriseID(e.target.value)} />
         </p>
         <p>
-          <label>
-            企业名称 <input id="enterprise-name" value={enterpriseName} onChange={(e) => setEnterpriseName(e.target.value)} />
-          </label>
+          <Input id="enterprise-name" label="企业名称" value={enterpriseName} onChange={(e) => setEnterpriseName(e.target.value)} />
         </p>
         <p>
-          <label>
-            行业 <input id="industry" value={industry} onChange={(e) => setIndustry(e.target.value)} />
-          </label>{" "}
-          <label>
-            地区 <input id="region" value={region} onChange={(e) => setRegion(e.target.value)} />
-          </label>{" "}
-          <label>
-            规模 <input id="scale" value={scale} onChange={(e) => setScale(e.target.value)} />
-          </label>
+          <Input id="industry" label="行业" value={industry} onChange={(e) => setIndustry(e.target.value)} />{" "}
+          <Input id="region" label="地区" value={region} onChange={(e) => setRegion(e.target.value)} />{" "}
+          <Input id="scale" label="规模" value={scale} onChange={(e) => setScale(e.target.value)} />
         </p>
         <p>
-          <label>
-            联系人姓名（可选，不是营销同意）{" "}
-            <input id="person-name" value={personName} onChange={(e) => setPersonName(e.target.value)} />
-          </label>{" "}
-          <label>
-            联系人电话（可选） <input id="person-phone" value={personPhone} onChange={(e) => setPersonPhone(e.target.value)} />
-          </label>
+          <Input id="person-name" label="联系人姓名（可选，不是营销同意）" value={personName} onChange={(e) => setPersonName(e.target.value)} />{" "}
+          <Input id="person-phone" label="联系人电话（可选）" value={personPhone} onChange={(e) => setPersonPhone(e.target.value)} />
         </p>
-        <button id="import-submit" className="primary" data-page-primary="true" type="button" onClick={() => void importBatch()}>
+        <Button id="import-submit" variant="primary" type="button" size="sm" data-page-primary="true" onClick={() => void importBatch()}>
           导入到本租户
-        </button>
+        </Button>
       </div>
 
       <div className="card">
         <h2>按企业筛选</h2>
-        <label>
-          行业 <input id="filter-industry" value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)} />
-        </label>{" "}
-        <label>
-          地区 <input id="filter-region" value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} />
-        </label>{" "}
-        <label>
-          规模 <input id="filter-scale" value={filterScale} onChange={(e) => setFilterScale(e.target.value)} />
-        </label>{" "}
-        <button id="filter-submit" className="btn" type="button" onClick={() => void load(tenantId)}>
+        <Input id="filter-industry" label="行业" value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)} />{" "}
+        <Input id="filter-region" label="地区" value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} />{" "}
+        <Input id="filter-scale" label="规模" value={filterScale} onChange={(e) => setFilterScale(e.target.value)} />{" "}
+        <Button id="filter-submit" variant="secondary" type="button" size="sm" onClick={() => void load(tenantId)}>
           筛选
-        </button>
+        </Button>
         {error ? <p className="muted">{error}</p> : null}
-        <table>
-          <thead>
-            <tr>
-              <th>企业</th>
-              <th>行业/地区/规模</th>
-              <th>新鲜度</th>
-              <th>缺失</th>
-              <th>状态</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(rows ?? []).map((row) => (
-              <tr key={row.id}>
-                <td>
-                  {row.enterprise_name}
-                  <div className="muted">{row.enterprise_id}</div>
-                </td>
-                <td>
-                  {row.industry || "行业缺失"} / {row.region || "地区缺失"} / {row.scale || "规模缺失"}
-                  {row.conflict ? <div>资料冲突</div> : null}
-                </td>
-                <td>{row.freshness === "expired" ? "已过期" : "未过期"}</td>
-                <td>{(row.missing_fields ?? []).join("、") || "无"}</td>
-                <td>{row.conflict && row.status === "confirmed" ? "池内仍是确认时的旧内容" : row.status}</td>
-                <td>
-                  <button type="button" onClick={() => void openPreview(row.id)}>
-                    预览
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <RecordList
+          width={width}
+          rows={(rows ?? []).map((row) => ({
+            id: row.id,
+            title: row.enterprise_name,
+            action: "预览",
+            onOpen: () => void openPreview(row.id),
+            facts: [
+              { label: "企业标识", value: row.enterprise_id },
+              { label: "行业/地区/规模", value: `${row.industry || "行业缺失"} / ${row.region || "地区缺失"} / ${row.scale || "规模缺失"}${row.conflict ? "（资料冲突）" : ""}` },
+              { label: "新鲜度", value: row.freshness === "expired" ? "已过期" : "未过期" },
+              { label: "缺失", value: (row.missing_fields ?? []).join("、") || "无" },
+              { label: "状态", value: row.conflict && row.status === "confirmed" ? "池内仍是确认时的旧内容" : row.status || "未记录" },
+            ],
+          }))}
+        />
       </div>
 
       {preview ? (
@@ -371,16 +322,16 @@ export default function EnterprisesPage() {
           ) : null}
           <p className="muted">自然人联系方式只作旁注，不构成营销许可。拒绝或删除只挡住同一来源的再次导入。</p>
           {preview.record ? (
-            <p>
-              <button id="confirm-submit" type="button" onClick={() => void act(preview.record!.id, "confirm")}>
+            <p className="queue-actions">
+              <Button id="confirm-submit" variant="primary" type="button" size="sm" onClick={() => void act(preview.record!.id, "confirm")}>
                 确认进入本租户候选池
-              </button>{" "}
-              <button id="refuse-submit" type="button" onClick={() => void act(preview.record!.id, "refuse")}>
+              </Button>{" "}
+              <Button id="refuse-submit" variant="secondary" type="button" size="sm" onClick={() => void act(preview.record!.id, "refuse")}>
                 拒绝
-              </button>{" "}
-              <button id="delete-submit" type="button" onClick={() => void act(preview.record!.id, "delete")}>
+              </Button>{" "}
+              <Button id="delete-submit" variant="danger" type="button" size="sm" onClick={() => void act(preview.record!.id, "delete")}>
                 删除
-              </button>
+              </Button>
             </p>
           ) : null}
         </div>
