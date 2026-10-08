@@ -220,7 +220,6 @@ describe("page census", () => {
       "/",
       "/leads/[id]",
       "/contacts/[id]",
-      "/opportunities",
       "/opportunities/[id]",
       "/reception",
       "/sop",
@@ -234,8 +233,12 @@ describe("page census", () => {
       "/f/[id]",
       "/r/[id]",
     ]);
-    // HUI-2626 finish-r1：/leads、/contacts 已完成成品化清零（半成品账目收窄）。
-    expect(rows.filter((row) => row.half_product.length === 0).map((row) => row.path)).toEqual(["/leads", "/contacts"]);
+    // HUI-2626 finish-r1：/leads、/contacts、/opportunities 已完成成品化清零（半成品账目收窄）。
+    expect(rows.filter((row) => row.half_product.length === 0).map((row) => row.path)).toEqual([
+      "/leads",
+      "/contacts",
+      "/opportunities",
+    ]);
   });
 
   it("does not name forbidden packages", () => {
