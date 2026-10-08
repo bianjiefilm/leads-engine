@@ -383,6 +383,9 @@ button.primary,
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.9rem 1rem;
+  /* HUI-2626 fix2（gate-r2 #5 溢出）：卡内 id/编号是不带空格的长 token，
+     窄屏(390)下把卡片撑到 406px 造成横向滚动；允许在任意字符处折行。 */
+  overflow-wrap: anywhere;
 }
 
 .record-head {
@@ -616,6 +619,12 @@ button.primary,
   background: var(--surface);
   color: var(--fg);
   font: inherit;
+}
+
+/* HUI-2626 fix2（gate-r2 #5 溢出）：带 cols 的 textarea（≈60ch≈502px）在 430/390
+   视口超出容器宽度；钳到容器内，桌面端不受影响。 */
+textarea {
+  max-width: 100%;
 }
 
 /* HUI-2626：触控密度——390/430 窄屏下可点目标不小于 44px（token: control-height-touch）。 */
