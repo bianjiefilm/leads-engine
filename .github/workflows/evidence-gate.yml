@@ -10,7 +10,7 @@ on:
 
 jobs:
   evidence-gate:
-    runs-on: [self-hosted, macOS]
+    runs-on: ubuntu-latest  # org 无 org 级 self-hosted,leads/touch 未注册专机,先用 hosted
     steps:
       - uses: actions/checkout@v4
         with:
