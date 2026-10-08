@@ -1,0 +1,454 @@
+{
+  "390": [
+    {
+      "label": "客户甲",
+      "tag": "button",
+      "cls": "eco-top-nav_button__05tD5 eco-top-nav_pressed__d_C4S",
+      "w": 70,
+      "h": 44
+    },
+    {
+      "label": "客户乙",
+      "tag": "button",
+      "cls": "eco-top-nav_button__05tD5",
+      "w": 70,
+      "h": 44
+    },
+    {
+      "label": "客户甲客户乙当前登录范围",
+      "tag": "select",
+      "cls": "",
+      "w": 123,
+      "h": 44
+    },
+    {
+      "label": "今天",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "线索",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "客户",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "接待",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "商机",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "跟进提醒",
+      "tag": "a",
+      "cls": "",
+      "w": 80,
+      "h": 44
+    },
+    {
+      "label": "外呼",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "来源与费用",
+      "tag": "a",
+      "cls": "",
+      "w": 94,
+      "h": 44
+    },
+    {
+      "label": "订阅与用量",
+      "tag": "a",
+      "cls": "",
+      "w": 94,
+      "h": 44
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "搜索",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-md",
+      "w": 324,
+      "h": 44
+    },
+    {
+      "label": "重置",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-ghost pn-r-size-md",
+      "w": 324,
+      "h": 44
+    },
+    {
+      "label": "导出 CSV(owner)",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-md",
+      "w": 324,
+      "h": 44
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "商家经营销售",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "手工录入",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "待确认",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 324,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "textarea",
+      "cls": "pn-r-input pn-r-textarea",
+      "w": 324,
+      "h": 68
+    },
+    {
+      "label": "创建档案",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-primary pn-r-size-md",
+      "w": 324,
+      "h": 44
+    },
+    {
+      "label": "查看详情",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-sm",
+      "w": 82,
+      "h": 44
+    },
+    {
+      "label": "返回首页",
+      "tag": "a",
+      "cls": "",
+      "w": 56,
+      "h": 17
+    },
+    {
+      "label": "商机管理",
+      "tag": "a",
+      "cls": "",
+      "w": 56,
+      "h": 17
+    }
+  ],
+  "430": [
+    {
+      "label": "客户甲",
+      "tag": "button",
+      "cls": "eco-top-nav_button__05tD5 eco-top-nav_pressed__d_C4S",
+      "w": 70,
+      "h": 44
+    },
+    {
+      "label": "客户乙",
+      "tag": "button",
+      "cls": "eco-top-nav_button__05tD5",
+      "w": 70,
+      "h": 44
+    },
+    {
+      "label": "客户甲客户乙当前登录范围",
+      "tag": "select",
+      "cls": "",
+      "w": 123,
+      "h": 44
+    },
+    {
+      "label": "今天",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "线索",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "客户",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "接待",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "商机",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "跟进提醒",
+      "tag": "a",
+      "cls": "",
+      "w": 80,
+      "h": 44
+    },
+    {
+      "label": "外呼",
+      "tag": "a",
+      "cls": "",
+      "w": 52,
+      "h": 44
+    },
+    {
+      "label": "来源与费用",
+      "tag": "a",
+      "cls": "",
+      "w": 94,
+      "h": 44
+    },
+    {
+      "label": "订阅与用量",
+      "tag": "a",
+      "cls": "",
+      "w": 94,
+      "h": 44
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "搜索",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-md",
+      "w": 364,
+      "h": 44
+    },
+    {
+      "label": "重置",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-ghost pn-r-size-md",
+      "w": 364,
+      "h": 44
+    },
+    {
+      "label": "导出 CSV(owner)",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-md",
+      "w": 364,
+      "h": 44
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "商家经营销售",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "手工录入",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "待确认",
+      "tag": "button",
+      "cls": "pn-r-input pn-r-select-trigger",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "",
+      "w": 1,
+      "h": 1
+    },
+    {
+      "label": "",
+      "tag": "input",
+      "cls": "pn-r-input",
+      "w": 364,
+      "h": 48
+    },
+    {
+      "label": "",
+      "tag": "textarea",
+      "cls": "pn-r-input pn-r-textarea",
+      "w": 364,
+      "h": 68
+    },
+    {
+      "label": "创建档案",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-primary pn-r-size-md",
+      "w": 364,
+      "h": 44
+    },
+    {
+      "label": "查看详情",
+      "tag": "button",
+      "cls": "pn-r-button pn-r-secondary pn-r-size-sm",
+      "w": 82,
+      "h": 44
+    },
+    {
+      "label": "返回首页",
+      "tag": "a",
+      "cls": "",
+      "w": 56,
+      "h": 17
+    },
+    {
+      "label": "商机管理",
+      "tag": "a",
+      "cls": "",
+      "w": 56,
+      "h": 17
+    }
+  ]
+}

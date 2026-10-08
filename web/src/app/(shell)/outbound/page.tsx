@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { presentOutbound, receiptLabel, type OutboundCapability } from "@/lib/outboundCall";
@@ -205,8 +206,8 @@ export default function OutboundPage() {
         </p>
         {selected && consents && consents.length === 0 ? <p className="muted">还没有可选择的授权</p> : null}
         {selected && !campaignId ? <p className="muted">还没有可选的活动</p> : null}
-        <button
-          className="primary"
+        <Button
+          variant="primary" size="sm"
           type="button"
           data-page-primary="true"
           disabled={busy || !tenantId || !selected || !campaignId}
@@ -221,23 +222,23 @@ export default function OutboundPage() {
           }}
         >
           {pagePrimary("outbound")}
-        </button>{" "}
-        <button
-          className="btn"
+        </Button>{" "}
+        <Button
+          variant="secondary" size="sm"
           type="button"
           disabled={busy || !task?.id}
           onClick={() => void post(`/api/outbound/tasks/${encodeURIComponent(task?.id ?? "")}/cancel`, {})}
         >
           取消
-        </button>{" "}
-        <button
-          className="btn"
+        </Button>{" "}
+        <Button
+          variant="secondary" size="sm"
           type="button"
           disabled={busy || !task?.id}
           onClick={() => void post(`/api/outbound/tasks/${encodeURIComponent(task?.id ?? "")}/transfer`, {})}
         >
           转人工
-        </button>
+        </Button>
         {error ? <SurfaceState kind="error" title="外呼没有记下" detail={error} /> : null}
       </div>
       <div className="card">

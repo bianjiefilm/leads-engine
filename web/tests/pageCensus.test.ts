@@ -216,13 +216,25 @@ describe("page census", () => {
       { marker: "bare hex", line: 182, column: 44 },
       { marker: "raw button", line: 183, column: 9 },
     ]);
+    // HUI-2626 finish-r1 半成品账目（收窄后终态）：
+    // - /leads /contacts /opportunities /outbound /attribution /subscription /sop
+    //   /intent /enterprises /channel-interactions /isolation /reception：已清零。
+    // - / /leads/[id] /opportunities/[id]：各剩 1 个原生 date/datetime-local 输入。
+    //   vendored renderer Input 的 type 枚举（text/search/email/password/tel/url/number）
+    //   不含日期类型，原生日期控件是可访问标准件，保留（DECISIONS.md D2-12）。
+    // - /f/[id] /r/[id]：公开表单（public 消费面），不在本票 9 代表页范围（D2-10）。
     expect(rows.filter((row) => row.half_product.length > 0).map((row) => row.path)).toEqual([
       "/",
       "/leads/[id]",
+      "/opportunities/[id]",
+      "/f/[id]",
+      "/r/[id]",
+    ]);
+    expect(rows.filter((row) => row.half_product.length === 0).map((row) => row.path)).toEqual([
+      "/leads",
       "/contacts",
       "/contacts/[id]",
       "/opportunities",
-      "/opportunities/[id]",
       "/reception",
       "/sop",
       "/outbound",
@@ -232,10 +244,7 @@ describe("page census", () => {
       "/enterprises",
       "/channel-interactions",
       "/isolation",
-      "/f/[id]",
-      "/r/[id]",
     ]);
-    expect(rows.filter((row) => row.half_product.length === 0).map((row) => row.path)).toEqual(["/leads"]);
   });
 
   it("does not name forbidden packages", () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import {
@@ -198,16 +199,16 @@ export default function LeadDeskPage() {
             </label>
             <div className="queue-actions">
               <Link className="btn" href={`/leads/${id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
-              <button className="primary" type="submit" data-page-primary="true" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
+              <Button variant="primary" type="submit" size="sm" data-page-primary="true" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
                 {pagePrimary("lead-detail")}
-              </button>
-              <button className="btn" type="submit" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
+              </Button>
+              <Button variant="secondary" type="submit" size="sm" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
                 {NARROW_ACTIONS[2]}
-              </button>
+              </Button>
               {channel ? (
-                <button className="btn" type="button" disabled={busy || !note.trim() || !nextAt} onClick={() => void submit(true)}>
+                <Button variant="ghost" type="button" size="sm" disabled={busy || !note.trim() || !nextAt} onClick={() => void submit(true)}>
                   安排渠道内跟进
-                </button>
+                </Button>
               ) : null}
             </div>
             {msg ? <p className="muted">{msg}</p> : null}

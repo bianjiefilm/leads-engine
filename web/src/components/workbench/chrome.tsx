@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
+import { Button as PainuoButton } from "@/vendor/painuo/react/v1/src/index";
 import {
   SHELL_NAV,
   chooseScope,
@@ -133,13 +134,18 @@ export function RecordList({
     href?: string;
     action?: string;
     primary?: boolean;
+    /** HUI-2626：行内打开详情抽屉（不路由跳转，保留列表筛选/滚动）。 */
+    onOpen?: () => void;
   }[];
 }) {
   const structure = shellStructure(width);
   return (
     <div className="record-list" data-record={structure.records} data-density={structure.density}>
       {rows.map((row) => {
-        const action = row.href ? (
+        // onOpen 优先：行动作开抽屉；href 交给抽屉内的「打开完整页」链接，避免一排同权链接。
+        const action = row.onOpen ? (
+          <PainuoRowButton label={row.action ?? "查看详情"} primary={row.primary === true} onOpen={row.onOpen} />
+        ) : row.href ? (
           <Link className={row.primary ? "btn primary" : "btn"} href={row.href}>
             {row.action ?? "打开"}
           </Link>
@@ -157,6 +163,20 @@ export function RecordList({
         );
       })}
     </div>
+  );
+}
+
+// 行级抽屉触发按钮。renderer Button 需要 provider scope（壳级已提供）。
+function PainuoRowButton({ label, primary, onOpen }: { label: string; primary: boolean; onOpen: () => void }) {
+  return (
+    <PainuoButton
+      variant={primary ? "primary" : "secondary"}
+      size="sm"
+      type="button"
+      onClick={() => onOpen()}
+    >
+      {label}
+    </PainuoButton>
   );
 }
 

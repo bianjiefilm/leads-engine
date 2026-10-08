@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 import { centsLabel, presentSubscription, rechargeReturn, type SubscriptionFacts } from "@/lib/subscription";
@@ -70,9 +71,9 @@ export default function SubscriptionPage() {
     <main data-page="billing">
       <header className="page-head">
         <h1>订阅与用量</h1>
-        <button className="primary" type="button" data-page-primary="true" disabled={!scope.tenantId} onClick={() => setReload((n) => n + 1)}>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" disabled={!scope.tenantId} onClick={() => setReload((n) => n + 1)}>
           {pagePrimary("billing")}
-        </button>
+        </Button>
       </header>
       <p className="muted">
         <Link className="btn" href="/">返回工作台</Link>

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { RendererProvider, Status } from "@/vendor/painuo/react/v1/src/index";
-import { SurfaceState } from "@/components/workbench/chrome";
+import { SurfaceState, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, pagePrimary, productError, rendererDensity } from "@/lib/productShell";
 import { roiStatusToState } from "@/lib/painuoStatus";
 import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi";
 
@@ -13,6 +14,7 @@ import { centsText, presentRoi, STATUS_LABELS, type RoiReport } from "@/lib/roi"
 
 export default function AttributionPage() {
   const scope = useCrmScope();
+  const width = useShellWidth();
   const tenantId = scope.tenantId ?? "";
   const [raw, setRaw] = useState("");
   const [report, setReport] = useState<RoiReport | null>(null);
@@ -50,7 +52,8 @@ export default function AttributionPage() {
 
   return (
     // HUI-2622：页级 renderer scope（profile-scopes.json leads-web 合法组合）；provider 自带 pn-r-scope data 属性，样式子树自洽零外溢
-    <RendererProvider profile="leads-web" surface="work.light" theme="light">
+    // HUI-2626：密度与壳级同规——≤430 touch（48px 控件），桌面 default。
+    <RendererProvider profile="leads-web" surface="work.light" theme="light" density={rendererDensity(width)}>
     <main data-page="attribution">
       <header className="page-head">
         <h1>来源与费用复算</h1>
@@ -81,9 +84,9 @@ export default function AttributionPage() {
             />
           </label>
         </p>
-        <button className="primary" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
+        <Button variant="primary" size="sm" type="button" data-page-primary="true" disabled={!tenantId} onClick={() => void recalculate()}>
           {pagePrimary("attribution")}
-        </button>
+        </Button>
         {err ? <SurfaceState kind="error" title="没有复算出来" detail={productError(err)} /> : null}
       </div>
       <div className="card">

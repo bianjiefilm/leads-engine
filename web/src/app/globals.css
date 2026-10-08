@@ -562,3 +562,41 @@ button.primary,
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* HUI-2626（DECISIONS.md D2-1）：aliases.css 激活后补齐业务变量到 painuo token 的映射。
+   --accent/--bg/--fg/--line/--muted 由 aliases.css 提供；这里只补三个业务专用变量。
+   :root 的字面值保留为非 renderer 上下文（公开表单 /f /r）回退，非新增裸 hex。 */
+[data-pn-surface="work.light"] {
+  --surface: var(--pn-bg-surface);
+  --danger: var(--pn-status-danger-fg);
+  --warn: var(--pn-status-warning-fg);
+}
+
+/* HUI-2626：触控密度——390/430 窄屏下可点目标不小于 44px（token: control-height-touch）。 */
+@media (max-width: 430px) {
+  /* HUI-2626：触控目标 ≥44px（WCAG 2.5.8）。renderer 控件主路径走 density="touch"
+     （48px）；这里兜住壳内遗留的原生链接/下拉（工作台导航、返回操作、范围下拉）。 */
+  .queue-actions a,
+  .queue-actions button,
+  .pn-r-button {
+    min-height: 44px;
+  }
+
+  .desk-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .desk-context select {
+    min-height: 44px;
+  }
+}
+
+/* HUI-2626：sticky 顶栏（eco-top-nav .bar，56px，z-20）在 renderer scope
+   （isolation:isolate，z-auto）之外——portal 内的 fixed 视口 z 再高也会被它压住，
+   右抽屉的标题行和关闭按钮会被遮。vendored 契约不可改，给抽屉视口让出顶栏高度
+   （数值与 .bar height:56px 一致，改动时要同步）。 */
+.pn-r-drawer-viewport {
+  top: 56px;
+}

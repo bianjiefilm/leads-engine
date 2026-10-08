@@ -26,6 +26,7 @@ import {
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
 import { IntentOnOpportunity } from "@/components/IntentOnOpportunity";
@@ -277,13 +278,13 @@ export default function OpportunityDetailPage() {
           <h2>阶段操作</h2>
           {actions.map((a, index) => (
             index === 0 ? (
-              <button key={a.to} className="primary" type="button" data-page-primary="true" disabled={busy} onClick={() => transition(a.to)}>
+              <Button key={a.to} variant="primary" type="button" size="sm" data-page-primary="true" loading={busy} onClick={() => transition(a.to)}>
                 {a.label}
-              </button>
+              </Button>
             ) : (
-              <button key={a.to} className="btn" type="button" disabled={busy} onClick={() => transition(a.to)}>
+              <Button key={a.to} variant="secondary" type="button" size="sm" loading={busy} onClick={() => transition(a.to)}>
                 {a.label}
-              </button>
+              </Button>
             )
           ))}
           <p className="muted">每次转换都会写入审计历史;重复点击当前阶段为幂等操作,不产生新历史。</p>
@@ -312,13 +313,13 @@ export default function OpportunityDetailPage() {
               <label>
                 服务类别(如 video-editing)
                 <br />
-                <input value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} size={40} />
+                <Input label="服务类别(如 video-editing)" value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} />
               </label>
             </p>
             <p>
               <label>
                 预算(元,可留空=缺失)
-                <input value={budgetYuan} onChange={(e) => setBudgetYuan(e.target.value)} size={12} />
+                <Input label="预算(元,可留空=缺失)" value={budgetYuan} onChange={(e) => setBudgetYuan(e.target.value)} />
               </label>
               {"  "}
               <label>
@@ -329,20 +330,20 @@ export default function OpportunityDetailPage() {
             <p className="muted">品牌/素材资产:每一项都必须填写完整引用(含 sha256),缺 hash 的引用一律拒绝,系统绝不代填。</p>
             {assets.map((a, i) => (
               <p key={i}>
-                <input placeholder="资产引用" value={a.asset_ref} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, asset_ref: e.target.value } : x)))} size={24} />
+                <Input label="资产引用" value={a.asset_ref} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, asset_ref: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="sha256(64 位十六进制)" value={a.sha256} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, sha256: e.target.value } : x)))} size={66} />
+                <Input label="sha256(64 位十六进制)" value={a.sha256} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, sha256: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="字节数" value={a.size_bytes} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, size_bytes: e.target.value } : x)))} size={10} />
+                <Input label="字节数" value={a.size_bytes} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, size_bytes: e.target.value } : x)))} />
                 {" "}
-                <input placeholder="媒体类型" value={a.media_type} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, media_type: e.target.value } : x)))} size={14} />
-                {assets.length > 1 ? <button disabled={busy} onClick={() => setAssets(assets.filter((_, j) => j !== i))}>移除</button> : null}
+                <Input label="媒体类型" value={a.media_type} onChange={(e) => setAssets(assets.map((x, j) => (j === i ? { ...x, media_type: e.target.value } : x)))} />
+                {assets.length > 1 ? <Button variant="ghost" type="button" size="sm" loading={busy} onClick={() => setAssets(assets.filter((_, j) => j !== i))}>移除</Button> : null}
               </p>
             ))}
-            <button disabled={busy} onClick={() => setAssets([...assets, { ...emptyAsset }])}>添加资产行</button>
+            <Button variant="secondary" type="button" size="sm" loading={busy} onClick={() => setAssets([...assets, { ...emptyAsset }])}>添加资产行</Button>
           </div>
           <p>
-            <button disabled={busy} onClick={doPreview}>生成预览</button>
+            <Button variant="secondary" type="button" size="sm" loading={busy} onClick={doPreview}>生成预览</Button>
           </p>
           {preview ? (
             <div>
@@ -357,7 +358,7 @@ export default function OpportunityDetailPage() {
                 <li className="muted">接收方:{preview.receiver?.target_app};授权范围:{(preview.receiver?.scopes ?? []).join("、")}</li>
                 <li className="muted">{preview.note}</li>
               </ul>
-              <button disabled={busy} onClick={doConfirm}>确认创建草稿交接</button>
+              <Button variant="primary" type="button" size="sm" loading={busy} onClick={doConfirm}>确认创建草稿交接</Button>
             </div>
           ) : null}
           {draft ? (
@@ -367,12 +368,12 @@ export default function OpportunityDetailPage() {
               <p className="muted">
                 handoff_id:{draft.handoff_id};版本 v{draft.source_version};接单侧状态:{draft.target_status || "(未知)"}
               </p>
-              <p>
-                {draftActions?.canRefresh ? <button disabled={busy} onClick={() => doDraftAction("refresh")}>刷新接单侧状态</button> : null}
+              <p className="queue-actions">
+                {draftActions?.canRefresh ? <Button variant="secondary" type="button" size="sm" loading={busy} onClick={() => doDraftAction("refresh")}>刷新接单侧状态</Button> : null}
                 {" "}
-                {draftActions?.canRetry ? <button disabled={busy} onClick={() => doDraftAction("retry")}>重试投递</button> : null}
+                {draftActions?.canRetry ? <Button variant="secondary" type="button" size="sm" loading={busy} onClick={() => doDraftAction("retry")}>重试投递</Button> : null}
                 {" "}
-                {draftActions?.canRevoke ? <button disabled={busy} onClick={() => doDraftAction("revoke")}>撤销交接</button> : null}
+                {draftActions?.canRevoke ? <Button variant="danger" type="button" size="sm" loading={busy} onClick={() => doDraftAction("revoke")}>撤销交接</Button> : null}
               </p>
               {draftActions && !draftActions.canRevoke && draft.local_status !== "revoked" ? (
                 <p className="muted">{REVOKE_ACCEPTED_COPY}</p>
