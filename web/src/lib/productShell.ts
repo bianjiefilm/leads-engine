@@ -250,8 +250,20 @@ export function productError(raw: unknown, fallback = "这一步没有完成，�
   return text;
 }
 
-export function failureText(body: { message?: string; error?: string } | null | undefined, status?: number): string {
-  return productError(body?.message || body?.error || (status ? `HTTP ${status}` : ""));
+// HUI-2626 fix2（gate-r2 #2）：错误面不透传裸后端文案。
+// 只有中文产品语句（同族诚实语气）可以原样出现；机器串（英文错误、HTTP 码、
+// JSON 片段）按状态映射为产品语句。技术串仍走 productError 的兜底。
+export function failureText(body: unknown, status?: number): string {
+  const record = (typeof body === "object" && body !== null ? body : {}) as { message?: unknown; error?: unknown };
+  const raw = record.message || record.error || "";
+  const text = typeof raw === "string" ? raw.trim() : "";
+  const productVoice = text.length > 0 && text.length <= 280 && !TECHNICAL.test(text) && /[\u4e00-\u9fff]/.test(text);
+  if (productVoice) return text;
+  const notFound = status === 404 || /\bnot\s*found\b|\bdoes\s*not\s*exist\b/i.test(text);
+  if (notFound) return "这条记录不存在，或不在当前工作范围。";
+  if (status === 401 || status === 403) return "当前身份没有做这一步的权限。";
+  if (typeof status === "number" && status >= 500) return "服务暂时没有响应，请稍后再试。";
+  return productError(text);
 }
 
 export type FactTone = "ai" | "human" | "automation";

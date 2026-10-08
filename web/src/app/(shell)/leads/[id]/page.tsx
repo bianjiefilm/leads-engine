@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
-import { Button } from "@/vendor/painuo/react/v1/src/index";
+import { DateTimeField } from "@/components/workbench/dateTimeField";
+import { Button, Textarea } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
+import { postJson } from "@/lib/fetchJson";
 import {
   NARROW_ACTIONS,
   allowedContactText,
@@ -65,6 +67,7 @@ export default function LeadDeskPage() {
   const [nextAt, setNextAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     setBody(null);
@@ -95,7 +98,7 @@ export default function LeadDeskPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenant, id]);
+  }, [scope.epoch, scope.tenant, id, reload]);
 
   const width = useShellWidth();
   const visible = loadedFor === scope.tenant ? body : null;
@@ -110,19 +113,18 @@ export default function LeadDeskPage() {
     if (when) payload.next_follow_up_at = when;
     if (channelMode) payload.channel = "in_channel";
     try {
-      const res = await fetch(`/api/leads/${id}/follow-through`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...listTenantHeader(scope.tenant) },
-        body: JSON.stringify(payload),
-      });
-      const out = await res.json();
-      if (!res.ok) {
-        setMsg(failureText(out, res.status));
+      const out = await postJson<{ next?: { label?: string } }>(
+        `/api/leads/${id}/follow-through`,
+        { "content-type": "application/json", ...(listTenantHeader(scope.tenant) ?? {}) },
+        payload,
+      );
+      if (!out.ok) {
+        setMsg(failureText(out.body, out.status));
         return;
       }
       setNote("");
       setNextAt("");
-      setMsg(out.next?.label ?? "已记下");
+      setMsg(out.body.next?.label ?? "已记下");
       setLoadedFor("");
       const again = await fetch(`/api/leads/${id}/timeline`, { headers: listTenantHeader(scope.tenant) ?? {} });
       const nextBody = await again.json();
@@ -142,8 +144,30 @@ export default function LeadDeskPage() {
         <Link className="btn" href="/">返回工作台</Link>
       </header>
       {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
-      {err ? <SurfaceState kind="error" title="这条线索没有打开" detail={err} /> : null}
-      {scope.tenant && visible === null && !err ? <SurfaceState kind="loading" title="正在打开线索" detail="来源、负责人和下一步马上就位。" /> : null}
+      {err ? (
+        <div data-state="error">
+          <SurfaceState
+            kind="error"
+            title="这条线索没有打开"
+            detail={err}
+            action={
+              <>
+                <Button variant="secondary" type="button" size="sm" onClick={() => setReload((n) => n + 1)}>
+                  重试
+                </Button>
+                <Link className="btn" href="/leads">
+                  返回线索列表
+                </Link>
+              </>
+            }
+          />
+        </div>
+      ) : null}
+      {scope.tenant && visible === null && !err ? (
+        <div data-state="loading">
+          <SurfaceState kind="loading" title="正在打开线索" detail="来源、负责人和下一步马上就位。" />
+        </div>
+      ) : null}
       {visible ? (
         <>
           <RecordFrame
@@ -166,7 +190,11 @@ export default function LeadDeskPage() {
           </RecordFrame>
           <div className="card">
             <h2>时间线</h2>
-            {(visible.events ?? []).length === 0 ? <SurfaceState kind="empty" title="还没有记录" detail="记一次跟进后，时间线会出现在这里。" /> : null}
+            {(visible.events ?? []).length === 0 ? (
+              <div data-state="empty">
+                <SurfaceState kind="empty" title="还没有记录" detail="记一次跟进后，时间线会出现在这里。" />
+              </div>
+            ) : null}
             <ol className="desk-list">
               {(visible.events ?? []).map((event, index) => (
                 <li key={`${event.kind}-${event.at}-${index}`}>
@@ -181,28 +209,37 @@ export default function LeadDeskPage() {
           </div>
           {id ? <LightCopyPanel subjectKind="campaign" subjectId={id} /> : null}
           {id ? <CampaignMotionPanel campaignId={id} /> : null}
-          <form
-            className="card stack-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submit(false);
-            }}
-          >
+          <div className="card stack-form">
+            {/* HUI-2626 fix2：提交语义收敛到显式按钮（主行动至多一个），控件走 vendored/标准件。 */}
             <h2>跟进</h2>
-            <label>
-              记录
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="这次跟进了什么" />
-            </label>
-            <label>
-              下一次
-              <input type="datetime-local" value={nextAt} onChange={(e) => setNextAt(e.target.value)} />
-            </label>
+            <Textarea
+              label="记录"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="这次跟进了什么"
+            />
+            <DateTimeField label="下一次" value={nextAt} onChange={setNextAt} />
             <div className="queue-actions">
               <Link className="btn" href={`/leads/${id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
-              <Button variant="primary" type="submit" size="sm" data-page-primary="true" data-desk-action={NARROW_ACTIONS[1]} disabled={busy || !note.trim()}>
+              <Button
+                variant="primary"
+                type="button"
+                size="sm"
+                data-page-primary="true"
+                data-desk-action={NARROW_ACTIONS[1]}
+                disabled={busy || !note.trim()}
+                onClick={() => void submit(false)}
+              >
                 {pagePrimary("lead-detail")}
               </Button>
-              <Button variant="secondary" type="submit" size="sm" data-desk-action={NARROW_ACTIONS[2]} disabled={busy || !note.trim() || !nextAt}>
+              <Button
+                variant="secondary"
+                type="button"
+                size="sm"
+                data-desk-action={NARROW_ACTIONS[2]}
+                disabled={busy || !note.trim() || !nextAt}
+                onClick={() => void submit(false)}
+              >
                 {NARROW_ACTIONS[2]}
               </Button>
               {channel ? (
@@ -212,7 +249,7 @@ export default function LeadDeskPage() {
               ) : null}
             </div>
             {msg ? <p className="muted">{msg}</p> : null}
-          </form>
+          </div>
         </>
       ) : null}
     </main>

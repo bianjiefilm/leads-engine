@@ -26,9 +26,11 @@ import {
   type ServiceDraftPreview,
 } from "@/lib/serviceDraft";
 import { SurfaceState } from "@/components/workbench/chrome";
-import { Button, Input } from "@/vendor/painuo/react/v1/src/index";
+import { DateTimeField } from "@/components/workbench/dateTimeField";
+import { Button, Input, Textarea } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, failureText, productError } from "@/lib/productShell";
+import { MISSING_SCOPE, failureText, listTenantHeader, productError } from "@/lib/productShell";
+import { postJson } from "@/lib/fetchJson";
 import { IntentOnOpportunity } from "@/components/IntentOnOpportunity";
 import { LightCopyPanel } from "@/components/LightCopyPanel";
 
@@ -143,14 +145,10 @@ export default function OpportunityDetailPage() {
     setBusy(true);
     setMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/stage`, scopeInit(scope.tenant, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ to_stage: to }),
-      }));
-      const body = await res.json();
-      if (!res.ok) {
-        setMsg(failureText(body, res.status));
+      const out = await postJson(`/api/opportunities/${id}/stage`, { "content-type": "application/json", ...(listTenantHeader(scope.tenant) ?? {}) }, { to_stage: to });
+      const body = out.body;
+      if (!out.ok) {
+        setMsg(failureText(body, out.status));
       } else {
         setMsg(`已更新为「${STAGE_LABELS[to as keyof typeof STAGE_LABELS] ?? to}」`);
         await load();
@@ -184,19 +182,15 @@ export default function OpportunityDetailPage() {
 
   const draftCall = async (
     path: string,
-    init: { method: string; body?: string },
+    init: { method: string; payload?: unknown },
   ): Promise<Record<string, unknown> | null> => {
     setBusy(true);
     setDraftMsg("");
     try {
-      const res = await fetch(`/api/opportunities/${id}/service-draft${path}`, scopeInit(scope.tenant, {
-        method: init.method,
-        headers: { "content-type": "application/json" },
-        body: init.body,
-      }));
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setDraftMsg(failureText(body, res.status));
+      const out = await postJson(`/api/opportunities/${id}/service-draft${path}`, { "content-type": "application/json", ...(listTenantHeader(scope.tenant) ?? {}) }, init.payload);
+      const body = out.body;
+      if (!out.ok) {
+        setDraftMsg(failureText(body, out.status));
         return null;
       }
       return body as Record<string, unknown>;
@@ -210,12 +204,12 @@ export default function OpportunityDetailPage() {
 
   const doPreview = async () => {
     setPreview(null);
-    const body = await draftCall("-intent", { method: "POST", body: JSON.stringify(buildInput(false)) });
+    const body = await draftCall("-intent", { method: "POST", payload: buildInput(false) });
     if (body) setPreview(body.preview as ServiceDraftPreview);
   };
 
   const doConfirm = async () => {
-    const body = await draftCall("-intent", { method: "POST", body: JSON.stringify(buildInput(true)) });
+    const body = await draftCall("-intent", { method: "POST", payload: buildInput(true) });
     if (body) {
       setPreview(null);
       if (body.handoff) setDraft(body.handoff as ServiceDraftHandoff);
@@ -225,7 +219,7 @@ export default function OpportunityDetailPage() {
   };
 
   const doDraftAction = async (action: "refresh" | "retry" | "revoke") => {
-    const body = await draftCall(`/${action}`, { method: "POST", body: "{}" });
+    const body = await draftCall(`/${action}`, { method: "POST" });
     if (body?.handoff) {
       setDraft(body.handoff as ServiceDraftHandoff);
       if (typeof body.note === "string") setDraftMsg(body.note);
@@ -241,17 +235,28 @@ export default function OpportunityDetailPage() {
   }
   if (!opp && !msg) {
     return (
-      <main data-page="opportunity-detail">
+      <main data-page="opportunity-detail" data-state="loading">
         <SurfaceState kind="loading" title="正在打开商机" detail="阶段、金额和下一步马上就位。" />
       </main>
     );
   }
   if (!opp) {
     return (
-      <main data-page="opportunity-detail">
+      <main data-page="opportunity-detail" data-state="error">
         <h1>商机详情</h1>
-        <SurfaceState kind="error" title="打不开这条商机" detail={productError(msg) || "不可见或不存在。"} />
-        <Link className="btn" href="/opportunities">返回商机列表</Link>
+        <SurfaceState
+          kind="error"
+          title="打不开这条商机"
+          detail={productError(msg) || "这条商机不可见或不存在。"}
+          action={
+            <>
+              <Button variant="secondary" type="button" size="sm" onClick={() => void load()}>
+                重试
+              </Button>
+              <Link className="btn" href="/opportunities">返回商机列表</Link>
+            </>
+          }
+        />
       </main>
     );
   }
@@ -303,11 +308,12 @@ export default function OpportunityDetailPage() {
           </p>
           <div>
             <p>
-              <label>
-                需求摘要(必填)
-                <br />
-                <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} cols={60} />
-              </label>
+              <Textarea
+                label="需求摘要(必填)"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                rows={3}
+              />
             </p>
             <p>
               <label>
@@ -322,10 +328,7 @@ export default function OpportunityDetailPage() {
                 <Input label="预算(元,可留空=缺失)" value={budgetYuan} onChange={(e) => setBudgetYuan(e.target.value)} />
               </label>
               {"  "}
-              <label>
-                截止日期(可留空=缺失)
-                <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-              </label>
+              <DateTimeField label="截止日期(可留空=缺失)" type="date" value={deadline} onChange={setDeadline} />
             </p>
             <p className="muted">品牌/素材资产:每一项都必须填写完整引用(含 sha256),缺 hash 的引用一律拒绝,系统绝不代填。</p>
             {assets.map((a, i) => (
@@ -389,6 +392,11 @@ export default function OpportunityDetailPage() {
       {msg ? <p className="muted">{msg}</p> : null}
 
       <h2>阶段时间线</h2>
+      {history.length === 0 ? (
+        <div data-state="empty">
+          <SurfaceState kind="empty" title="还没有阶段记录" detail="推进一次阶段后，审计历史会出现在这里。" />
+        </div>
+      ) : null}
       <ol>
         {history.map((e) => (
           <li key={e.changed_at + e.to_stage}>

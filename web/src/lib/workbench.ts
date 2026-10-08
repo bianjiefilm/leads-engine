@@ -382,6 +382,23 @@ export function recallToday(
   return memory[tenant];
 }
 
+// HUI-2626 fix2（gate-r2 #2）：本地记忆的序列化收敛在 lib，页面不出现 JSON 序列化。
+const TODAY_MEMORY_KEY = "leads_today_memory";
+
+export function readTodayMemory(): TodayMemory {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(TODAY_MEMORY_KEY);
+    return raw ? (JSON.parse(raw) as TodayMemory) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function persistTodayMemory(memory: TodayMemory): void {
+  window.localStorage.setItem(TODAY_MEMORY_KEY, JSON.stringify(memory));
+}
+
 // todaySaveReady is false on the render that still holds the previous tenant's drafts.
 // appliedTenant stays null until that restore has been applied, so the other tenant is not overwritten.
 export function todaySaveReady(appliedTenant: string | null, tenant: string | null): boolean {

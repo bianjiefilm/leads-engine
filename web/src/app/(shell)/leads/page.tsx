@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { RecordList, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { DetailDrawer } from "@/components/workbench/detailDrawer";
-import { SegmentedControl } from "@/vendor/painuo/react/v1/src/index";
+import { Button, SegmentedControl } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { leadRowFacts } from "@/lib/finish";
 import { deskState, sourceText, type StatusFacts } from "@/lib/workbench";
@@ -72,6 +72,7 @@ export default function LeadsPage() {
   const [rows, setRows] = useState<Array<LeadRow & { name: string; source: string }> | null>(null);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [reload, setReload] = useState(0);
   const gen = useRef({ seq: 0, tenant: "" });
 
   // 详情抽屉（真实 timeline + 票号：切范围/迟到响应一律丢弃）。
@@ -138,7 +139,7 @@ export default function LeadsPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope.epoch, scope.tenant]);
+  }, [scope.epoch, scope.tenant, reload]);
 
   const openDrawer = (id: string) => {
     const tenant = scope.tenant ?? "";
@@ -187,10 +188,29 @@ export default function LeadsPage() {
       </header>
       <p className="muted">来源、负责人和待分配原因以记录为准。这里不创建线索，也不发起触达。</p>
       {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
-      {error ? <SurfaceState kind="error" title="线索没有载入" detail={error} /> : null}
-      {rows === null && !error ? <SurfaceState kind="loading" title="正在读取线索" detail="姓名、来源和负责人马上就位。" /> : null}
+      {error ? (
+        <div data-state="error">
+          <SurfaceState
+            kind="error"
+            title="线索没有载入"
+            detail={error}
+            action={
+              <Button variant="secondary" type="button" size="sm" onClick={() => setReload((n) => n + 1)}>
+                重试
+              </Button>
+            }
+          />
+        </div>
+      ) : null}
+      {rows === null && !error ? (
+        <div data-state="loading">
+          <SurfaceState kind="loading" title="正在读取线索" detail="姓名、来源和负责人马上就位。" />
+        </div>
+      ) : null}
       {rows !== null && rows.length === 0 && !error ? (
-        <SurfaceState kind="empty" title="还没有线索" detail="这个工作范围里还没有可跟进的线索。" />
+        <div data-state="empty">
+          <SurfaceState kind="empty" title="还没有线索" detail="这个工作范围里还没有可跟进的线索。" />
+        </div>
       ) : null}
       {rows !== null && rows.length > 0 ? (
         <>
@@ -206,7 +226,9 @@ export default function LeadsPage() {
             </p>
           </div>
           {visibleRows.length === 0 ? (
-            <SurfaceState kind="empty" title="这个状态没有线索" detail="换一个状态筛选再看。" />
+            <div data-state="empty">
+              <SurfaceState kind="empty" title="这个状态没有线索" detail="换一个状态筛选再看。" />
+            </div>
           ) : (
             <RecordList
               width={width}
@@ -254,7 +276,7 @@ export default function LeadsPage() {
                 <strong>{drawerBody.next?.label || "还没有安排"}</strong>
               </li>
             </ul>
-            <h3>最近动态</h3>
+            <h2>最近动态</h2>
             {(drawerBody.events ?? []).length === 0 ? (
               <p className="muted">还没有记录。跟进步骤在完整线索页进行。</p>
             ) : (

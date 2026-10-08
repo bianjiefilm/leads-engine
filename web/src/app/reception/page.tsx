@@ -108,9 +108,30 @@ export default function ReceptionDeskPage() {
       </p>
       <p data-tone="ai">模型不可用时，人工仍可在会话里继续回复。这里不会自动外呼。</p>
       {!scope.tenant ? <SurfaceState kind="recovery" title="还没有工作范围" detail={MISSING_SCOPE} /> : null}
-      {error ? <SurfaceState kind="error" title="接待没有载入" detail={error} /> : null}
-      {scope.tenant && items === null && !error ? <SurfaceState kind="loading" title="正在读取接待" detail="进行中的会话马上就位。" /> : null}
-      {items && items.length === 0 && !error ? <SurfaceState kind="empty" title="没有进行中的接待" detail="新的咨询进来后会出现在这里。" /> : null}
+      {error ? (
+        <div data-state="error">
+          <SurfaceState
+            kind="error"
+            title="接待没有载入"
+            detail={error}
+            action={
+              <Button variant="secondary" type="button" size="sm" onClick={() => setReload((n) => n + 1)}>
+                重试
+              </Button>
+            }
+          />
+        </div>
+      ) : null}
+      {scope.tenant && items === null && !error ? (
+        <div data-state="loading">
+          <SurfaceState kind="loading" title="正在读取接待" detail="进行中的会话马上就位。" />
+        </div>
+      ) : null}
+      {items && items.length === 0 && !error ? (
+        <div data-state="empty">
+          <SurfaceState kind="empty" title="没有进行中的接待" detail="新的咨询进来后会出现在这里。" />
+        </div>
+      ) : null}
       <div className="record-list">
         {(items ?? []).map((item, index) => {
           const open = () => {
