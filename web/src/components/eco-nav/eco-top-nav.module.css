@@ -105,3 +105,12 @@
   left: 0;
   right: auto;
 }
+
+/* HUI-2626：≤430 触控目标——顶部导航的应用/租户切换控件 ≥44px（WCAG 2.5.8）。 */
+@media (max-width: 430px) {
+  .link,
+  .button,
+  .quiet {
+    height: 44px;
+  }
+}

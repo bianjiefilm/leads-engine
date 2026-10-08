@@ -41,3 +41,10 @@
 - 保存失败保留输入：Today 草稿/lead 跟进/contacts 表单已有（失败不清空）；抽屉内新表单同样处理。
 - 导出：contacts owner 导出与 isolation 服务端任务导出走服务端授权，保留。
 - 待本机真实走查验证：provision tenant+member → 登录 → 代表页读写 → A/B 切换隔离 → 导出。
+
+## D2 拍板记录（证据阶段补遗，2026-10-08）
+
+- **D2-13 触控密度走 vendored 原生机制**：`rendererDensity(width)`（productShell.ts）——≤430 时 RendererProvider `density="touch"`（`--pn-control-height-touch: 48px`，按钮/输入/分段/布尔/下拉全部生效），桌面 default。壳级（CrmShell）与 attribution 页级试点 provider 同规。globals.css 里 ≤430 的 `.pn-r-button{min-height:44px}` 降级为兜底。
+- **D2-14 抽屉视口让位顶栏 + globals 层级**：eco-top-nav `.bar`（sticky，56px，z-20）在 renderer scope（`isolation:isolate`，z-auto）之外，portal 内 fixed 视口 z 再高也被压住——右抽屉标题行/关闭按钮被遮。vendored 契约不可改，globals.css 给 `.pn-r-drawer-viewport{top:56px}` 让位；为此把 `globals.css` 的 import 移到 vendored styles.css 之后（tokens→aliases→styles 锚点合同不变，R3 测试仍过），应用层等特异度覆盖从此生效。
+- **D2-15 列表迟到响应票号补齐**：contacts/opportunities 列表 `load` 原无票号——hydrate 前的空头请求 400 会晚于新一轮清空动作落地，把服务端原文（"header X-Tenant-ID selects the workspace tenant"）顶回错误卡。照 leads/drawer 既有模式补 `gen` 票号 + 无租户时不发请求（fail-closed 本地置空）；contacts `create` 同样加票号守卫。
+- **D2-16 抽屉关闭按钮单一化**：vendored Drawer 标题行自带 Close（busy 时禁用），DetailDrawer children 头部的自定义 IconButton 是重复控件，移除。

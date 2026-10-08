@@ -235,6 +235,13 @@ export function shellStructure(width: number): ShellStructure {
   return { density: "regular", navigation: "bar", records: "cards", factLayout: "columns", columns: 2, primaryCount: 1 };
 }
 
+// HUI-2626：390/430 触控密度走 vendored 原生机制——RendererProvider density="touch"
+// 把 --pn-r-height 换成 --pn-control-height-touch（48px），按钮/输入/分段/选择全部生效。
+// 桌面维持 default。取值必须是 renderer 合法枚举（compact/default/touch 中的 touch/default）。
+export function rendererDensity(width: number): "touch" | "default" {
+  return width <= 430 ? "touch" : "default";
+}
+
 const TECHNICAL = /HTTP\s*\d*|^\s*[\[{]|ECONN|fetch failed|Unexpected token|SyntaxError|TypeError|Failed to fetch|NetworkError|status code|\bundefined\b/i;
 
 export function productError(raw: unknown, fallback = "这一步没有完成，请稍后重试。"): string {

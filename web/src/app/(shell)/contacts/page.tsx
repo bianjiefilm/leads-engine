@@ -88,13 +88,23 @@ export default function ContactsPage() {
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerErr, setDrawerErr] = useState("");
   const drawerGen = useRef({ seq: 0, tenantId: "" });
+  // 列表票号：hydrate 前的空头请求、切范围后的迟到响应，一律不允许覆盖新状态。
+  const listGen = useRef({ seq: 0, tenantId: "" });
 
   const load = useCallback(async (q: string) => {
+    const tenantID = scope.tenantId ?? "";
+    const ticket = { seq: listGen.current.seq + 1, tenantId: tenantID };
+    listGen.current = ticket;
     setError("");
+    if (!tenantID) {
+      setItems([]);
+      return;
+    }
     setItems(null);
     try {
-      const res = await fetch(`/api/contacts${q}`, scopeInit(scope.tenantId));
+      const res = await fetch(`/api/contacts${q}`, scopeInit(tenantID));
       const body = await res.json();
+      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       if (!res.ok) {
         setError(failureText(body, res.status));
         setItems([]);
@@ -102,7 +112,9 @@ export default function ContactsPage() {
       }
       setItems(body.items ?? []);
     } catch (e) {
+      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       setError(productError((e as Error).message));
+      setItems([]);
     }
   }, [scope.tenantId]);
 
@@ -132,15 +144,18 @@ export default function ContactsPage() {
   };
 
   const create = async () => {
+    const tenantID = scope.tenantId ?? "";
+    const ticket = listGen.current;
     setCreating(true);
     setError("");
     try {
-      const res = await fetch("/api/contacts", scopeInit(scope.tenantId, {
+      const res = await fetch("/api/contacts", scopeInit(tenantID, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(form),
       }));
       const body = await res.json();
+      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       if (!res.ok) {
         setError(failureText(body, res.status));
         return;
@@ -148,6 +163,7 @@ export default function ContactsPage() {
       setForm({ ...EMPTY_FORM });
       await load("");
     } catch (e) {
+      if (listGen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       setError(productError((e as Error).message));
     } finally {
       setCreating(false);

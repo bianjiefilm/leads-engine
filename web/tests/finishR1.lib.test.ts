@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { consentText, drawerSide, LEAD_SOURCE_TEXT, LEAD_STATUS_TEXT } from "@/lib/finish";
+import { rendererDensity } from "@/lib/productShell";
 
 // HUI-2626 finish-r1：列表/抽屉共用的同义层与抽屉朝向（DECISIONS.md D2-6/D2-3）。
 
@@ -32,5 +33,17 @@ describe("lead vocabulary", () => {
     expect(LEAD_STATUS_TEXT.in_progress).toBe("跟进中");
     expect(LEAD_SOURCE_TEXT.manual).toBe("手工录入");
     expect(LEAD_SOURCE_TEXT.touch_campaign).toBe("碰一碰");
+  });
+});
+
+describe("rendererDensity", () => {
+  // HUI-2626：390/430 触控密度走 vendored 原生机制（RendererProvider density="touch"
+  // → --pn-control-height-touch: 48px，全部控件生效），不是页面自拼 min-height。
+  it("uses touch density on phone widths and default elsewhere", () => {
+    expect(rendererDensity(390)).toBe("touch");
+    expect(rendererDensity(430)).toBe("touch");
+    expect(rendererDensity(431)).toBe("default");
+    expect(rendererDensity(1024)).toBe("default");
+    expect(rendererDensity(1920)).toBe("default");
   });
 });

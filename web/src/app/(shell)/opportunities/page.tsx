@@ -57,16 +57,28 @@ export default function OpportunitiesPage() {
   const [drawerErr, setDrawerErr] = useState("");
   const drawerGen = useRef({ seq: 0, tenantId: "" });
 
+  // 列表票号：hydrate 前的空头请求、切范围后的迟到响应，一律不允许覆盖新状态。
+  const gen = useRef({ seq: 0, tenantId: "" });
+
   const load = useCallback(async (cat: BusinessCategory) => {
+    const tenantID = scope.tenantId ?? "";
+    const ticket = { seq: gen.current.seq + 1, tenantId: tenantID };
+    gen.current = ticket;
     setError("");
+    if (!tenantID) {
+      setItems([]);
+      setStats(null);
+      return;
+    }
     setItems(null);
     setStats(null);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/opportunities?category=${cat}`, scopeInit(scope.tenantId)),
-        fetch(`/api/opportunities/stats?category=${cat}`, scopeInit(scope.tenantId)),
+        fetch(`/api/opportunities?category=${cat}`, scopeInit(tenantID)),
+        fetch(`/api/opportunities/stats?category=${cat}`, scopeInit(tenantID)),
       ]);
       const listBody = await listRes.json();
+      if (gen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       if (!listRes.ok) {
         setError(failureText(listBody, listRes.status));
         return;
@@ -74,6 +86,7 @@ export default function OpportunitiesPage() {
       setItems(listBody.items ?? []);
       if (statsRes.ok) setStats(await statsRes.json());
     } catch (e) {
+      if (gen.current !== ticket || scope.tenantId !== ticket.tenantId) return;
       setError(productError((e as Error).message));
     }
   }, [scope.tenantId]);

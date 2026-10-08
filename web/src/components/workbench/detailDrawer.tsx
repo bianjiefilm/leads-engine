@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
-import { Drawer, IconButton } from "@/vendor/painuo/react/v1/src/index";
+import { Drawer } from "@/vendor/painuo/react/v1/src/index";
 import { drawerSide } from "@/lib/finish";
 
 // HUI-2626 finish-r1（DECISIONS.md D2-3）：列表页详情抽屉。
 // 桌面右侧 / 窄屏底部；打开时焦点进抽屉，关闭后焦点返回触发行（finalFocus）。
-// vendored Drawer 只收白名单 props，关闭按钮放 children 头部；无 provider 时由
-// vendored 内部契约抛错（与 Status 等原语一致）。
+// vendored Drawer 标题行自带关闭按钮（busy 时禁用），children 不再重复放关闭；
+// 无 provider 时由 vendored 内部契约抛错（与 Status 等原语一致）。
 
 export function DetailDrawer({
   open,
@@ -52,9 +51,6 @@ export function DetailDrawer({
       side={drawerSide(width)}
       finalFocus={finalFocus}
     >
-      <div data-detail-drawer="head">
-        <IconButton label="关闭详情" icon={X} onClick={() => onClose()} />
-      </div>
       <div data-detail-drawer="body">{children}</div>
       {footer ? <div data-detail-drawer="footer">{footer}</div> : null}
     </Drawer>

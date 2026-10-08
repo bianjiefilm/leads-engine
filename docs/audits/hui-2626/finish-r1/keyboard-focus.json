@@ -1,0 +1,19 @@
+{
+  "tabsToRowButton": 26,
+  "focusedBeforeEnter": {
+    "text": "查看详情",
+    "tag": "BUTTON",
+    "cls": "pn-r-button pn-r-secondary pn-r-size-sm"
+  },
+  "drawerState": {
+    "drawerPresent": true,
+    "focusInDrawer": true,
+    "focusText": "王客户甲类别商家经营销售来源手工录入授权",
+    "focusTag": "DIV"
+  },
+  "afterClose": {
+    "drawerGone": true,
+    "focusText": "查看详情",
+    "focusTag": "BUTTON"
+  }
+}
