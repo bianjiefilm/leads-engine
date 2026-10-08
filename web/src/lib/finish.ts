@@ -87,3 +87,26 @@ function parseLocalTagList(tags: string | null | undefined): string[] {
     .map((t) => t.trim())
     .filter(Boolean);
 }
+
+export interface LeadListRow {
+  id: string;
+  status: string;
+  /** 原始来源枚举（manual/form/touch_campaign），优先使用。 */
+  source_type?: string;
+  /** 已映射的来源文案（列表合并联系人后可能只有它）。 */
+  source?: string;
+  assigned_member_id?: string;
+}
+
+// 线索行 facts（列表与抽屉共用）：来源/状态/负责人，同义层口径。
+// 未分配的线索明确写「待分配」，不把空负责人伪装成已分派。
+export function leadRowFacts(row: LeadListRow): { label: string; value: string }[] {
+  return [
+    { label: "来源", value: leadSourceText(row.source_type ?? row.source) },
+    { label: "状态", value: leadStatusText(row.status) },
+    {
+      label: "负责人",
+      value: row.assigned_member_id ? row.assigned_member_id : "待分配（接收时没有指定负责人）",
+    },
+  ];
+}
