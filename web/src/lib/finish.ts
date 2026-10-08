@@ -44,3 +44,46 @@ export function leadSourceText(source: string | null | undefined): string {
 export function drawerSide(width: number): "right" | "bottom" {
   return width >= 760 ? "right" : "bottom";
 }
+
+export const CONTACT_CATEGORY_TEXT: Record<string, string> = {
+  merchant_customer: "商家经营销售",
+  creative_service: "创意服务",
+};
+
+export const CONTACT_SOURCE_TEXT: Record<string, string> = {
+  manual: "手工录入",
+  form: "自有表单",
+  touch_campaign: "碰一碰",
+};
+
+export interface ContactListRow {
+  id: string;
+  name: string;
+  business_category: string;
+  source_type: string;
+  consent_status: string;
+  tags: string;
+  assigned_member_id?: string;
+}
+
+// 客户档案行 facts（列表与抽屉共用）：类别/来源/授权/标签/负责人，同义层口径。
+export function contactRowFacts(row: ContactListRow): { label: string; value: string }[] {
+  const tags = parseLocalTagList(row.tags);
+  return [
+    { label: "类别", value: CONTACT_CATEGORY_TEXT[row.business_category] ?? row.business_category },
+    { label: "来源", value: CONTACT_SOURCE_TEXT[row.source_type] ?? row.source_type },
+    { label: "授权", value: consentText(row.consent_status) },
+    { label: "标签", value: tags.length > 0 ? tags.join("/") : "无标签" },
+    {
+      label: "负责人",
+      value: row.assigned_member_id ? row.assigned_member_id : "待分配（还没有指定负责人）",
+    },
+  ];
+}
+
+function parseLocalTagList(tags: string | null | undefined): string[] {
+  return (tags ?? "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
