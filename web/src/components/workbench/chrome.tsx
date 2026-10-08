@@ -93,7 +93,8 @@ export function RecordFrame({
     <article className="record-frame" data-record={structure.records} data-density={structure.density} data-columns={structure.columns} data-tone={tone}>
       <header className="record-head">
         <ToneBadge tone={tone} />
-        <h3>{title}</h3>
+        {/* HUI-2626 fix2（gate-r2 #4 heading-order）：记录标题用 h2，页面 h1 之后不再跳级。 */}
+        <h2>{title}</h2>
         {primary ? <div data-page-primary="true">{primary}</div> : null}
         {secondary ? <div data-page-primary="false">{secondary}</div> : null}
       </header>
@@ -197,7 +198,8 @@ export function WorkbenchChrome({
   const active = chooseScope(scopes, activeId ?? "");
   return (
     <div className="desk-frame" data-shell-density={structure.density} data-shell-nav={structure.navigation}>
-      <div className="desk-context" id="work-context" data-work-context="tenant">
+      {/* HUI-2626 fix2（gate-r2 #4 region）：工作范围条补地标，页面内容全部落入 landmark。 */}
+      <div className="desk-context" id="work-context" data-work-context="tenant" role="region" aria-label="工作范围">
         <span>工作范围</span>
         <strong>{active?.display_name ?? "未选择"}</strong>
         <select
