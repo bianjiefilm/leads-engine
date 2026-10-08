@@ -2,4 +2,4 @@
 
 本文件引用一个刻意不存在的证据文件：
 
-- 证据: docs/audits/nonexistent-evidence.bin
+- 证据: docs/audits/nonexistent-evidence-20261009.png
