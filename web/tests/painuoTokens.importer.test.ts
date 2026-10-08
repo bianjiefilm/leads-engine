@@ -29,13 +29,21 @@ describe("painuo tokens importer contract (HUI-2621 T-face)", () => {
     expect(layout).toContain("../vendor/painuo/react/v1/src/styles.css");
   });
 
-  it("R2: alias bridge stays dormant — aliases.css/scss are on disk but imported nowhere", () => {
-    // 休眠守卫：落盘不 import。激活属 2626 决策（contrast 角色迁移前置）。
+  it("R3 (HUI-2626): alias bridge activated — aliases.css imported exactly by the root layout, nowhere else", () => {
+    // HUI-2626 决策（DECISIONS.md D2-1）：激活别名桥，合同仍是「只 layout.tsx 引生成物」。
     const offenders: string[] = [];
+    let layoutHits = 0;
     for (const path of walkSources(join(WEB, "src"))) {
       const text = readFileSync(path, "utf8");
-      if (/styles\/generated\/painuo\/v1\/aliases\.(css|scss)/.test(text)) offenders.push(path);
+      if (!/styles\/generated\/painuo\/v1\/aliases\.(css|scss)/.test(text)) continue;
+      if (path === LAYOUT) {
+        layoutHits += 1;
+        continue;
+      }
+      offenders.push(path);
     }
     expect(offenders).toEqual([]);
+    expect(layoutHits).toBe(1);
+    expect(readFileSync(LAYOUT, "utf8")).toContain("../styles/generated/painuo/v1/aliases.css");
   });
 });

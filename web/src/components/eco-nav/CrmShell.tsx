@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import React, { useEffect, useState, type ReactNode } from "react";
 import { EcoTopNav } from "@/components/eco-nav/EcoTopNav";
 import { ShellWidthProvider, SurfaceState, WorkbenchChrome, useShellWidth } from "@/components/workbench/chrome";
 import { CRM_TENANT_STORAGE_KEY } from "@/lib/eco-nav/crm-scope";
@@ -8,6 +8,7 @@ import type { EcoNavModel } from "@/lib/eco-nav/model";
 import { shouldMountEcoTopNav } from "@/lib/eco-nav/mount";
 import { commitCrmTenant, hydrateCrmTenantFromStorage, releaseCrmTenant, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { guardTenantCommit, runShellWhoami, scopeChoices, type WorkScope } from "@/lib/productShell";
+import { RendererProvider } from "@/vendor/painuo/react/v1/src/index";
 
 function DeskFrame({
   scopes,
@@ -19,17 +20,22 @@ function DeskFrame({
   const width = useShellWidth();
   const scope = useCrmScope();
   return (
-    <WorkbenchChrome
-      width={width}
-      scopes={scopes}
-      activeId={scope.tenantId}
-      onSwitch={(tenantId) => {
-        const chosen = guardTenantCommit(scopes, tenantId);
-        if (chosen) commitCrmTenant(chosen);
-      }}
-    >
-      {children}
-    </WorkbenchChrome>
+    // HUI-2626（DECISIONS.md D2-2）：壳级 renderer scope——工作台子树统一消费
+    // painuo token（profile-scopes.json leads-web/work.light/light 合法组合），
+    // 并为 Drawer/Dialog 等原语提供 portal root。attribution 页级试点 provider 保留不动。
+    <RendererProvider profile="leads-web" surface="work.light" theme="light">
+      <WorkbenchChrome
+        width={width}
+        scopes={scopes}
+        activeId={scope.tenantId}
+        onSwitch={(tenantId) => {
+          const chosen = guardTenantCommit(scopes, tenantId);
+          if (chosen) commitCrmTenant(chosen);
+        }}
+      >
+        {children}
+      </WorkbenchChrome>
+    </RendererProvider>
   );
 }
 
