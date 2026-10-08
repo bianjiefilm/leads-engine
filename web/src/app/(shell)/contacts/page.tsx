@@ -266,12 +266,13 @@ export default function ContactsPage() {
             <Button
               variant="primary"
               type="button"
+              data-page-primary="true"
               loading={creating}
               disabled={!form.name.trim()}
               disabledReason="填了姓名才能建档"
               onClick={() => void create()}
             >
-              <span data-page-primary="true" data-pn-primary-label>{pagePrimary("contacts")}</span>
+              {pagePrimary("contacts")}
             </Button>
           </div>
         </div>

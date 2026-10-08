@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, ToneBadge, useShellWidth } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, factTone, failureText, listTenantHeader, pagePrimary, productError } from "@/lib/productShell";
 import {
@@ -363,28 +364,30 @@ function TodayRow({
   ];
   const followDisabled = !draft.note.trim();
   const primaryFollow = (
-    <button
-      className="primary"
+    <Button
+      variant="primary"
       type="button"
+      size="sm"
       data-page-primary="true"
       data-desk-action={NARROW_ACTIONS[1]}
       disabled={followDisabled}
       onClick={() => onFollow("note")}
     >
       {pagePrimary("today")}
-    </button>
+    </Button>
   );
   const secondaryFollow = (
-    <button
-      className="btn"
+    <Button
+      variant="secondary"
       type="button"
+      size="sm"
       data-page-primary="false"
       data-desk-action={NARROW_ACTIONS[1]}
       disabled={followDisabled}
       onClick={() => onFollow("note")}
     >
       {pagePrimary("today")}
-    </button>
+    </Button>
   );
   return (
     <li id={`today-item-${item.id}`}>
@@ -400,9 +403,9 @@ function TodayRow({
           {item.lead_id ? <Link className="btn" href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link> : null}
           {item.opportunity_id ? <Link className="btn" href={`/opportunities/${item.opportunity_id}`}>打开商机</Link> : null}
           {service.present ? (
-            <button type="button" className="btn" disabled={!service.enabled} onClick={onService}>
+            <Button variant="secondary" type="button" size="sm" disabled={!service.enabled} onClick={onService}>
               创建服务需求草稿
-            </button>
+            </Button>
           ) : null}
         </div>
         {service.present && !service.enabled ? <p className="muted">{service.reason}</p> : null}
@@ -439,9 +442,9 @@ function TodayRow({
             </label>
             <div className="queue-actions">
               {primaryRow ? null : secondaryFollow}
-              <button className="btn" type="button" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
+              <Button variant="secondary" type="button" size="sm" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
                 {NARROW_ACTIONS[2]}
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -458,8 +461,8 @@ function TodayRow({
               <textarea value={reviseBody(draft.draftBody, item.draft_body)} onChange={(e) => onDraft({ draftBody: e.target.value })} placeholder="改成要保留的措辞" />
             </label>
             <div className="queue-actions">
-              <button className="btn" type="submit">保存修改</button>
-              <button className="btn" type="button" onClick={onIgnore}>忽略</button>
+              <Button variant="secondary" type="submit" size="sm">保存修改</Button>
+              <Button variant="ghost" type="button" size="sm" onClick={onIgnore}>忽略</Button>
             </div>
           </form>
         ) : null}

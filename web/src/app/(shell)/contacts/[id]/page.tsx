@@ -14,6 +14,7 @@ import {
   type FollowupRow,
 } from "@/lib/contact";
 import { SurfaceState } from "@/components/workbench/chrome";
+import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { scopeInit, useCrmScope } from "@/lib/eco-nav/use-crm-scope";
 import { MISSING_SCOPE, failureText, pagePrimary, productError } from "@/lib/productShell";
 
@@ -234,11 +235,11 @@ export default function ContactDetailPage() {
             <input value={edit.tags} onChange={(e) => setEdit({ ...edit, tags: e.target.value })} placeholder="标签(逗号分隔)" />
           </div>
           <textarea value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="备注" />
-          <div>
-            <button className="primary" type="button" data-page-primary="true" disabled={busy} onClick={patchProfile}>{pagePrimary("contact-detail")}</button>{" "}
-            <button disabled={busy} onClick={() => post("/revoke-marketing", { reason: "商家在档案页停止营销" })}>
+          <div className="queue-actions">
+            <Button variant="primary" type="button" size="sm" data-page-primary="true" loading={busy} onClick={patchProfile}>{pagePrimary("contact-detail")}</Button>
+            <Button variant="danger" type="button" size="sm" loading={busy} onClick={() => post("/revoke-marketing", { reason: "商家在档案页停止营销" })}>
               停止营销(撤销全部来源授权)
-            </button>
+            </Button>
           </div>
           <p className="muted">停止营销对全部来源生效且不可恢复:此后重放任何历史授权事件都不会恢复营销许可。</p>
         </div>
@@ -260,9 +261,9 @@ export default function ContactDetailPage() {
               {allowed && !c.revoked_at ? (
                 <>
                   {" "}
-                  <button disabled={busy} onClick={() => post(`/consents/${c.id}/revoke`, { reason: "档案页撤销该来源授权" })}>
+                  <Button variant="secondary" type="button" size="sm" loading={busy} onClick={() => post(`/consents/${c.id}/revoke`, { reason: "档案页撤销该来源授权" })}>
                     撤销此来源
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </li>
@@ -286,10 +287,17 @@ export default function ContactDetailPage() {
         {allowed ? (
           <div>
             <textarea value={followupNote} onChange={(e) => setFollowupNote(e.target.value)} placeholder="追加跟进(只追加,不可修改;全文不入日志)" />
-            <div>
-              <button disabled={busy || !followupNote.trim()} onClick={async () => { await post("/followups", { note: followupNote }); setFollowupNote(""); }}>
+            <div className="queue-actions">
+              <Button
+                variant="secondary"
+                type="button"
+                size="sm"
+                loading={busy}
+                disabled={!followupNote.trim()}
+                onClick={async () => { await post("/followups", { note: followupNote }); setFollowupNote(""); }}
+              >
                 追加跟进
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -302,7 +310,7 @@ export default function ContactDetailPage() {
             软删除:档案脱敏占位并对所有角色不可见;授权与跟进记录依法保留最小审计。
             与「停止营销」相互独立:删除不复权,停止营销不删档。
           </p>
-          <button disabled={busy} onClick={removeProfile}>删除该档案</button>
+          <Button variant="danger" type="button" size="sm" loading={busy} onClick={removeProfile}>删除该档案</Button>
         </div>
       ) : null}
 
