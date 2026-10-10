@@ -29,6 +29,8 @@ type NotifyInbox struct {
 	MapTargetTenantID string
 	MapVersion        int
 	MapBasis          string
+	TraceID           string
+	PayloadJSON       string
 }
 
 // ErrAmbiguousNotify means stored rows for one source identity name more than one target.
@@ -62,7 +64,8 @@ func scanInbox(sc interface{ Scan(...any) error }) (NotifyInbox, error) {
 	err := sc.Scan(&n.ID, &n.TenantID, &n.SourceApp, &n.EventType, &n.SourceRef, &n.SourceVersion,
 		&n.ProfileEventID, &n.NotifyEventID, &n.DeliveryID, &n.BodySHA256, &lead, &contact,
 		&n.ReceiptJSON, &n.OccurredAt, &n.CreatedAt, &n.UpdatedAt,
-		&n.SourceNS, &n.SourceTenantID, &n.MapTargetTenantID, &n.MapVersion, &n.MapBasis)
+		&n.SourceNS, &n.SourceTenantID, &n.MapTargetTenantID, &n.MapVersion, &n.MapBasis,
+		&n.TraceID, &n.PayloadJSON)
 	if err != nil {
 		return NotifyInbox{}, err
 	}
@@ -70,7 +73,7 @@ func scanInbox(sc interface{ Scan(...any) error }) (NotifyInbox, error) {
 	return n, nil
 }
 
-const inboxCols = `id,tenant_id,source_app,event_type,source_ref,source_version,profile_event_id,notify_event_id,delivery_id,body_sha256,lead_id,contact_id,receipt_json,occurred_at,created_at,updated_at,source_ns,source_tenant_id,map_target_tenant_id,map_version,map_basis`
+const inboxCols = `id,tenant_id,source_app,event_type,source_ref,source_version,profile_event_id,notify_event_id,delivery_id,body_sha256,lead_id,contact_id,receipt_json,occurred_at,created_at,updated_at,source_ns,source_tenant_id,map_target_tenant_id,map_version,map_basis,trace_id,payload_json`
 
 func (s *Store) GetNotifyInboxByEvent(tenantID, sourceApp, eventID string) (NotifyInbox, error) {
 	row := s.DB.QueryRow(`SELECT `+inboxCols+` FROM notify_inbox WHERE tenant_id=? AND source_app=? AND profile_event_id=?`,
@@ -104,20 +107,22 @@ func InsertNotifyInboxTx(tx *sql.Tx, n NotifyInbox) error {
 		n.CreatedAt = now()
 	}
 	n.UpdatedAt = n.CreatedAt
-	_, err := tx.Exec(`INSERT INTO notify_inbox(`+inboxCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := tx.Exec(`INSERT INTO notify_inbox(`+inboxCols+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		n.ID, n.TenantID, n.SourceApp, n.EventType, n.SourceRef, n.SourceVersion, n.ProfileEventID,
 		n.NotifyEventID, n.DeliveryID, n.BodySHA256, nullable(n.LeadID), nullable(n.ContactID),
 		n.ReceiptJSON, n.OccurredAt, n.CreatedAt, n.UpdatedAt,
-		n.SourceNS, n.SourceTenantID, n.MapTargetTenantID, n.MapVersion, n.MapBasis)
+		n.SourceNS, n.SourceTenantID, n.MapTargetTenantID, n.MapVersion, n.MapBasis,
+		n.TraceID, n.PayloadJSON)
 	return err
 }
 
 // UpdateNotifyInboxFactTx advances the one fact row to a higher source_version.
 // The fact key stays; the winning event id and receipt replace the older ones.
 func UpdateNotifyInboxFactTx(tx *sql.Tx, id string, n NotifyInbox) error {
-	_, err := tx.Exec(`UPDATE notify_inbox SET source_version=?, profile_event_id=?, notify_event_id=?, delivery_id=?, body_sha256=?, lead_id=?, contact_id=?, receipt_json=?, occurred_at=?, updated_at=? WHERE id=?`,
+	_, err := tx.Exec(`UPDATE notify_inbox SET source_version=?, profile_event_id=?, notify_event_id=?, delivery_id=?, body_sha256=?, lead_id=?, contact_id=?, receipt_json=?, occurred_at=?, updated_at=?, trace_id=?, payload_json=? WHERE id=?`,
 		n.SourceVersion, n.ProfileEventID, n.NotifyEventID, n.DeliveryID, n.BodySHA256,
-		nullable(n.LeadID), nullable(n.ContactID), n.ReceiptJSON, n.OccurredAt, now(), id)
+		nullable(n.LeadID), nullable(n.ContactID), n.ReceiptJSON, n.OccurredAt, now(),
+		n.TraceID, n.PayloadJSON, id)
 	return err
 }
 
@@ -245,6 +250,45 @@ func SetContactNotesIfEmptyTx(tx *sql.Tx, tenantID, contactID, notes string) err
 type rowQuery interface {
 	Query(query string, args ...any) (*sql.Rows, error)
 	QueryRow(query string, args ...any) *sql.Row
+}
+
+func (s *Store) GetNotifyInboxByTrace(app, ns, sourceTenant, traceID string, sourceVersion int) (NotifyInbox, error) {
+	return getInboxByTrace(s.DB, app, ns, sourceTenant, traceID, sourceVersion)
+}
+
+func GetNotifyInboxByTraceTx(tx *sql.Tx, app, ns, sourceTenant, traceID string, sourceVersion int) (NotifyInbox, error) {
+	return getInboxByTrace(tx, app, ns, sourceTenant, traceID, sourceVersion)
+}
+
+func getInboxByTrace(q rowQuery, app, ns, sourceTenant, traceID string, sourceVersion int) (NotifyInbox, error) {
+	if traceID == "" {
+		return NotifyInbox{}, sql.ErrNoRows
+	}
+	rows, err := q.Query(`SELECT `+inboxCols+` FROM notify_inbox WHERE source_app=? AND source_ns=? AND source_tenant_id=? AND trace_id=? AND source_version=?`,
+		app, ns, sourceTenant, traceID, sourceVersion)
+	if err != nil {
+		return NotifyInbox{}, err
+	}
+	defer rows.Close()
+	var out []NotifyInbox
+	for rows.Next() {
+		n, err := scanInbox(rows)
+		if err != nil {
+			return NotifyInbox{}, err
+		}
+		out = append(out, n)
+	}
+	if err := rows.Err(); err != nil {
+		return NotifyInbox{}, err
+	}
+	switch len(out) {
+	case 0:
+		return NotifyInbox{}, sql.ErrNoRows
+	case 1:
+		return out[0], nil
+	default:
+		return NotifyInbox{}, ErrAmbiguousNotify
+	}
 }
 
 func (s *Store) GetNotifyInboxBySourceEvent(app, ns, sourceTenant, eventID string) (NotifyInbox, error) {
