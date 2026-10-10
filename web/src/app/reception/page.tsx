@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, acceptDeskPayload, factTone, failureText, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
+import { MISSING_SCOPE, acceptDeskPayload, factTone, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
 import { MODE_TEXT, PENDING_TEXT } from "@/lib/reception";
 import { searchToken, todayReturnHref } from "@/lib/workbench";
+import { receptionDeskLoad } from "./desk-load";
 import SessionPanel from "./session-panel";
 
 // 接待工作台（HUI-1688 → HUI-1893 可读）。只展示负责人、待处理原因、人工待办和下一次跟进。
@@ -84,16 +85,17 @@ export default function ReceptionDeskPage() {
         const who = await fetch("/api/whoami", { headers });
         const whoBody = await who.json().catch(() => ({}));
         const res = await fetch("/api/reception/desk", { headers });
-        const body = await res.json();
+        const loaded = receptionDeskLoad(res.status, await res.text());
         const roleText = who.ok && typeof whoBody.role === "string" ? whoBody.role : "";
-        if (!res.ok) {
+        if (!loaded.ok) {
           const accepted = acceptDeskPayload(gen.current, seq, tenant, [] as DeskItem[]);
           if (cancelled || accepted === null) return;
           setRole(roleText);
-          setError(failureText(body, res.status));
+          setError(loaded.message);
           setItems([]);
           return;
         }
+        const body = loaded.body as { items?: DeskItem[] };
         const accepted = acceptDeskPayload(gen.current, seq, tenant, (body.items ?? []) as DeskItem[]);
         if (cancelled || accepted === null) return;
         setRole(roleText);
