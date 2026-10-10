@@ -59,18 +59,27 @@ type PayloadRef struct {
 }
 
 // Payload is non-contact provenance carried beside the reference.
+// CampaignVersion is a string and is not the integer SourceVersion.
+// BrandDisplayName is display copy only; it is never a tenant id.
+// GrantRef is stored as a reference and is not a payment result.
 type Payload struct {
-	CampaignRef    string `json:"campaign_ref"`
-	StoreRef       string `json:"store_ref"`
-	Channel        string `json:"channel"`
-	Tag            string `json:"tag"`
-	AssetRef       string `json:"asset_ref"`
-	SourceVersion  int    `json:"source_version"`
-	ConsentRef     string `json:"consent_ref"`
-	ConsentVersion string `json:"consent_version"`
-	ConsentAt      string `json:"consent_at"`
-	MarketingOptin bool   `json:"marketing_optin"`
-	Revoked        bool   `json:"revoked"`
+	CampaignRef          string `json:"campaign_ref"`
+	StoreRef             string `json:"store_ref"`
+	Channel              string `json:"channel"`
+	Tag                  string `json:"tag"`
+	AssetRef             string `json:"asset_ref"`
+	SourceVersion        int    `json:"source_version"`
+	ConsentRef           string `json:"consent_ref"`
+	ConsentVersion       string `json:"consent_version"`
+	ConsentAt            string `json:"consent_at"`
+	MarketingOptin       bool   `json:"marketing_optin"`
+	Revoked              bool   `json:"revoked"`
+	TraceID              string `json:"trace_id,omitempty"`
+	ReturnTarget         string `json:"return_target,omitempty"`
+	CampaignVersion      string `json:"campaign_version,omitempty"`
+	GrantRef             string `json:"grant_ref,omitempty"`
+	BrandDisplayName     string `json:"brand_display_name,omitempty"`
+	NotificationBrandRef string `json:"notification_brand_ref,omitempty"`
 }
 
 var contactKeyFragments = []string{
@@ -132,20 +141,22 @@ func ParseDelivery(body []byte) (Delivery, error) {
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
 		return Delivery{}, errors.New("event_profile trailing content")
 	}
+	payloadPresent := false
 	if rawPayload, ok := data["payload"]; ok {
+		payloadPresent = true
 		pdec := json.NewDecoder(bytes.NewReader(rawPayload))
 		pdec.DisallowUnknownFields()
 		if err := pdec.Decode(&d.Payload); err != nil {
 			return Delivery{}, fmt.Errorf("payload: %w", err)
 		}
 	}
-	if err := validateDelivery(&d); err != nil {
+	if err := validateDelivery(&d, payloadPresent); err != nil {
 		return Delivery{}, err
 	}
 	return d, nil
 }
 
-func validateDelivery(d *Delivery) error {
+func validateDelivery(d *Delivery, payloadPresent bool) error {
 	if d.SchemaVersion < 1 {
 		return errors.New("schema_version must be >= 1")
 	}
@@ -179,7 +190,86 @@ func validateDelivery(d *Delivery) error {
 	if _, err := hex.DecodeString(d.Profile.PayloadRef.SHA256); err != nil || strings.ToLower(d.Profile.PayloadRef.SHA256) != d.Profile.PayloadRef.SHA256 {
 		return errors.New("payload_ref.sha256")
 	}
+	if payloadPresent && d.Payload.SourceVersion != d.Profile.SourceVersion {
+		return errors.New("payload source_version must match event_profile source_version")
+	}
+	if d.Payload.TraceID != "" && d.Payload.TraceID != "lead:"+d.Profile.SourceRef {
+		return errors.New("trace_id must be lead:<source_ref>")
+	}
+	if !campaignVersionOK(d.Payload.CampaignVersion) {
+		return errors.New("campaign_version")
+	}
+	if !returnTargetOK(d.Payload.ReturnTarget) {
+		return errors.New("return_target")
+	}
+	if d.Payload.GrantRef != "" && !token(d.Payload.GrantRef, 128) {
+		return errors.New("grant_ref")
+	}
+	if d.Payload.NotificationBrandRef != "" && !token(d.Payload.NotificationBrandRef, 128) {
+		return errors.New("notification_brand_ref")
+	}
+	if utf8.RuneCountInString(d.Payload.BrandDisplayName) > 128 || strings.ContainsAny(d.Payload.BrandDisplayName, "\r\n") {
+		return errors.New("brand_display_name")
+	}
 	return nil
+}
+
+func campaignVersionOK(s string) bool {
+	if s == "" {
+		return true
+	}
+	return token(s, 64)
+}
+
+func returnTargetOK(s string) bool {
+	if s == "" {
+		return true
+	}
+	if len(s) > 256 || !strings.HasPrefix(s, "/") || strings.Contains(s, "://") || strings.ContainsAny(s, " \t\r\n") {
+		return false
+	}
+	return true
+}
+
+// intakeFact is the idempotency identity of one trace version.
+// Event id and transport fields are not part of it.
+type intakeFact struct {
+	EventType      string     `json:"event_type"`
+	SourceRef      string     `json:"source_ref"`
+	SourceVersion  int        `json:"source_version"`
+	PayloadRef     PayloadRef `json:"payload_ref"`
+	CorrelationRef string     `json:"correlation_ref,omitempty"`
+	Payload        Payload    `json:"payload"`
+}
+
+func factOf(d Delivery) intakeFact {
+	ref := ""
+	if d.Profile.Correlation != nil {
+		ref = d.Profile.Correlation.Ref
+	}
+	return intakeFact{
+		EventType: d.Profile.EventType, SourceRef: d.Profile.SourceRef, SourceVersion: d.Profile.SourceVersion,
+		PayloadRef: d.Profile.PayloadRef, CorrelationRef: ref, Payload: d.Payload,
+	}
+}
+
+// CanonicalFact is the stored JSON for one accepted fact.
+func CanonicalFact(d Delivery) string {
+	b, _ := json.Marshal(factOf(d))
+	return string(b)
+}
+
+// SameFact reports whether stored JSON is the same fact as d.
+// An empty stored fact is not a match.
+func SameFact(stored string, d Delivery) bool {
+	if stored == "" {
+		return false
+	}
+	var got intakeFact
+	if err := json.Unmarshal([]byte(stored), &got); err != nil {
+		return false
+	}
+	return got == factOf(d)
 }
 
 func token(s string, max int) bool {

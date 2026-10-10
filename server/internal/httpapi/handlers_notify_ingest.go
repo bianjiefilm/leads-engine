@@ -73,6 +73,11 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 	sourceApp := delivery.Profile.SourceApp
 	sourceNS := tenantmap.NamespaceNotify
 	bodySHA := notifyingest.BodySHA256(body)
+	// 同一 trace_id + 整数 source_version：事实相同回原回执，不插第二行；事实不同则冲突，不覆盖。
+	// 更高的 source_version（撤回）不是这一版的重复。brand_display_name 不参与租户。
+	if row, err := s.St.GetNotifyInboxByTrace(sourceApp, sourceNS, sourceTenant, delivery.Payload.TraceID, delivery.Profile.SourceVersion); respondTrace(w, row, err, delivery) {
+		return
+	}
 	// Replay is keyed by the source identity stored on the first accept.
 	// Current bindings are not consulted, so a later local tenant or a
 	// changed map cannot move the receipt.
@@ -131,6 +136,23 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	if row, err := store.GetNotifyInboxByTraceTx(tx, sourceApp, sourceNS, sourceTenant, delivery.Payload.TraceID, delivery.Profile.SourceVersion); traceKindOf(row, err, delivery) != traceNone {
+		switch traceKindOf(row, err, delivery) {
+		case traceLookupErr:
+			fail(w, http.StatusInternalServerError, "internal", "trace lookup failed")
+			return
+		case traceConflict:
+			fail(w, http.StatusConflict, "event_content_conflict", "the same trace and source_version were delivered with different content")
+			return
+		default:
+			if err := tx.Commit(); err != nil {
+				fail(w, http.StatusInternalServerError, "internal", "ingest commit failed")
+				return
+			}
+			writeReceipt(w, row.ReceiptJSON)
+			return
+		}
+	}
 	if existing, err := getInboxEvent(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.EventID); err == nil {
 		if existing.BodySHA256 != bodySHA {
 			fail(w, http.StatusConflict, "event_content_conflict", "the same event key was delivered with different content")
@@ -317,6 +339,7 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		LeadID: leadID, ContactID: contactID, ReceiptJSON: string(raw), OccurredAt: occurred,
 		SourceNS: sourceNS, SourceTenantID: sourceTenant,
 		MapTargetTenantID: decision.TargetTenant, MapVersion: decision.Version, MapBasis: decision.Basis,
+		TraceID: delivery.Payload.TraceID, PayloadJSON: notifyingest.CanonicalFact(delivery),
 	}
 	var writeErr error
 	if advance {
@@ -325,6 +348,18 @@ func (s *Server) handleNotifyIngest(w http.ResponseWriter, r *http.Request) {
 		writeErr = store.InsertNotifyInboxTx(tx, inboxRow)
 	}
 	if writeErr != nil && uniqueViolation(writeErr) {
+		if row, rerr := store.GetNotifyInboxByTraceTx(tx, sourceApp, sourceNS, sourceTenant, delivery.Payload.TraceID, delivery.Profile.SourceVersion); rerr == nil {
+			if notifyingest.SameFact(row.PayloadJSON, delivery) {
+				if err := tx.Commit(); err != nil {
+					fail(w, http.StatusInternalServerError, "internal", "ingest commit failed")
+					return
+				}
+				writeReceipt(w, row.ReceiptJSON)
+				return
+			}
+			fail(w, http.StatusConflict, "event_content_conflict", "the same trace and source_version were delivered with different content")
+			return
+		}
 		if row, rerr := getInboxEvent(tx, sourceApp, sourceNS, sourceTenant, delivery.Profile.EventID); rerr == nil && row.BodySHA256 == bodySHA {
 			if err := tx.Commit(); err != nil {
 				fail(w, http.StatusInternalServerError, "internal", "ingest commit failed")
@@ -435,15 +470,60 @@ func provenanceSnapshot(d notifyingest.Delivery, sourceTenant string, decision t
 		"campaign_ref": d.Payload.CampaignRef, "store_ref": d.Payload.StoreRef,
 		"channel": d.Payload.Channel, "tag": d.Payload.Tag, "asset_ref": d.Payload.AssetRef,
 		"source_version": d.Profile.SourceVersion, "occurred_at": d.OccurredAt.UTC().Format(time.RFC3339),
-		"consent_version":      d.Payload.ConsentVersion,
-		"source_tenant_id":     sourceTenant,
-		"map_target_tenant_id": decision.TargetTenant,
-		"map_version":          decision.Version,
-		"map_basis":            decision.Basis,
-		"source_app":           d.Profile.SourceApp,
-		"source_ns":            decision.SourceNS,
+		"campaign_version":       d.Payload.CampaignVersion,
+		"trace_id":               d.Payload.TraceID,
+		"return_target":          d.Payload.ReturnTarget,
+		"grant_ref":              d.Payload.GrantRef,
+		"consent_ref":            d.Payload.ConsentRef,
+		"consent_version":        d.Payload.ConsentVersion,
+		"consent_at":             d.Payload.ConsentAt,
+		"marketing_optin":        d.Payload.MarketingOptin,
+		"brand_display_name":     d.Payload.BrandDisplayName,
+		"notification_brand_ref": d.Payload.NotificationBrandRef,
+		"source_tenant_id":       sourceTenant,
+		"map_target_tenant_id":   decision.TargetTenant,
+		"map_version":            decision.Version,
+		"map_basis":              decision.Basis,
+		"source_app":             d.Profile.SourceApp,
+		"source_ns":              decision.SourceNS,
 	})
 	return string(b)
+}
+
+type traceKind int
+
+const (
+	traceNone traceKind = iota
+	traceReplayHit
+	traceConflict
+	traceLookupErr
+)
+
+func traceKindOf(row store.NotifyInbox, err error, d notifyingest.Delivery) traceKind {
+	if d.Payload.TraceID == "" || errors.Is(err, sql.ErrNoRows) {
+		return traceNone
+	}
+	if err != nil {
+		return traceLookupErr
+	}
+	if !notifyingest.SameFact(row.PayloadJSON, d) {
+		return traceConflict
+	}
+	return traceReplayHit
+}
+
+func respondTrace(w http.ResponseWriter, row store.NotifyInbox, err error, d notifyingest.Delivery) bool {
+	switch traceKindOf(row, err, d) {
+	case traceNone:
+		return false
+	case traceLookupErr:
+		fail(w, http.StatusInternalServerError, "internal", "trace lookup failed")
+	case traceConflict:
+		fail(w, http.StatusConflict, "event_content_conflict", "the same trace and source_version were delivered with different content")
+	default:
+		writeReceipt(w, row.ReceiptJSON)
+	}
+	return true
 }
 
 func firstNonEmptyStr(vals ...string) string {

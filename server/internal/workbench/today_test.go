@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,75 @@ func TestTodayKeepsRefusalsDraftsAndScope(t *testing.T) {
 	ignoredSuggestion := IgnoreSuggestion(ResolveNext(LeadView{Status: "new", AIScore: 80}, now))
 	if ignoredSuggestion.Source != "manual" || ignoredSuggestion.Kind != "none" || ignoredSuggestion.AutoCall {
 		t.Fatalf("ignore suggestion = %+v", ignoredSuggestion)
+	}
+}
+
+func TestTodaySessionWithoutLeadKeepsSessionContext(t *testing.T) {
+	now := time.Date(2026, 10, 10, 2, 0, 0, 0, time.UTC)
+	session := ReceptionView{
+		SessionID: "take-bare", TenantID: "tnt_a", Assignee: "sales1", OwnerLabel: "Sales A1",
+		Mode: "human", Epoch: 2, Version: 3, HumanTodo: true, PendingReason: "human_takeover",
+	}
+	res := BuildWithDrafts(Scope{Role: "sales", MemberID: "sales1"}, now, nil, nil, []ReceptionView{session}, nil)
+	item, ok := todayItem(res, TodayHuman, "take-bare")
+	if !ok {
+		t.Fatal("session without a lead left today")
+	}
+	if item.Context.Customer != "" || item.Source.Channel != "" || item.Source.Activity != "" || item.Source.Form != "" {
+		t.Fatalf("invented customer or source: %+v %+v", item.Context, item.Source)
+	}
+	if strings.Join(item.Context.Facts, ",") != "会话" {
+		t.Fatalf("facts = %v", item.Context.Facts)
+	}
+	if strings.Join(item.Ask, ",") != "客户姓名,来源" {
+		t.Fatalf("ask = %v", item.Ask)
+	}
+	if item.Next.Kind != "write_reply_draft" || item.Next.AutoCall || item.Next.AutoMessage || item.Next.CreateOrder {
+		t.Fatalf("next = %+v", item.Next)
+	}
+	if item.Next.Label != "先写回复草稿" || !strings.Contains(item.Basis, "不会发送") {
+		t.Fatalf("label/basis = %q %q", item.Next.Label, item.Basis)
+	}
+	if item.LastInteraction.Summary != "需要人工接管" {
+		t.Fatalf("interaction = %+v", item.LastInteraction)
+	}
+	body, err := SaveReplyDraft("  先记一版，先不发  ")
+	if err != nil || body != "先记一版，先不发" {
+		t.Fatalf("save = %q %v", body, err)
+	}
+	if _, err := SaveReplyDraft("  "); !errors.Is(err, ErrDraftEmpty) {
+		t.Fatal("empty draft was accepted")
+	}
+}
+
+func TestTodaySessionWithLeadAppendsSessionFactOnly(t *testing.T) {
+	now := time.Date(2026, 10, 10, 2, 0, 0, 0, time.UTC)
+	lead := LeadView{
+		ID: "lead-gap", TenantID: "tnt_a", ContactID: "c_gap", Status: "qualified",
+	}
+	session := ReceptionView{
+		SessionID: "take-gap", TenantID: "tnt_a", LeadID: lead.ID, Assignee: "sales1", OwnerLabel: "Sales A1",
+		Mode: "human", Epoch: 2, Version: 3, HumanTodo: true, PendingReason: "human_takeover",
+	}
+	res := BuildWithDrafts(Scope{Role: "owner", MemberID: "owner1"}, now, []LeadView{lead}, nil, []ReceptionView{session}, nil)
+	item, ok := todayItem(res, TodayHuman, "take-gap")
+	if !ok {
+		t.Fatal("session with a lead left today")
+	}
+	if !containsString(item.Context.Facts, "会话") {
+		t.Fatalf("facts = %v", item.Context.Facts)
+	}
+	if item.Context.ContactID != "c_gap" || item.Context.Customer != "" {
+		t.Fatalf("context = %+v", item.Context)
+	}
+	if item.Source.Channel != "" || item.Source.Activity != "" || item.Source.Form != "" {
+		t.Fatalf("source = %+v", item.Source)
+	}
+	if !containsString(item.Ask, "业务类别") || !containsString(item.Ask, "负责人") {
+		t.Fatalf("ask = %v", item.Ask)
+	}
+	if item.Next.Kind != "none" || item.Next.AutoCall || item.Next.AutoMessage || item.Next.CreateOrder {
+		t.Fatalf("next = %+v", item.Next)
 	}
 }
 

@@ -405,6 +405,8 @@ func actionLabel(kind string) string {
 		return "等待客户回复"
 	case "confirm_draft":
 		return "确认或修改草稿"
+	case "write_reply_draft":
+		return "先写回复草稿"
 	default:
 		return "无系统动作"
 	}
@@ -785,6 +787,11 @@ func AssembleTimeline(events []TimelineEvent, reveal bool) []TimelineEvent {
 
 var errDraftNotEditable = errors.New("draft is not editable")
 
+// ErrDraftEmpty rejects a reply draft with no text. Saving never sends.
+var ErrDraftEmpty = errors.New("draft body is empty")
+
+const sessionDraftBasis = "回复草稿只保存在服务端，不会发送给访客"
+
 // ErrDraftTooLong is the reception message cap applied to a draft edit.
 var ErrDraftTooLong = errors.New("draft body is too long")
 
@@ -859,6 +866,82 @@ func ReviseDraft(status, body string) (DraftDecision, string, error) {
 		return DraftDecision{Status: status, Sent: status == "sent"}, body, errDraftNotEditable
 	}
 	return DraftDecision{Status: "generated", Sent: false}, body, nil
+}
+
+// SaveReplyDraft trims a human reply draft. It does not approve or send.
+func SaveReplyDraft(body string) (string, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return "", ErrDraftEmpty
+	}
+	if utf8.RuneCountInString(body) > DraftBodyMaxRunes {
+		return "", ErrDraftTooLong
+	}
+	return body, nil
+}
+
+// ProjectSessionContext is the context of a reception session that has no
+// confirmed customer yet. It does not invent a name or a source.
+func ProjectSessionContext(session ReceptionView) ConfirmedContext {
+	_ = session
+	return ConfirmedContext{Facts: []string{"会话"}, Ask: []string{"客户姓名", "来源"}}
+}
+
+func sessionPendingSummary(reason string) string {
+	switch strings.TrimSpace(reason) {
+	case "human_takeover":
+		return "需要人工接管"
+	case "waiting_reply", "awaiting_customer":
+		return "等待回复"
+	case "model_unavailable":
+		return "模型不可用，仍可写草稿"
+	case "clarify_or_handoff":
+		return "需要澄清或交接"
+	case "awaiting_approval":
+		return "草稿待批准"
+	default:
+		return "会话待处理"
+	}
+}
+
+func hasFact(facts []string, want string) bool {
+	for _, fact := range facts {
+		if fact == want {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureSessionContext names the session. A linked lead keeps its context,
+// ask, contact, and next step, including next kind none. A row with no lead
+// gets only the session gaps.
+func ensureSessionContext(item Item, session ReceptionView) Item {
+	if item.LeadID != "" {
+		if !hasFact(item.Context.Facts, "会话") {
+			item.Context.Facts = append(item.Context.Facts, "会话")
+		}
+		if strings.TrimSpace(item.LastInteraction.Summary) == "" {
+			item.LastInteraction.Summary = sessionPendingSummary(session.PendingReason)
+		}
+		return item
+	}
+	if !hasFact(item.Context.Facts, "会话") {
+		if item.Context.Customer != "" || len(item.Context.Facts) > 0 {
+			item.Context.Facts = append(item.Context.Facts, "会话")
+		} else {
+			item.Context = ProjectSessionContext(session)
+			item.Ask = append([]string{}, item.Context.Ask...)
+		}
+	}
+	if item.Next.Kind == "" || item.Next.Kind == "none" {
+		item.Next = safeAction("write_reply_draft", "suggestion", "")
+		item.Basis = sessionDraftBasis
+	}
+	if strings.TrimSpace(item.LastInteraction.Summary) == "" {
+		item.LastInteraction.Summary = sessionPendingSummary(session.PendingReason)
+	}
+	return item
 }
 
 // ProjectContext reuses confirmed customer facts and lists only the gaps.
@@ -1063,7 +1146,7 @@ func projectToday(scope Scope, now time.Time, leads []LeadView, opps []Opportuni
 			if lead, ok := findLead(leads, session.LeadID); ok && InScope(scope, lead.Assignee) {
 				item = copyLeadFacts(item, lead, opps)
 			}
-			today[TodayHuman] = append(today[TodayHuman], item)
+			today[TodayHuman] = append(today[TodayHuman], ensureSessionContext(item, session))
 			continue
 		}
 		if session.WaitingReply {
@@ -1072,7 +1155,7 @@ func projectToday(scope Scope, now time.Time, leads []LeadView, opps []Opportuni
 			if lead, ok := findLead(leads, session.LeadID); ok && InScope(scope, lead.Assignee) {
 				item = copyLeadFacts(item, lead, opps)
 			}
-			today[TodayWaiting] = append(today[TodayWaiting], item)
+			today[TodayWaiting] = append(today[TodayWaiting], ensureSessionContext(item, session))
 		}
 	}
 	for _, draft := range drafts {

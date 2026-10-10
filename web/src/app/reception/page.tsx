@@ -5,8 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { RecordFrame, SurfaceState, useShellWidth } from "@/components/workbench/chrome";
 import { Button } from "@/vendor/painuo/react/v1/src/index";
 import { useCrmScope } from "@/lib/eco-nav/use-crm-scope";
-import { MISSING_SCOPE, acceptDeskPayload, factTone, failureText, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
+import { MISSING_SCOPE, acceptDeskPayload, factTone, listTenantHeader, pagePrimary, productError, receptionSessionFrame } from "@/lib/productShell";
 import { MODE_TEXT, PENDING_TEXT } from "@/lib/reception";
+import { searchToken, todayReturnHref } from "@/lib/workbench";
+import { receptionDeskLoad } from "./desk-load";
 import SessionPanel from "./session-panel";
 
 // 接待工作台（HUI-1688 → HUI-1893 可读）。只展示负责人、待处理原因、人工待办和下一次跟进。
@@ -37,6 +39,8 @@ export default function ReceptionDeskPage() {
   const [selected, setSelected] = useState("");
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [returnFocus, setReturnFocus] = useState("");
+  const [wantedSession, setWantedSession] = useState("");
   const [seenTenant, setSeenTenant] = useState(scope.tenant);
   const gen = useRef({ seq: 0, tenant: "" });
 
@@ -48,6 +52,19 @@ export default function ReceptionDeskPage() {
     setError("");
     setRole("");
   }
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    setReturnFocus(searchToken(query.get("focus")));
+    setWantedSession(searchToken(query.get("session")));
+  }, []);
+
+  useEffect(() => {
+    if (!wantedSession || !items || !scope.tenant) return;
+    if (!items.some((item) => item.session_id === wantedSession)) return;
+    setSelected(wantedSession);
+    setSelectedTenant(scope.tenant);
+  }, [wantedSession, items, scope.tenant]);
 
   useEffect(() => {
     const tenant = scope.tenant ?? "";
@@ -68,16 +85,17 @@ export default function ReceptionDeskPage() {
         const who = await fetch("/api/whoami", { headers });
         const whoBody = await who.json().catch(() => ({}));
         const res = await fetch("/api/reception/desk", { headers });
-        const body = await res.json();
+        const loaded = receptionDeskLoad(res.status, await res.text());
         const roleText = who.ok && typeof whoBody.role === "string" ? whoBody.role : "";
-        if (!res.ok) {
+        if (!loaded.ok) {
           const accepted = acceptDeskPayload(gen.current, seq, tenant, [] as DeskItem[]);
           if (cancelled || accepted === null) return;
           setRole(roleText);
-          setError(failureText(body, res.status));
+          setError(loaded.message);
           setItems([]);
           return;
         }
+        const body = loaded.body as { items?: DeskItem[] };
         const accepted = acceptDeskPayload(gen.current, seq, tenant, (body.items ?? []) as DeskItem[]);
         if (cancelled || accepted === null) return;
         setRole(roleText);
@@ -101,7 +119,7 @@ export default function ReceptionDeskPage() {
     <main data-page="reception">
       <header className="page-head">
         <h1>接待工作台</h1>
-        <Link className="btn" href="/">返回工作台</Link>
+        <Link className="btn" href={returnFocus ? todayReturnHref(returnFocus) : "/"}>{returnFocus ? "返回继续" : "返回工作台"}</Link>
       </header>
       <p className="muted">
         <span data-tone="human">人工事实</span> 当前身份：{ROLE_TEXT[role] ?? "未确认"}。当前负责人、待处理原因和人工待办。

@@ -406,6 +406,31 @@ export function todaySaveReady(appliedTenant: string | null, tenant: string | nu
 }
 
 // questionsFor shows gaps, or only the changed confirmed facts. It never repeats the whole profile.
+// searchToken keeps a continue target. Anything else is dropped, not decoded into a path.
+export function searchToken(value: string | null, max = 128): string {
+  const text = (value ?? "").trim();
+  if (!text || text.length > max) return "";
+  if (!/^[A-Za-z0-9._:@-]+$/.test(text)) return "";
+  return text;
+}
+
+// receptionOpenHref opens one session and remembers which today row to resume.
+export function receptionOpenHref(sessionId: string, focusId: string): string {
+  const session = searchToken(sessionId);
+  if (!session) return "/reception";
+  const query = new URLSearchParams({ session });
+  const focus = searchToken(focusId);
+  if (focus) query.set("focus", focus);
+  return `/reception?${query.toString()}`;
+}
+
+// todayReturnHref resumes the same today row. An empty focus stays on the desk.
+export function todayReturnHref(focusId: string): string {
+  const focus = searchToken(focusId);
+  if (!focus) return "/";
+  return `/?focus=${encodeURIComponent(focus)}`;
+}
+
 export function questionsFor(confirmed: string[], ask: string[], changed: string[]): string[] {
   if (changed.length > 0) {
     const allow = new Set([...confirmed, ...ask]);

@@ -32,6 +32,9 @@ import {
   todaySaveReady,
   followNote,
   reviseBody,
+  receptionOpenHref,
+  todayReturnHref,
+  searchToken,
 } from "@/lib/workbench";
 import fixture from "./fixtures/hui-1893-local-lead.json";
 
@@ -298,5 +301,24 @@ describe("sales desk", () => {
     expect(home).toContain("followNote");
     expect(home).not.toContain("只改变化项");
     expect(home).not.toMatch(/修改草稿[\s\S]*value=\{draft\.note\}/);
+  });
+});
+
+describe("today session continue", () => {
+  it("opens the same session and returns to the same today row", () => {
+    expect(searchToken("rcs_abc")).toBe("rcs_abc");
+    expect(searchToken("../etc")).toBe("");
+    expect(searchToken("")).toBe("");
+    expect(receptionOpenHref("rcs_abc", "take-bare")).toBe("/reception?session=rcs_abc&focus=take-bare");
+    expect(receptionOpenHref("", "take-bare")).toBe("/reception");
+    expect(todayReturnHref("take-bare")).toBe("/?focus=take-bare");
+    expect(todayReturnHref("")).toBe("/");
+    const home = readFileSync("src/app/(shell)/page.tsx", "utf8");
+    const reception = readFileSync("src/app/reception/page.tsx", "utf8");
+    expect(home).toContain("receptionOpenHref");
+    expect(home).toContain("/api/workbench/sessions/");
+    expect(home).toContain("reply-draft");
+    expect(reception).toContain("todayReturnHref");
+    expect(reception).toContain("searchToken");
   });
 });
