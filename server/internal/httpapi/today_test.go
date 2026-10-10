@@ -131,6 +131,50 @@ func TestTodayDraftCanBeEditedOrIgnoredWithoutSending(t *testing.T) {
 	}
 }
 
+func TestTodaySessionReplyDraftIsSavedAndNotSent(t *testing.T) {
+	h := newHarnessOpts(t, harnessOpts{featureReception: true})
+	tenantA, tenantB, _ := h.seed()
+	widget := h.mustDo("POST", "/api/v1/reception/widgets", sessionOwnerA, tenantA, `{"default_mode":"assist"}`, 201)
+	opened := h.mustDo("POST", "/api/v1/public/reception/widgets/"+widget["id"].(string)+"/sessions", "", "", `{"visitor_key":"visitor-key-draft01"}`, 201)
+	sid := opened["session"].(map[string]any)["id"].(string)
+	const body = "先记一版回复，不要发给访客"
+	saved := h.mustDo("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionOwnerA, tenantA,
+		`{"client_reply_id":"desk-draft-1","body":"`+body+`"}`, 201)
+	if saved["sent"] == true || saved["status"] != "generated" || saved["body"] != body || saved["duplicate"] == true {
+		t.Fatalf("save = %v", saved)
+	}
+	draftID, _ := saved["id"].(string)
+	cont, _ := saved["continue"].(map[string]any)
+	if draftID == "" || cont["focus_id"] != draftID || cont["session_id"] != sid || cont["today_group"] != "ai_draft" {
+		t.Fatalf("continue = %v id=%s", cont, draftID)
+	}
+	again := h.mustDo("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionOwnerA, tenantA,
+		`{"client_reply_id":"desk-draft-1","body":"`+body+`"}`, 200)
+	if again["duplicate"] != true || again["id"] != draftID || again["sent"] == true {
+		t.Fatalf("duplicate = %v", again)
+	}
+	if status, out, _ := h.do("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionOwnerA, tenantA,
+		`{"client_reply_id":"desk-draft-1","body":"另一版"}`); status != 409 || out["error"] != "reply_conflict" {
+		t.Fatalf("conflict = %d %v", status, out)
+	}
+	desk := h.mustDo("GET", "/api/v1/workbench", sessionOwnerA, tenantA, "", 200)
+	if !todayHas(desk, "ai_draft", draftID) {
+		t.Fatalf("saved draft missing from today: %s", mustJSON(desk["today"]))
+	}
+	publicRaw := h.mustDo("GET", "/api/v1/public/reception/sessions/"+sid+"?visitor_key=visitor-key-draft01", "", "", "", 200)
+	if strings.Contains(mustJSON(publicRaw), body) {
+		t.Fatalf("draft reached the visitor: %v", publicRaw)
+	}
+	if status, _, _ := h.do("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionOwnerB, tenantB,
+		`{"client_reply_id":"desk-draft-x","body":"越租户"}`); status != 404 {
+		t.Fatalf("cross-tenant save = %d", status)
+	}
+	if status, out, _ := h.do("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionOwnerA, tenantA,
+		`{"client_reply_id":"desk-empty","body":"  "}`); status != 400 {
+		t.Fatalf("empty = %d %v", status, out)
+	}
+}
+
 func TestTodaySiblingFollowUpDoesNotStealNewInquiry(t *testing.T) {
 	h := newHarnessOpts(t, harnessOpts{featureFollowups: true})
 	tenantA, _, _ := h.seed()

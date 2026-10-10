@@ -5,6 +5,7 @@
 // widening, no silent success), (4) fails closed when unconfigured.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bffPathToUpstream, proxyToServer, readBffEnv, type BffEnv } from "../src/lib/bff";
+import * as apiRoute from "@/app/api/[...path]/route";
 
 const ENV: BffEnv = { serverUrl: "http://127.0.0.1:18230", internalToken: "bff-internal-secret" };
 
@@ -135,6 +136,12 @@ async function call(method: string, path: string, opts: Parameters<typeof bffReq
 }
 
 // ---- config gate ------------------------------------------------------------------
+
+describe("BFF methods", () => {
+  it("forwards PUT so a light-copy save reaches the server", () => {
+    expect(apiRoute.PUT).toBe(apiRoute.POST);
+  });
+});
 
 describe("BFF config gate", () => {
   it("fails closed with 503 and never calls upstream when unconfigured", async () => {

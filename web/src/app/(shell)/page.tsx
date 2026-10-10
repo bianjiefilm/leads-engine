@@ -26,7 +26,9 @@ import {
   followNote,
   persistTodayMemory,
   questionsFor,
+  receptionOpenHref,
   recallToday,
+  searchToken,
   readTodayMemory,
   reviseBody,
   receptionFactLine,
@@ -93,8 +95,9 @@ export default function Home() {
 
   useEffect(() => {
     const restored = recallToday(readTodayMemory(), scope.tenant);
+    const focus = searchToken(new URLSearchParams(window.location.search).get("focus"));
     setDrafts(restored.drafts);
-    setFocusId(restored.focusId);
+    setFocusId(focus || restored.focusId);
     appliedTenant.current = null;
   }, [scope.tenant]);
 
@@ -192,6 +195,32 @@ export default function Home() {
       return next;
     });
     setDraftMsg(out.body.today_group === "scheduled_next" ? "已安排下一步，不在今天的待办里" : (out.body.next?.label ?? "已记下"));
+    setReload((n) => n + 1);
+  }
+
+  async function saveSessionDraft(item: DeskItem) {
+    const headers = listTenantHeader(scope.tenant);
+    if (!headers || !item.session_id) return;
+    const body = (draftFor(item.id).draftBody ?? "").trim();
+    if (!body) return;
+    setDraftMsg("");
+    const out = await postJson<{ sent?: boolean; continue?: { focus_id?: string }; message?: string; error?: string }>(
+      `/api/workbench/sessions/${item.session_id}/reply-draft`,
+      { "content-type": "application/json", ...headers },
+      { client_reply_id: `desk${Date.now()}`, body },
+    );
+    if (!out.ok || out.body.sent === true) {
+      setDraftMsg(!out.ok ? failureText(out.body, out.status) : "草稿没有只保存");
+      return;
+    }
+    const focus = searchToken(out.body.continue?.focus_id ?? "");
+    if (focus) setFocusId(focus);
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setDraftMsg("草稿已保存在服务端，尚未发送");
     setReload((n) => n + 1);
   }
 
@@ -294,6 +323,7 @@ export default function Home() {
                     onFollow={(mode) => void submitFollow(item, mode)}
                     onRevise={() => void reviseDraft(item)}
                     onIgnore={() => void ignoreDraft(item)}
+                    onSaveDraft={() => void saveSessionDraft(item)}
                     onService={() => setDraftMsg(serviceDraftClick().message)}
                   />
                 ))}
@@ -321,6 +351,7 @@ function TodayRow({
   onFollow,
   onRevise,
   onIgnore,
+  onSaveDraft,
   onService,
 }: {
   width: number;
@@ -332,6 +363,7 @@ function TodayRow({
   onFollow: (mode: "note" | "schedule") => void;
   onRevise: () => void;
   onIgnore: () => void;
+  onSaveDraft: () => void;
   onService: () => void;
 }) {
   const facts = renderLeadFacts(item, jointChain);
@@ -394,10 +426,12 @@ function TodayRow({
         <p data-joint-chain="incomplete">{facts.chain}</p>
         <div className="queue-actions">
           {/* HUI-2626 fix2（gate-r2 #6 主行动收敛）：行内导航至多一个——接待行→接待，线索行→线索，其余→商机。 */}
-          {item.lead_id ? (
+          {item.kind === "reception" && item.session_id ? (
+            <Link className="btn" href={receptionOpenHref(item.session_id, item.id)}>打开这个会话</Link>
+          ) : item.lead_id ? (
             <Link className="btn" href={`/leads/${item.lead_id}`} data-desk-action={NARROW_ACTIONS[0]}>{NARROW_ACTIONS[0]}</Link>
-          ) : item.kind === "reception" || item.session_id ? (
-            <Link className="btn" href="/reception">打开接待</Link>
+          ) : item.session_id ? (
+            <Link className="btn" href={receptionOpenHref(item.session_id, item.id)}>打开这个会话</Link>
           ) : item.opportunity_id ? (
             <Link className="btn" href={`/opportunities/${item.opportunity_id}`}>打开商机</Link>
           ) : null}
@@ -429,6 +463,21 @@ function TodayRow({
               {primaryRow ? null : secondaryFollow}
               <Button variant="secondary" type="button" size="sm" data-desk-action={NARROW_ACTIONS[2]} disabled={!draft.note.trim() || !draft.nextAt} onClick={() => onFollow("schedule")}>
                 {NARROW_ACTIONS[2]}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {item.kind === "reception" && item.session_id ? (
+          <div className="stack-form">
+            <Textarea
+              label="回复草稿"
+              value={draft.draftBody ?? ""}
+              onChange={(e) => onDraft({ draftBody: e.target.value })}
+              placeholder="先写给这位客户的回复，保存后不会发送"
+            />
+            <div className="queue-actions">
+              <Button variant="secondary" type="button" size="sm" disabled={!(draft.draftBody ?? "").trim()} onClick={onSaveDraft}>
+                保存草稿
               </Button>
             </div>
           </div>

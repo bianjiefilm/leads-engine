@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -246,6 +247,82 @@ func (s *Server) handleDraftRevise(w http.ResponseWriter, r *http.Request) {
 		"id": updated.ID, "status": decision.Status, "sent": decision.Sent, "body": updated.Body,
 		"auto_call": false, "auto_message": false,
 	})
+}
+
+// handleSessionReplyDraft stores a reply draft for the open session.
+// It never approves or sends. The visitor transcript stays unchanged.
+func (s *Server) handleSessionReplyDraft(w http.ResponseWriter, r *http.Request) {
+	c := callerFrom(r)
+	if !s.requireAction(c, authz.ActionUpdate, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
+		return
+	}
+	sess, err := s.St.GetReceptionSession(c.Member.TenantID, r.PathValue("id"))
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && !store.SessionVisible(c.Member.Role, c.Member.ID, sess)) {
+		fail(w, http.StatusNotFound, "not_found", "record not found")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "session lookup failed")
+		return
+	}
+	if !workbench.InScope(deskScope(c), sess.OwnerMemberID) {
+		fail(w, http.StatusNotFound, "not_found", "record not found")
+		return
+	}
+	if sess.Status != "open" {
+		fail(w, http.StatusConflict, "session_closed", "session is closed")
+		return
+	}
+	var in struct {
+		ClientReplyID string `json:"client_reply_id"`
+		Body          string `json:"body"`
+	}
+	if !decodeBody(w, r, &in) {
+		return
+	}
+	if !receptionToken(in.ClientReplyID, 128) {
+		fail(w, http.StatusBadRequest, "bad_request", "client_reply_id is required")
+		return
+	}
+	body, err := workbench.SaveReplyDraft(in.Body)
+	if errors.Is(err, workbench.ErrDraftTooLong) {
+		fail(w, http.StatusBadRequest, "bad_request", "body must be at most 2000 characters")
+		return
+	}
+	if err != nil {
+		fail(w, http.StatusBadRequest, "bad_request", "body is required")
+		return
+	}
+	existing, err := s.St.GetReceptionReplyByClient(sess.ID, in.ClientReplyID)
+	if err == nil {
+		if existing.Body != body {
+			fail(w, http.StatusConflict, "reply_conflict", "this client_reply_id was already used")
+			return
+		}
+		writeJSON(w, http.StatusOK, replyDraftSaved(existing, sess.ID, true))
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		fail(w, http.StatusInternalServerError, "internal", "reply draft lookup failed")
+		return
+	}
+	rp, err := s.St.InsertReceptionReply(store.ReceptionReply{
+		TenantID: sess.TenantID, SessionID: sess.ID, Epoch: sess.Epoch, SessionVersion: sess.Version,
+		Kind: "draft", Body: body, Status: "generated", ClientMsgID: in.ClientReplyID,
+	})
+	if err != nil {
+		fail(w, http.StatusInternalServerError, "internal", "reply draft failed")
+		return
+	}
+	writeJSON(w, http.StatusCreated, replyDraftSaved(rp, sess.ID, false))
+}
+
+func replyDraftSaved(rp store.ReceptionReply, sessionID string, duplicate bool) map[string]any {
+	return map[string]any{
+		"id": rp.ID, "status": rp.Status, "sent": rp.SentAt != "", "body": rp.Body, "duplicate": duplicate,
+		"auto_call": false, "auto_message": false,
+		"continue": map[string]any{"focus_id": rp.ID, "session_id": sessionID, "today_group": workbench.TodayAIDraft},
+	}
 }
 
 func (s *Server) draftForCaller(w http.ResponseWriter, r *http.Request, c *caller) (store.ReceptionReply, store.ReceptionSession, bool) {
