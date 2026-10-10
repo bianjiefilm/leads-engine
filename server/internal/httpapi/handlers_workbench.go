@@ -251,11 +251,9 @@ func (s *Server) handleDraftRevise(w http.ResponseWriter, r *http.Request) {
 
 // handleSessionReplyDraft stores a reply draft for the open session.
 // It never approves or sends. The visitor transcript stays unchanged.
+// Sales and agents may update only a session assigned to themselves.
 func (s *Server) handleSessionReplyDraft(w http.ResponseWriter, r *http.Request) {
 	c := callerFrom(r)
-	if !s.requireAction(c, authz.ActionUpdate, authz.RecordScope{TenantID: c.Member.TenantID}, w) {
-		return
-	}
 	sess, err := s.St.GetReceptionSession(c.Member.TenantID, r.PathValue("id"))
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && !store.SessionVisible(c.Member.Role, c.Member.ID, sess)) {
 		fail(w, http.StatusNotFound, "not_found", "record not found")
@@ -263,6 +261,9 @@ func (s *Server) handleSessionReplyDraft(w http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		fail(w, http.StatusInternalServerError, "internal", "session lookup failed")
+		return
+	}
+	if !s.requireAction(c, authz.ActionUpdate, authz.RecordScope{TenantID: c.Member.TenantID, AssigneeMemberID: sess.OwnerMemberID}, w) {
 		return
 	}
 	if !workbench.InScope(deskScope(c), sess.OwnerMemberID) {

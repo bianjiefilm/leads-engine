@@ -175,6 +175,42 @@ func TestTodaySessionReplyDraftIsSavedAndNotSent(t *testing.T) {
 	}
 }
 
+func TestSalesReplyDraftFollowsSessionOwner(t *testing.T) {
+	h := newHarnessOpts(t, harnessOpts{featureReception: true})
+	tenantA, _, _ := h.seed()
+	widget := h.mustDo("POST", "/api/v1/reception/widgets", sessionOwnerA, tenantA, `{"default_mode":"assist"}`, 201)
+	opened := h.mustDo("POST", "/api/v1/public/reception/widgets/"+widget["id"].(string)+"/sessions", "", "", `{"visitor_key":"visitor-key-owner01"}`, 201)
+	sid := opened["session"].(map[string]any)["id"].(string)
+	const body = "销售先记一版，不要发送"
+	if status, _, _ := h.do("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionSalesA1, tenantA,
+		`{"client_reply_id":"desk-unassigned","body":"`+body+`"}`); status != 404 {
+		t.Fatalf("unassigned sales save = %d", status)
+	}
+	h.mustDo("POST", "/api/v1/reception/sessions/"+sid+"/takeover", sessionSalesA1, tenantA, `{}`, 200)
+	saved := h.mustDo("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionSalesA1, tenantA,
+		`{"client_reply_id":"desk-own-1","body":"`+body+`"}`, 201)
+	if saved["status"] != "generated" || saved["sent"] == true || saved["body"] != body {
+		t.Fatalf("save = %v", saved)
+	}
+	staff := h.mustDo("GET", "/api/v1/reception/sessions/"+sid, sessionSalesA1, tenantA, "", 200)
+	replies, _ := staff["replies"].([]any)
+	if len(replies) != 1 {
+		t.Fatalf("replies = %v", staff["replies"])
+	}
+	reply, _ := replies[0].(map[string]any)
+	if reply["kind"] != "draft" || reply["status"] != "generated" || reply["sent_at"] != "" {
+		t.Fatalf("stored reply = %v", reply)
+	}
+	publicRaw := h.mustDo("GET", "/api/v1/public/reception/sessions/"+sid+"?visitor_key=visitor-key-owner01", "", "", "", 200)
+	if strings.Contains(mustJSON(publicRaw), body) {
+		t.Fatalf("draft reached the visitor: %v", publicRaw)
+	}
+	if status, _, _ := h.do("POST", "/api/v1/workbench/sessions/"+sid+"/reply-draft", sessionSalesA2, tenantA,
+		`{"client_reply_id":"desk-other","body":"别人的草稿"}`); status != 404 {
+		t.Fatalf("other sales save = %d", status)
+	}
+}
+
 func TestTodaySiblingFollowUpDoesNotStealNewInquiry(t *testing.T) {
 	h := newHarnessOpts(t, harnessOpts{featureFollowups: true})
 	tenantA, _, _ := h.seed()

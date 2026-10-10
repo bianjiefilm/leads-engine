@@ -913,9 +913,19 @@ func hasFact(facts []string, want string) bool {
 	return false
 }
 
-// ensureSessionContext keeps a lead's confirmed facts and still names the
-// session. A row with no customer gets only the session gaps.
+// ensureSessionContext names the session. A linked lead keeps its context,
+// ask, contact, and next step, including next kind none. A row with no lead
+// gets only the session gaps.
 func ensureSessionContext(item Item, session ReceptionView) Item {
+	if item.LeadID != "" {
+		if !hasFact(item.Context.Facts, "会话") {
+			item.Context.Facts = append(item.Context.Facts, "会话")
+		}
+		if strings.TrimSpace(item.LastInteraction.Summary) == "" {
+			item.LastInteraction.Summary = sessionPendingSummary(session.PendingReason)
+		}
+		return item
+	}
 	if !hasFact(item.Context.Facts, "会话") {
 		if item.Context.Customer != "" || len(item.Context.Facts) > 0 {
 			item.Context.Facts = append(item.Context.Facts, "会话")

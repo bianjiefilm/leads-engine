@@ -224,6 +224,37 @@ func TestTodaySessionWithoutLeadKeepsSessionContext(t *testing.T) {
 	}
 }
 
+func TestTodaySessionWithLeadAppendsSessionFactOnly(t *testing.T) {
+	now := time.Date(2026, 10, 10, 2, 0, 0, 0, time.UTC)
+	lead := LeadView{
+		ID: "lead-gap", TenantID: "tnt_a", ContactID: "c_gap", Status: "qualified",
+	}
+	session := ReceptionView{
+		SessionID: "take-gap", TenantID: "tnt_a", LeadID: lead.ID, Assignee: "sales1", OwnerLabel: "Sales A1",
+		Mode: "human", Epoch: 2, Version: 3, HumanTodo: true, PendingReason: "human_takeover",
+	}
+	res := BuildWithDrafts(Scope{Role: "owner", MemberID: "owner1"}, now, []LeadView{lead}, nil, []ReceptionView{session}, nil)
+	item, ok := todayItem(res, TodayHuman, "take-gap")
+	if !ok {
+		t.Fatal("session with a lead left today")
+	}
+	if !containsString(item.Context.Facts, "会话") {
+		t.Fatalf("facts = %v", item.Context.Facts)
+	}
+	if item.Context.ContactID != "c_gap" || item.Context.Customer != "" {
+		t.Fatalf("context = %+v", item.Context)
+	}
+	if item.Source.Channel != "" || item.Source.Activity != "" || item.Source.Form != "" {
+		t.Fatalf("source = %+v", item.Source)
+	}
+	if !containsString(item.Ask, "业务类别") || !containsString(item.Ask, "负责人") {
+		t.Fatalf("ask = %v", item.Ask)
+	}
+	if item.Next.Kind != "none" || item.Next.AutoCall || item.Next.AutoMessage || item.Next.CreateOrder {
+		t.Fatalf("next = %+v", item.Next)
+	}
+}
+
 func TestTodayUsesShanghaiCalendarBeforeEight(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

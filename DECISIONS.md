@@ -56,7 +56,7 @@
 - **D4-3 三态声明用「包裹真实分支」**：`<div data-state="loading|empty|error">` 包住对应 SurfaceState 分支而非塞隐藏节点——静态源声明与运行时 DOM 一致，任何口径下都真实；opportunities/[id] 的早退 main（无 id / 载入失败）同样带声明。
 - **D4-4 DateTimeField 标准件**：D2-12 豁免的原生 date/datetime-local 收进 `web/src/components/workbench/dateTimeField.tsx`（.dt-field/.dt-input token 化样式），受检页源不再有裸 `<input`，豁免语义集中在部件注释里。
 - **D4-5 form→div 接受 Enter 损失**：`<form` 计入 off_design_system，受检页改 `div.stack-form` + 按钮 onClick 提交；表单均为 1–2 字段，Enter 提交损失可接受，保存失败保留输入的既有行为不变。
-- **D4-6 主行动门控**：`{可执行 ? <Button data-page-primary> : <p class="muted">下一步提示</p>}`；今天页行内导航收敛为一条（线索>接待>商机），其余目的地降为页尾 muted 链——与 D2-7「每页恰好一个主行动」同规。
+- **D4-6 主行动门控**：`{可执行 ? <Button data-page-primary> : <p class="muted">下一步提示</p>}`；今天页行内导航收敛为一条（线索>接待>商机），其余目的地降为页尾 muted 链——与 D2-7「每页恰好一个主行动」同规。2026-10-10 裁定：今日行内仍只有一条导航；接待行（kind 为 reception 且有 session_id）这一条打开接待深链，即使同时有 lead_id；没有接待会话时顺序仍是线索、接待、商机。
 - **D4-7 partial 立态 + fixture 口径**：`outboundResultLine` 三头（部分完成/已完成/未完成）成为页面真实消费态；隔离栈按设计恒报 dial=false/connected=false（writeOutbound 硬编码），故浏览器证据用 playwright route 在 `POST /api/outbound/tasks` 响应上注入 `dial_succeeded=true, real_connected=false`——任务本身经 BFF→Go→SQLite 真实创建（201），fixture 只改「诚实回执位」，README/summary 均注明。
 - **D4-8 offline 走 SW 导航兜底**：`public/sw.js` 只拦 `request.mode === "navigate"`，install 预缓存 `offline.html`；离线导航得应用内离线卡（重试=location.reload，离线时禁用）。offline.html 用系统色（Canvas/CanvasText）零 hex、零浏览器错误文案。不碰 BFF/Redis。
 - **D4-9 溢出两处对症**：`.record-frame{overflow-wrap:anywhere}`（负责人 mem_ 56 位长 token 撑破 390）；`textarea{max-width:100%}`（IntentOnOpportunity/intent 的 cols=60≈502px）。ledger 11 页×5 视口全 false。
